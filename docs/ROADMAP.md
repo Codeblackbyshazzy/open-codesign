@@ -58,10 +58,13 @@ Depends on completion of `docs/RESEARCH_QUEUE.md`. After research is in:
 
 **Goal**: 1.0 quality.
 
-- [ ] Mac notarization + Windows Authenticode
-- [ ] Homebrew Cask + winget + scoop manifests
-- [ ] Auto-update (opt-in)
-- [ ] Install size budget verified ≤ 80 MB
+- [ ] **Distribution: package-manager-first** (decided 2026-04-18 — no paid signing certs yet)
+  - Homebrew Cask via `OpenCoworkAI/homebrew-tap`
+  - winget-pkgs PR
+  - scoop-extras PR
+  - Linux AppImage (no signing required)
+  - Direct .dmg / .exe download as fallback (README explains "unknown developer" workaround)
+  - Auto-update via `electron-updater` deferred until signing certs are sponsored — for now users `brew upgrade` / `winget upgrade`
 - [ ] Onboarding flow ≤ 3 steps
 - [ ] Documentation site (Fumadocs)
 - [ ] Public 1.0 release
