@@ -21,7 +21,7 @@ export function ErrorState({ message, onRetry, onDismiss }: ErrorStateProps) {
 
   return (
     <div className="h-full flex items-center justify-center p-6">
-      <div className="max-w-md w-full rounded-[var(--radius-2xl)] bg-[var(--color-surface)] border border-[var(--color-border)] shadow-[var(--shadow-card)] p-6">
+      <div className="max-w-lg w-full rounded-[var(--radius-2xl)] bg-[var(--color-surface)] border border-[var(--color-border)] shadow-[var(--shadow-card)] p-6">
         <div className="flex items-start gap-3 mb-4">
           <div className="w-10 h-10 rounded-[var(--radius-full)] bg-[var(--color-accent-muted)] flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5" style={{ color: 'var(--color-error)' }} />
@@ -35,7 +35,7 @@ export function ErrorState({ message, onRetry, onDismiss }: ErrorStateProps) {
             </p>
           </div>
         </div>
-        <pre className="text-[var(--text-xs)] text-[var(--color-text-secondary)] bg-[var(--color-surface-muted)] border border-[var(--color-border)] rounded-[var(--radius-md)] p-3 mb-4 max-h-32 overflow-auto whitespace-pre-wrap break-words">
+        <pre className="text-[var(--text-xs)] text-[var(--color-text-secondary)] bg-[var(--color-surface-muted)] border border-[var(--color-border)] rounded-[var(--radius-md)] p-3 mb-4 whitespace-pre-wrap break-words font-[var(--font-mono)]">
           {message}
         </pre>
         <div className="flex items-center gap-2 justify-end">
