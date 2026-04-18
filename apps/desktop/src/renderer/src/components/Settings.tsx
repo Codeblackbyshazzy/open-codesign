@@ -474,47 +474,43 @@ function ProviderCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const hasError = row.error !== undefined;
 
+  const stateClass = hasError
+    ? 'border-[var(--color-error)] bg-[var(--color-surface)]'
+    : row.isActive
+      ? 'border-[var(--color-border)] border-l-[var(--size-accent-stripe)] border-l-[var(--color-accent)] bg-[var(--color-accent-tint)]'
+      : 'border-[var(--color-border)] bg-[var(--color-surface)]';
+
   return (
     <div
-      className={`rounded-[var(--radius-lg)] border p-3 transition-colors ${
-        hasError
-          ? 'border-[var(--color-error)] bg-[var(--color-error-soft,var(--color-surface))]'
-          : row.isActive
-            ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)]'
-            : 'border-[var(--color-border)] bg-[var(--color-surface)]'
-      }`}
+      className={`rounded-[var(--radius-lg)] border px-[var(--space-3)] py-[var(--space-2_5)] transition-colors ${stateClass}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[var(--text-sm)] font-medium text-[var(--color-text-primary)]">
-              {label}
+      <div className="flex items-center justify-between gap-[var(--space-3)]">
+        <div className="min-w-0 flex items-center gap-2 flex-wrap">
+          <span className="text-[var(--text-sm)] font-medium text-[var(--color-text-primary)]">
+            {label}
+          </span>
+          {row.isActive && !hasError && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full border border-[var(--color-accent)] text-[var(--color-accent)] bg-transparent text-[var(--font-size-badge)] font-medium leading-none">
+              {t('settings.providers.active')}
             </span>
-            {row.isActive && !hasError && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-[var(--color-accent)] text-[var(--color-on-accent)] text-[var(--font-size-badge)] font-medium leading-none">
-                {t('settings.providers.active')}
-              </span>
-            )}
-            {hasError && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[var(--color-error)] text-[var(--color-on-accent)] text-[var(--font-size-badge)] font-medium leading-none">
-                <AlertTriangle className="w-2.5 h-2.5" />
-                {t('settings.providers.decryptionFailed')}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3 mt-1">
-            {!hasError && (
-              <code className="text-[var(--text-xs)] text-[var(--color-text-muted)] font-mono">
-                {row.maskedKey}
-              </code>
-            )}
-            {row.baseUrl && (
-              <span className="flex items-center gap-1 text-[var(--text-xs)] text-[var(--color-text-muted)]">
-                <Globe className="w-3 h-3" />
-                {row.baseUrl}
-              </span>
-            )}
-          </div>
+          )}
+          {hasError && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[var(--color-error)] text-[var(--color-on-accent)] text-[var(--font-size-badge)] font-medium leading-none">
+              <AlertTriangle className="w-2.5 h-2.5" />
+              {t('settings.providers.decryptionFailed')}
+            </span>
+          )}
+          {!hasError && (
+            <code className="text-[var(--text-xs)] text-[var(--color-text-muted)] font-mono">
+              {row.maskedKey}
+            </code>
+          )}
+          {row.baseUrl && (
+            <span className="flex items-center gap-1 text-[var(--text-xs)] text-[var(--color-text-muted)] min-w-0">
+              <Globe className="w-3 h-3 shrink-0" />
+              <span className="truncate">{row.baseUrl}</span>
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
@@ -639,7 +635,7 @@ function ActiveModelSelector({
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-[var(--color-border-subtle)] grid grid-cols-2 gap-3">
+    <div className="mt-[var(--space-2_5)] pt-[var(--space-2_5)] border-t border-[var(--color-border-subtle)] grid grid-cols-2 gap-[var(--space-3)]">
       <div>
         <p className="flex items-center gap-1 text-[var(--text-xs)] text-[var(--color-text-muted)] mb-1.5">
           <Cpu className="w-3 h-3" /> {t('settings.providers.primary')}
@@ -742,8 +738,8 @@ function ModelsTab() {
         />
       )}
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="space-y-[var(--space-3)]">
+        <div className="flex items-center justify-between gap-[var(--space-3)] min-h-[var(--size-control-sm)]">
           <SectionTitle>{t('settings.providers.sectionTitle')}</SectionTitle>
           <Button variant="secondary" size="sm" onClick={() => setShowAdd(true)}>
             <Plus className="w-3.5 h-3.5" />
@@ -776,6 +772,14 @@ function ModelsTab() {
                 onReEnterKey={setReEnterProvider}
               />
             ))}
+            <button
+              type="button"
+              onClick={() => setShowAdd(true)}
+              className="w-full flex items-center justify-center gap-[var(--space-1_5)] h-[var(--size-control-md)] rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] bg-transparent text-[var(--text-xs)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-secondary)] transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              {t('settings.providers.addProvider')}
+            </button>
           </div>
         )}
       </div>
@@ -878,7 +882,7 @@ function AppearanceTab() {
               onClick={() => setTheme(card.value)}
               className={`text-left p-4 rounded-[var(--radius-lg)] border transition-colors ${
                 active
-                  ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)]'
+                  ? 'border-[var(--color-border)] border-l-[var(--size-accent-stripe)] border-l-[var(--color-accent)] bg-[var(--color-accent-tint)]'
                   : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)]'
               }`}
             >
@@ -1207,9 +1211,9 @@ export function Settings() {
                   key={entry.id}
                   type="button"
                   onClick={() => setTab(entry.id)}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] text-[var(--text-sm)] transition-colors ${
+                  className={`relative w-full flex items-center gap-2 pl-[var(--space-3)] pr-[var(--space-2)] py-[var(--space-2)] rounded-[var(--radius-md)] text-[var(--text-sm)] transition-colors ${
                     active
-                      ? 'bg-[var(--color-surface-active)] text-[var(--color-text-primary)] font-medium'
+                      ? 'bg-[var(--color-surface-active)] text-[var(--color-text-primary)] font-medium before:absolute before:left-0 before:top-[var(--space-1_5)] before:bottom-[var(--space-1_5)] before:w-[var(--size-accent-stripe)] before:rounded-full before:bg-[var(--color-accent)]'
                       : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
                   }`}
                 >
