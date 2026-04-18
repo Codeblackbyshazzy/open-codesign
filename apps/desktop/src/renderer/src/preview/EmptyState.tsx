@@ -1,45 +1,77 @@
 import { useT } from '@open-codesign/i18n';
-import { Sparkles } from 'lucide-react';
 
 export interface EmptyStateProps {
   onPickStarter: (prompt: string) => void;
 }
 
-const STARTERS = ['meditationApp', 'pitchDeck', 'caseStudy'] as const;
+interface StarterCard {
+  labelKey: string;
+  promptKey: string;
+}
+
+const STARTER_CARDS: StarterCard[] = [
+  {
+    labelKey: 'emptyState.starters.landing',
+    promptKey: 'starterPrompts.landing',
+  },
+  {
+    labelKey: 'emptyState.starters.pitch',
+    promptKey: 'starterPrompts.pitch',
+  },
+  {
+    labelKey: 'emptyState.starters.mobile',
+    promptKey: 'starterPrompts.mobile',
+  },
+  {
+    labelKey: 'emptyState.starters.dashboard',
+    promptKey: 'starterPrompts.dashboard',
+  },
+];
 
 export function EmptyState({ onPickStarter }: EmptyStateProps) {
   const t = useT();
 
   return (
-    <div className="h-full flex items-center justify-center px-6">
-      <div className="text-center max-w-md flex flex-col items-center">
-        <div className="relative w-20 h-20 mb-5">
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 rounded-full bg-[var(--color-accent-muted)] blur-xl opacity-70"
-          />
-          <div className="relative w-20 h-20 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center shadow-[var(--shadow-card)]">
-            <Sparkles className="w-8 h-8 text-[var(--color-accent)]" />
-          </div>
+    <div className="h-full flex items-center justify-center px-[var(--space-8)] py-[var(--space-12)]">
+      <div className="w-full max-w-xl flex flex-col items-center gap-[var(--space-8)]">
+        {/* Editorial heading block */}
+        <div className="text-center space-y-[var(--space-3)]">
+          <h1
+            className="text-[var(--font-size-display-xl)] leading-[var(--leading-heading)] tracking-[var(--tracking-heading)] text-[var(--color-text-primary)]"
+            style={{ fontFamily: 'var(--font-display)', fontWeight: 500 }}
+          >
+            {t('emptyState.heading')}
+          </h1>
+          <p className="text-[var(--font-size-body-lg)] text-[var(--color-text-secondary)] leading-[var(--leading-body)]">
+            {t('emptyState.subline')}
+          </p>
         </div>
-        <h2 className="text-[var(--text-lg)] font-semibold text-[var(--color-text-primary)] tracking-[var(--tracking-heading)] mb-2">
-          {t('preview.empty.title')}
-        </h2>
-        <p className="text-[var(--text-sm)] text-[var(--color-text-secondary)] leading-[var(--leading-body)] mb-4">
-          {t('preview.empty.body')}
-        </p>
-        <div className="mb-3 text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-          {t('preview.empty.starterChip')}
-        </div>
-        <div className="flex flex-wrap gap-2 justify-center">
-          {STARTERS.map((starterId) => (
+
+        {/* 2×2 starter card grid */}
+        <div className="w-full grid grid-cols-2 gap-[var(--space-3)]">
+          {STARTER_CARDS.map((card) => (
             <button
-              key={starterId}
+              key={card.labelKey}
               type="button"
-              onClick={() => onPickStarter(t(`demos.${starterId}.prompt`))}
-              className="px-3 py-1.5 rounded-[var(--radius-full)] text-[var(--text-xs)] font-medium bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] transition-colors"
+              onClick={() => onPickStarter(t(card.promptKey))}
+              className="
+                group text-left
+                rounded-[var(--radius-md)] border border-[var(--color-border)]
+                bg-[var(--color-background-secondary)]
+                px-[var(--space-4)] py-[var(--space-4)]
+                hover:border-[var(--color-accent)] hover:bg-[var(--color-surface-elevated)]
+                hover:-translate-y-[var(--space-0_5)] hover:shadow-[var(--shadow-card)]
+                active:translate-y-0 active:shadow-none
+                transition-[border-color,background-color,transform,box-shadow]
+                duration-[var(--duration-base)] ease-[var(--ease-out)]
+              "
             >
-              {t(`demos.${starterId}.title`)}
+              <span
+                className="block text-[var(--font-size-body-sm)] font-medium leading-[var(--leading-ui)] text-[var(--color-text-primary)] group-hover:text-[var(--color-accent)]"
+                style={{ transition: 'color var(--duration-fast) var(--ease-out)' }}
+              >
+                {t(card.labelKey)}
+              </span>
             </button>
           ))}
         </div>
