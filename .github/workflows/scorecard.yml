@@ -1,5 +1,7 @@
 name: OpenSSF Scorecard
 
+# Scorecard requires the repo to be public. Disabled while the repo is private.
+
 on:
   branch_protection_rule:
   schedule:
@@ -12,6 +14,7 @@ permissions: read-all
 jobs:
   analysis:
     runs-on: ubuntu-latest
+    if: github.event.repository.visibility == 'public'
     permissions:
       security-events: write
       id-token: write

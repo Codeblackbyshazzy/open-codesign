@@ -41,9 +41,8 @@ interface ParserState {
   content: string;
 }
 
-const OPEN_TAG_RE = /<artifact\s+([^>]*)>/;
+const OPEN_TAG_RE = /<artifact\s+([^>]*?)>/;
 const CLOSE_TAG = '</artifact>';
-const ATTR_RE = /(\w+)="([^"]*)"/g;
 
 export function createArtifactParser() {
   const state: ParserState = {
@@ -56,11 +55,16 @@ export function createArtifactParser() {
   };
 
   function parseAttrs(raw: string): Record<string, string> {
+    // Local regex instance — `/g` flag carries `lastIndex` state, so a
+    // module-level singleton would leak state between calls.
+    const attrRe = /(\w+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
     const out: Record<string, string> = {};
-    let match: RegExpExecArray | null = ATTR_RE.exec(raw);
+    let match: RegExpExecArray | null = attrRe.exec(raw);
     while (match !== null) {
-      out[match[1] as string] = match[2] as string;
-      match = ATTR_RE.exec(raw);
+      const key = match[1] as string;
+      const value = (match[2] ?? match[3] ?? '') as string;
+      out[key] = value;
+      match = attrRe.exec(raw);
     }
     return out;
   }

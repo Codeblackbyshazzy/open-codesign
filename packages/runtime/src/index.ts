@@ -16,8 +16,11 @@ export function buildSrcdoc(userHtml: string): string {
     '',
   );
 
-  if (/<html[\s>]/i.test(stripped)) {
-    return stripped.replace('</body>', `<script>${OVERLAY_SCRIPT}</script></body>`);
+  if (/<\/body\s*>/i.test(stripped)) {
+    return stripped.replace(
+      /<\/body\s*>(?![\s\S]*<\/body\s*>)/i,
+      `<script>${OVERLAY_SCRIPT}</script></body>`,
+    );
   }
 
   return `<!doctype html>

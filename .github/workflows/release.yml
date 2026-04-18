@@ -1,8 +1,15 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - '.changeset/**'
+      - 'packages/**'
+      - 'apps/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,8 +21,9 @@ permissions:
 
 jobs:
   release:
-    name: Release
+    name: Version PR
     runs-on: ubuntu-latest
+    if: github.repository == 'OpenCoworkAI/open-codesign'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,17 +41,14 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
-
-      - name: Create Release Pull Request or publish to npm
+      # Versioning only. Publishing (npm + GitHub release artifacts) is
+      # intentionally NOT wired up yet — packaging needs code-signing
+      # (Mac notarization, Windows Authenticode) which we do not have.
+      - name: Create Version Pull Request
         uses: changesets/action@v1
         with:
-          publish: pnpm release
           version: pnpm version-packages
           commit: 'chore(release): version packages'
           title: 'chore(release): version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true

@@ -31,8 +31,8 @@ Depends on completion of `docs/RESEARCH_QUEUE.md`. After research is in:
 
 **Goal**: Show enough to recruit early contributors.
 
-- [ ] PPTX export (lib choice TBD pending research item #4)
-- [ ] PDF export (Puppeteer or similar)
+- [ ] PPTX export via `pptxgenjs` + `dom-to-pptx` (locked, see `docs/research/04-pptx-export.md`)
+- [ ] PDF export via Puppeteer-core against system Chrome
 - [ ] Demos working: meditation app, case study one-pager, pitch deck
 - [ ] Built-in template gallery
 - [ ] Settings page with API key + model picker
@@ -41,8 +41,8 @@ Depends on completion of `docs/RESEARCH_QUEUE.md`. After research is in:
 
 **Goal**: Ship the things that differentiate us from "yet another AI HTML generator".
 
-- [ ] Inline comment → AI patch loop (mechanism TBD pending research item #2)
-- [ ] AI-generated custom sliders (mechanism TBD pending research item #2)
+- [ ] Inline comment → AI patch loop via `data-codesign-id` + str_replace (locked, see `docs/research/02-inline-comment-and-sliders.md`)
+- [ ] AI-generated custom sliders via `design_params` JSON + CSS variables (locked, same source)
 - [ ] Version timeline with snapshot rollback
 
 ## Phase 4 — Ecosystem features

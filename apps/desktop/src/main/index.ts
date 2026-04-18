@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generate } from '@open-codesign/core';
 import { detectProviderFromKey } from '@open-codesign/providers';
-import type { ChatMessage, ModelRef } from '@open-codesign/shared';
+import { BRAND, CodesignError, GeneratePayload } from '@open-codesign/shared';
 import { BrowserWindow, app, ipcMain, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 
@@ -18,7 +18,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 640,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    backgroundColor: '#faf8f3',
+    backgroundColor: BRAND.backgroundColor,
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -43,30 +43,23 @@ function createWindow(): void {
 }
 
 function registerIpcHandlers(): void {
-  ipcMain.handle('codesign:detect-provider', (_e, key: string) => detectProviderFromKey(key));
+  ipcMain.handle('codesign:detect-provider', (_e, key: unknown) => {
+    if (typeof key !== 'string') {
+      throw new CodesignError('detect-provider expects a string key', 'IPC_BAD_INPUT');
+    }
+    return detectProviderFromKey(key);
+  });
 
-  ipcMain.handle(
-    'codesign:generate',
-    async (
-      _e,
-      payload: {
-        prompt: string;
-        history: ChatMessage[];
-        model: ModelRef;
-        apiKey: string;
-        baseUrl?: string;
-      },
-    ) => {
-      const { prompt, history, model, apiKey, baseUrl } = payload;
-      return generate({
-        prompt,
-        history,
-        model,
-        apiKey,
-        ...(baseUrl !== undefined ? { baseUrl } : {}),
-      });
-    },
-  );
+  ipcMain.handle('codesign:generate', async (_e, raw: unknown) => {
+    const payload = GeneratePayload.parse(raw);
+    return generate({
+      prompt: payload.prompt,
+      history: payload.history,
+      model: payload.model,
+      apiKey: payload.apiKey,
+      ...(payload.baseUrl !== undefined ? { baseUrl: payload.baseUrl } : {}),
+    });
+  });
 }
 
 function setupAutoUpdater(): void {

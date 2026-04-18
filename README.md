@@ -2,7 +2,7 @@
 
 > Open-source AI design tool — prompt to interactive prototype, slide deck, and marketing assets. Multi-model, BYOK, runs on your laptop.
 
-[中文 README](./README_zh.md) · [Vision](./docs/VISION.md) · [Roadmap](./docs/ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
+[Vision](./docs/VISION.md) · [Roadmap](./docs/ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
 
 ---
 

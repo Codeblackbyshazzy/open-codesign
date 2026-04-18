@@ -80,6 +80,19 @@ export const ChatMessage = z.object({
 });
 export type ChatMessage = z.infer<typeof ChatMessage>;
 
+export const GeneratePayload = z.object({
+  prompt: z.string().min(1).max(32_000),
+  history: z.array(ChatMessage).max(200),
+  model: ModelRef,
+  apiKey: z.string().min(1).max(500),
+  baseUrl: z.string().url().optional(),
+});
+export type GeneratePayload = z.infer<typeof GeneratePayload>;
+
+export const BRAND = {
+  backgroundColor: '#faf8f3',
+} as const;
+
 export class CodesignError extends Error {
   constructor(
     message: string,
