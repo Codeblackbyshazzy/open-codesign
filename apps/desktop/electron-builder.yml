@@ -24,7 +24,3 @@ linux:
     - target: AppImage
       arch: [x64]
   category: Graphics
-publish:
-  provider: github
-  owner: OpenCoworkAI
-  repo: open-codesign
