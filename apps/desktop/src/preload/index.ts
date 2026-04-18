@@ -52,6 +52,11 @@ const api = {
     ipcRenderer.invoke('codesign:clear-design-system') as Promise<OnboardingState>,
   export: (payload: { format: ExportFormat; htmlContent: string; defaultFilename?: string }) =>
     ipcRenderer.invoke('codesign:export', payload) as Promise<ExportInvokeResponse>,
+  locale: {
+    getSystem: () => ipcRenderer.invoke('locale:get-system') as Promise<string>,
+    getCurrent: () => ipcRenderer.invoke('locale:get-current') as Promise<string>,
+    set: (locale: string) => ipcRenderer.invoke('locale:set', locale) as Promise<string>,
+  },
   checkForUpdates: () => ipcRenderer.invoke('codesign:check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('codesign:download-update'),
   installUpdate: () => ipcRenderer.invoke('codesign:install-update'),

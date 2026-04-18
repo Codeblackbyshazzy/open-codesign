@@ -1,6 +1,7 @@
 import { PROVIDER_SHORTLIST, type SupportedOnboardingProvider } from '@open-codesign/shared';
 import { Wordmark } from '@open-codesign/ui';
 import { useState } from 'react';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { useCodesignStore } from '../store';
 import { ChooseModel } from './ChooseModel';
 import { PasteKey } from './PasteKey';
@@ -65,7 +66,10 @@ export function Onboarding() {
       <div className="relative w-full max-w-[480px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] p-8 flex flex-col gap-6">
         <header className="flex items-center justify-between">
           <Wordmark badge="pre-alpha" />
-          <Stepper current={idx} total={3} />
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <Stepper current={idx} total={3} />
+          </div>
         </header>
 
         {step === 'welcome' ? (

@@ -9,6 +9,7 @@ import { autoUpdater } from 'electron-updater';
 import { scanDesignSystem } from './design-system';
 import { BrowserWindow, app, dialog, ipcMain, shell } from './electron-runtime';
 import { registerExporterIpc } from './exporter-ipc';
+import { registerLocaleIpc } from './locale-ipc';
 import { getLogPath, getLogger, initLogger } from './logger';
 import {
   getApiKeyForProvider,
@@ -254,6 +255,7 @@ void app.whenReady().then(async () => {
   initLogger();
   await loadConfigOnBoot();
   registerIpcHandlers();
+  registerLocaleIpc();
   registerOnboardingIpc();
   registerExporterIpc(() => mainWindow);
   setupAutoUpdater();
