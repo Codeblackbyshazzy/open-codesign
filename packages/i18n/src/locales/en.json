@@ -199,7 +199,14 @@
         "claudeCodeFound": "Claude Code gateway detected at {{baseUrl}} — import?",
         "codexDone": "Codex providers imported",
         "claudeCodeDone": "Claude Code provider imported",
-        "failed": "Import failed"
+        "failed": "Import failed",
+        "codexMenu": "Import from Codex",
+        "codexMenuDesc": "Read ~/.codex/config.toml",
+        "claudeCodeMenu": "Import from Claude Code",
+        "claudeCodeMenuDesc": "Read the signed-in Claude Code session",
+        "customMenu": "Custom provider",
+        "customMenuDesc": "Enter API key and URL manually",
+        "alreadyImported": "Already imported"
       },
       "modal": {
         "title": "Add provider",

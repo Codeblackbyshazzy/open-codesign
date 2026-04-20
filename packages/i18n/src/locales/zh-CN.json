@@ -203,7 +203,14 @@
         "claudeCodeFound": "发现 Claude Code 网关 {{baseUrl}} — 导入？",
         "codexDone": "已导入 Codex 服务",
         "claudeCodeDone": "已导入 Claude Code 服务",
-        "failed": "导入失败"
+        "failed": "导入失败",
+        "codexMenu": "从 Codex 导入",
+        "codexMenuDesc": "读取 ~/.codex/config.toml",
+        "claudeCodeMenu": "从 Claude Code 导入",
+        "claudeCodeMenuDesc": "读取已登录的 Claude Code 会话",
+        "customMenu": "自定义服务",
+        "customMenuDesc": "手动填写 API key 和 URL",
+        "alreadyImported": "已导入"
       },
       "modal": {
         "title": "添加服务",
