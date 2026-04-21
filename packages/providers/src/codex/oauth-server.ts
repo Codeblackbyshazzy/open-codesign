@@ -63,10 +63,11 @@ export async function startCallbackServer(preferredPort?: number): Promise<Callb
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === 'EADDRINUSE') {
-      server = await listen(0);
-    } else {
-      throw err;
+      throw new Error(
+        `Codex OAuth 回调端口 ${firstPort} 已被占用（通常是另一个 open-codesign 或 Codex CLI 实例）。请关闭它们后重试。`,
+      );
     }
+    throw err;
   }
 
   const address = server.address();

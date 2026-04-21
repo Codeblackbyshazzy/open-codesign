@@ -131,11 +131,9 @@ describe('startCallbackServer', () => {
     expect(res.status).toBe(404);
   });
 
-  it('falls back to a different port when the preferred one is busy', async () => {
+  it('throws an actionable Chinese error when the preferred port is occupied', async () => {
     const first = await track(await startCallbackServer(0));
     const busyPort = portOf(first.redirectUri);
-    const second = await track(await startCallbackServer(busyPort));
-    expect(portOf(second.redirectUri)).not.toBe(busyPort);
-    expect(second.redirectUri).not.toBe(first.redirectUri);
+    await expect(startCallbackServer(busyPort)).rejects.toThrow(/已被占用/);
   });
 });
