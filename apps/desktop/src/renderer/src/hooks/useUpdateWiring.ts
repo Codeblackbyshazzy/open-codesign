@@ -13,7 +13,7 @@ export function useUpdateWiring(store: StoreApi<UpdateState> | null): void {
     const offAvail = window.codesign.onUpdateAvailable((info) => {
       const typed = info as { version?: string };
       const version = typed.version ?? '';
-      if (!version || !/^\d+\.\d+\.\d+(?:-[\w.]+)?$/.test(version)) return;
+      if (!version || !/^\d+\.\d+\.\d+(?:-[\w.]+)?(?:\+[\w.]+)?$/.test(version)) return;
       const releaseUrl = `https://github.com/OpenCoworkAI/open-codesign/releases/tag/v${version}`;
       store.getState().setAvailable({ version, releaseUrl });
     });

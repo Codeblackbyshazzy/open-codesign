@@ -9,10 +9,14 @@ export interface UpdateState {
   releaseUrl: string;
   errorMessage: string;
   dismissedVersion: string;
+  // Gate so listeners can attach immediately (catching one-shot events) while
+  // the banner stays hidden until persisted prefs have seeded dismissedVersion.
+  dismissedVersionReady: boolean;
   setAvailable(info: { version: string; releaseUrl: string }): void;
   setLatest(): void;
   setError(message: string): void;
   dismiss(): void;
+  markDismissedVersionReady(dismissedVersion: string): void;
   shouldShowBanner(): boolean;
 }
 
@@ -23,6 +27,7 @@ export function createUpdateStore(init: { dismissedVersion: string }): StoreApi<
     releaseUrl: '',
     errorMessage: '',
     dismissedVersion: init.dismissedVersion,
+    dismissedVersionReady: false,
     setAvailable: ({ version, releaseUrl }) =>
       set({ status: 'available', version, releaseUrl, errorMessage: '' }),
     setLatest: () => set({ status: 'latest', errorMessage: '' }),
@@ -32,8 +37,11 @@ export function createUpdateStore(init: { dismissedVersion: string }): StoreApi<
       if (!v) return;
       set({ dismissedVersion: v });
     },
+    markDismissedVersionReady: (dismissedVersion) =>
+      set({ dismissedVersion, dismissedVersionReady: true }),
     shouldShowBanner: () => {
-      const { status, version, dismissedVersion } = get();
+      const { status, version, dismissedVersion, dismissedVersionReady } = get();
+      if (!dismissedVersionReady) return false;
       return status === 'available' && version !== '' && version !== dismissedVersion;
     },
   }));
