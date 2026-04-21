@@ -64,7 +64,9 @@ export async function maybeAbortIfRunningFromDmg(): Promise<boolean> {
     try {
       await shell.openPath('/Applications');
     } catch (err) {
-      log.warn('openPath.applications.fail', err);
+      log.warn('openPath.applications.fail', {
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
     app.quit();
     return true;
