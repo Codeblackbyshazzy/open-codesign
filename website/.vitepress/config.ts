@@ -26,6 +26,7 @@ export default defineConfig({
   head: [
     ['link', { rel: 'icon', href: `${SITE_BASE}favicon.ico` }],
     ['meta', { name: 'theme-color', content: '#c96442' }],
+    ['meta', { name: 'google-site-verification', content: 'c3cbbeaec5437546' }],
     // Open Graph
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'Open CoDesign' }],
@@ -192,7 +193,16 @@ export default defineConfig({
       { text: 'Home', link: '/' },
       { text: 'Features', link: '/#features' },
       { text: 'Quickstart', link: '/quickstart' },
-      { text: 'vs Claude Design', link: '/claude-design-alternative' },
+      {
+        text: 'Compare',
+        items: [
+          { text: 'vs Claude Design', link: '/claude-design-alternative' },
+          { text: 'vs v0 by Vercel', link: '/v0-alternative' },
+          { text: 'vs Lovable', link: '/lovable-alternative' },
+          { text: 'vs Bolt.new', link: '/bolt-alternative' },
+          { text: 'vs Figma AI', link: '/figma-ai-alternative' },
+        ],
+      },
       { text: 'Architecture', link: '/architecture' },
       { text: 'Roadmap', link: '/roadmap' },
       {
@@ -207,7 +217,16 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/' },
           { text: 'Quickstart', link: '/quickstart' },
+        ],
+      },
+      {
+        text: 'Compare',
+        items: [
           { text: 'vs Claude Design', link: '/claude-design-alternative' },
+          { text: 'vs v0 by Vercel', link: '/v0-alternative' },
+          { text: 'vs Lovable', link: '/lovable-alternative' },
+          { text: 'vs Bolt.new', link: '/bolt-alternative' },
+          { text: 'vs Figma AI', link: '/figma-ai-alternative' },
         ],
       },
       {

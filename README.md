@@ -6,7 +6,9 @@
 >
 > Turn prompts into polished artifacts — locally, openly, and with whichever model you already pay for.
 
-[Website](https://opencoworkai.github.io/open-codesign/) · [Quickstart](#quickstart) · [vs Claude Design](https://opencoworkai.github.io/open-codesign/claude-design-alternative) · [Docs](https://opencoworkai.github.io/open-codesign/quickstart) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
+[Website](https://opencoworkai.github.io/open-codesign/) · [Quickstart](#quickstart) · [Docs](https://opencoworkai.github.io/open-codesign/quickstart) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
+
+**Open-source alternative to:** [Claude Design](https://opencoworkai.github.io/open-codesign/claude-design-alternative) · [v0 by Vercel](https://opencoworkai.github.io/open-codesign/v0-alternative) · [Lovable](https://opencoworkai.github.io/open-codesign/lovable-alternative) · [Bolt.new](https://opencoworkai.github.io/open-codesign/bolt-alternative) · [Figma AI](https://opencoworkai.github.io/open-codesign/figma-ai-alternative)
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/product-hero.png" alt="Open CoDesign — prompt on the left, live artifact on the right" width="1000" />
@@ -20,7 +22,7 @@
 </p>
 
 <p align="center">
-  <sub><code>ai-design</code> · <code>claude-design-alternative</code> · <code>byok</code> · <code>local-first</code> · <code>electron</code> · <code>multi-model</code> · <code>open-source</code></sub>
+  <sub><code>claude-code</code> · <code>claude-design-alternative</code> · <code>ai-design</code> · <code>design-to-code</code> · <code>figma-alternative</code> · <code>byok</code> · <code>local-first</code> · <code>multi-model</code> · <code>electron</code></sub>
 </p>
 
 ---
@@ -29,7 +31,7 @@
 
 Turn a prompt into a polished prototype, slide deck, or marketing asset, locally, with the model you already use.
 
-Open CoDesign is built for people who want the speed of AI-native design tools without subscription lock-in, cloud-only workflows, or being forced onto a single provider. Think of it as a local-first alternative to Claude Design: open source, desktop-native, and bring-your-own-model from day one.
+**Open CoDesign is the open-source Claude Design alternative** — built for people who want the speed of AI-native design tools without subscription lock-in, cloud-only workflows, or being forced onto a single provider. An MIT-licensed desktop app, local-first from day one, with BYOK for any model (Claude, GPT, Gemini, DeepSeek, Kimi, GLM, Ollama, or any OpenAI-compatible endpoint). One-click import of your existing Claude Code or Codex API key gets you running in under 90 seconds.
 
 ---
 
@@ -159,7 +161,7 @@ On first launch, Open CoDesign opens the Settings page. Paste any supported prov
 - Google Gemini
 - Any OpenAI-compatible relay (OpenRouter, SiliconFlow, local Ollama)
 
-Credentials stay in `~/.config/open-codesign/config.toml`, encrypted via Electron `safeStorage`. Nothing leaves your machine unless your chosen model provider requires it.
+Credentials stay in `~/.config/open-codesign/config.toml` (file mode 0600, same convention as Claude Code, Codex, and `gh` CLI). Nothing leaves your machine unless your chosen model provider requires it.
 
 ### 3. Type your first prompt
 
