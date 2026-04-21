@@ -2,206 +2,221 @@
 
 **English**: [README.md](./README.md)
 
-> 你的提示词。你的模型。你的电脑。Anthropic Claude Design 的自托管替代方案。
+> 你的提示词，你的模型，你的电脑。
+>
+> Open CoDesign 是一个开源、Local-first 的 AI 设计工具，可以把一句提示词直接变成精致的 HTML 原型、幻灯片和营销素材。
 
-[官网](https://opencoworkai.github.io/open-codesign/) · [快速开始](#快速开始) · [对比 Claude Design](https://opencoworkai.github.io/open-codesign/zh/claude-design-alternative) · [贡献指南](./CONTRIBUTING.md) · [安全政策](./SECURITY.md)
+[官网](https://opencoworkai.github.io/open-codesign/) · [快速开始](#快速开始) · [对比 Claude Design](https://opencoworkai.github.io/open-codesign/claude-design-alternative) · [文档](https://opencoworkai.github.io/open-codesign/quickstart) · [参与贡献](./CONTRIBUTING.md) · [安全说明](./SECURITY.md)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/product-hero.png" alt="Open CoDesign — 左边对话，右边成品" width="1000" />
+  <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/product-hero.png" alt="Open CoDesign：左边是提示词，右边是实时生成的设计结果" width="1000" />
 </p>
 
 <p align="center">
   <a href="https://github.com/OpenCoworkAI/open-codesign/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/OpenCoworkAI/open-codesign?label=release&color=c96442" /></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue" /></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue" /></a>
   <a href="https://github.com/OpenCoworkAI/open-codesign/actions"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/OpenCoworkAI/open-codesign/ci.yml?label=CI" /></a>
   <a href="https://github.com/OpenCoworkAI/open-codesign/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/OpenCoworkAI/open-codesign?style=social" /></a>
 </p>
 
 <p align="center">
-  <sub>Topics: <code>ai-design</code> · <code>claude-design-alternative</code> · <code>byok</code> · <code>local-first</code> · <code>electron</code> · <code>multi-model</code> · <code>open-source</code></sub>
+  <sub><code>ai-design</code> · <code>claude-design-alternative</code> · <code>byok</code> · <code>local-first</code> · <code>electron</code> · <code>multi-model</code> · <code>open-source</code></sub>
 </p>
 
 ---
 
-## Open CoDesign 是什么？
+## 它是什么
 
-Open CoDesign 把自然语言提示词变成精美的 HTML 原型、幻灯片或营销素材——完全在你的电脑上运行，使用你已经在付费的任意 AI 模型。把它理解成 Claude Design，但没有订阅锁定、没有云账号要求、没有单一模型的上限。
+Open CoDesign 可以把一句自然语言提示词，直接变成一个完成度很高的 HTML 原型、幻灯片或者营销素材，而且整个过程都可以在你的电脑上完成。
 
----
-
-## 一份 design 从无到有
-
-从一条 prompt 到完整 artifact——agent 规划、写代码、自检，最后交回一个 hover / tab / 空状态都已接好的交互式产物：
-
-![从零生成一个 design](https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/demos/generate-from-scratch.gif)
+它适合这样一类人：想要 AI 设计工具的速度，但不想被订阅制绑住，不想把工作流全丢到云端，也不想只能用某一家模型。你可以把它理解成一个更开放、更本地化的 Claude Design 替代方案：开源、桌面原生、支持自带 API Key，也支持多模型切换。
 
 ---
 
-## 亮点
+## 看它怎么生成
+
+从一条空白提示词开始，Agent 会自己规划、生成、检查，然后交给你一个已经带有 hover 状态、tabs、empty states 等细节的完整结果：
+
+![从零开始生成设计](https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/demos/generate-from-scratch.gif)
+
+---
+
+## 为什么大家会给它点 star
+
+- **直接跑在你的电脑上**，不是必须依赖云端工作区
+- **直接用你自己的模型**，支持 Claude、GPT、Gemini、Ollama、OpenRouter 等
+- **导出的是真文件**，不是只能截图或者看预览
+- **生成过程看得见**，Agent 在做什么、调了什么、什么时候可以打断，你都知道
+
+---
+
+## 为什么是 Open CoDesign？
+
+如果你想要 AI 设计工具的速度，但又不想把模型选择、数据和工作流都交给单一平台，Open CoDesign 会是一个更自由的选择。
+
+| | **Open CoDesign** | Claude Design | v0 by Vercel | Lovable |
+|---|:---:|:---:|:---:|:---:|
+| 开源 | ✅ MIT | ❌ 闭源 | ❌ 闭源 | ❌ 闭源 |
+| 桌面原生 | ✅ Electron | ❌ 仅 Web | ❌ 仅 Web | ❌ 仅 Web |
+| 支持自带 Key | ✅ 任意提供商 | ❌ 仅 Anthropic | ❌ 仅 Vercel | ⚠️ 有限制 |
+| 本地 / 离线 | ✅ 本地应用 | ❌ 云端 | ❌ 云端 | ❌ 云端 |
+| 模型支持 | ✅ 20+（Claude、GPT、Gemini、Ollama…） | Claude only | GPT-4o | Multi-LLM |
+| 版本历史 | ✅ 本地 SQLite 快照 | ❌ | ❌ | ❌ |
+| 数据隐私 | ✅ 应用状态保留在本地 | ❌ 云端处理 | ❌ 云端 | ❌ 云端 |
+| 可编辑导出 | ✅ HTML、PDF、PPTX、ZIP、Markdown | ⚠️ 有限制 | ⚠️ 有限制 | ⚠️ 有限制 |
+| 价格 | ✅ 应用免费，仅承担模型 token 成本 | 💳 订阅制 | 💳 订阅制 | 💳 订阅制 |
+
+---
+
+## 亮点功能
 
 <table>
   <tr>
     <td width="50%">
       <a href="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/comment-mode.png">
-        <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/comment-mode.png" alt="点击任意元素落 pin，模型只重写该区域" />
+        <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/comment-mode.png" alt="点击任意元素添加批注，让模型只修改局部区域" />
       </a>
-      <p><b>评论别重写。</b><br/>在预览里点任意元素落 pin，模型只改那一块。</p>
+      <p><b>不用重写整段提示词。</b><br/>点一下元素、落一个批注，模型就只改这一块。</p>
     </td>
     <td width="50%">
       <a href="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/tweaks-sliders.png">
-        <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/tweaks-sliders.png" alt="AI 生成的调节面板——色板 + RGB 输入" />
+        <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/tweaks-sliders.png" alt="AI 自动生成可调参数面板" />
       </a>
-      <p><b>AI 调的滑块。</b><br/>模型主动给出值得调的参数，拖动就能微调。</p>
+      <p><b>AI 自动生成可调参数。</b><br/>模型会把真正值得调的颜色、间距、字体等参数暴露出来，你可以直接拖动细调，不用重新来一轮。</p>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <a href="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/hub-your-designs.png">
-        <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/hub-your-designs.png" alt="设计主页 — 所有生成过的 artifact" />
+        <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/hub-your-designs.png" alt="设计历史与最近生成结果" />
       </a>
-      <p><b>每次迭代都在。</b><br/>Design 以 SQLite 快照存在磁盘，最近 5 个零延迟切换。</p>
+      <p><b>每次迭代都会留下来。</b><br/>设计结果会保存在本地，最近几个版本之间可以即时切换。</p>
     </td>
     <td width="50%">
       <a href="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/agent-panel.png">
-        <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/agent-panel.png" alt="Agent 面板——实时 todos 与流式 tool call" />
+        <img src="https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/screenshots/agent-panel.png" alt="实时 Agent 面板" />
       </a>
-      <p><b>看 agent 干活。</b><br/>Todos、tool call、流式推理全部可见，随时可打断。</p>
+      <p><b>看着 Agent 干活。</b><br/>Todo、工具调用和实时进度都能看到，而且随时可以打断。</p>
     </td>
   </tr>
 </table>
 
 ---
 
-## 已经在用 Claude Code 或 Codex？
+## 快速开始
 
-一键把 providers、models、API keys 全部导入——不用复制粘贴，不用重配设置：
+**第一次生成一个结果，大概只要：** 3 分钟
+
+**你需要准备：** 一个 API Key，或者本地 Ollama
+
+**支持平台：** macOS、Windows、Linux
+
+### 1. 安装
+
+从 [GitHub Releases](https://github.com/OpenCoworkAI/open-codesign/releases) 直接下载（v0.1.x）：
+
+| 平台 | 文件 |
+|---|---|
+| macOS（Apple Silicon） | `open-codesign-*-arm64.dmg` |
+| macOS（Intel） | `open-codesign-*-x64.dmg` |
+| Windows（x64） | `open-codesign-*-x64-setup.exe` |
+| Windows（ARM64） | `open-codesign-*-arm64-setup.exe` |
+| Linux（x64） | `open-codesign-*-x64.AppImage` |
+
+每个 release 都会附带 `SHA256SUMS.txt` 和 CycloneDX SBOM（`*-sbom.cdx.json`），方便你校验下载内容。
+
+<details>
+<summary><b>包管理器</b>：v0.1.x 当前状态</summary>
+
+| 管理器 | 命令 | 状态 |
+|---|---|---|
+| Homebrew Cask（macOS） | `brew install --cask opencoworkai/tap/open-codesign` | 🟡 Tap 待提交，manifest 在 [`packaging/homebrew/`](./packaging/homebrew/) |
+| winget（Windows） | `winget install OpenCoworkAI.OpenCoDesign` | 🟡 首次提交待完成，manifest 在 [`packaging/winget/`](./packaging/winget/) |
+| Flathub（Linux） | `flatpak install flathub ai.opencowork.codesign` | 🟡 提交中，manifest 在 [`packaging/flatpak/`](./packaging/flatpak/) |
+| Snap（Linux） | `snap install --dangerous open-codesign-*.snap` | 🟡 会尽量随 release 附带，尚未接入 Snap Store 发布流程 |
+
+一旦对应的 tap、manifest 或 secret 准备好，CI 会自动为 release 打开对应 PR。详细说明见各个 `packaging/*/README.md`。
+</details>
+
+> **v0.1 提示：** 当前安装包还没有签名。macOS 可以右键 → 打开，或者安装后执行 `xattr -d com.apple.quarantine /Applications/open-codesign.app`。Windows 可以在 SmartScreen 中点击 “More info” → “Run anyway”。
+>
+> 如果你更在意可验证构建，也可以自己从源码编译，见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+
+### 2. 添加 API Key
+
+首次启动时，Open CoDesign 会直接打开设置页。你可以粘贴任意支持的 provider key：
+
+- Anthropic（`sk-ant-…`）
+- OpenAI（`sk-…`）
+- Google Gemini
+- 任意 OpenAI 兼容中继，比如 OpenRouter、SiliconFlow、本地 Ollama
+
+凭证会保存在 `~/.config/open-codesign/config.toml`，并通过 Electron `safeStorage` 加密。除非你选择的模型提供商本身需要联网，请求内容不会额外离开你的机器。
+
+### 3. 输入第一条提示词
+
+你可以直接选 **十五个内置 demo** 之一，比如 landing page、dashboard、pitch slide、pricing、mobile app、chat UI、event calendar、blog article、receipt/invoice、portfolio、settings panel 等，也可以直接写自己的需求。几秒内，你就能看到一个沙箱中的可交互原型。
+
+---
+
+## 可以直接接你现有的开发环境
+
+如果你已经在用 Claude Code 或 Codex，现有的 provider、model 和 API key 都可以一键导入，不用复制粘贴，也不用重新配一遍。
 
 ![一键导入 Claude Code 或 Codex 配置](https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/demos/claude-code-import.gif)
 
 ---
 
-## 为什么选 Open CoDesign？
+## 内置设计能力
 
-| | **Open CoDesign** | Claude Design | v0 by Vercel | Lovable |
-|---|:---:|:---:|:---:|:---:|
-| 开源 | ✅ Apache-2.0 | ❌ 闭源 | ❌ 闭源 | ❌ 闭源 |
-| 桌面原生 | ✅ Electron | ❌ 仅 Web | ❌ 仅 Web | ❌ 仅 Web |
-| 自带密钥 | ✅ 任意 provider | ❌ 仅 Anthropic | ❌ 仅 Vercel | ⚠️ 有限 |
-| 本地 / 离线 | ✅ 完全本地 | ❌ 云端 | ❌ 云端 | ❌ 云端 |
-| 可用模型 | ✅ 20+（Claude / GPT / Gemini / Ollama…） | 仅 Claude | GPT-4o | 多 LLM |
-| 版本历史 | ✅ 本地 SQLite 快照 | ❌ | ❌ | ❌ |
-| 数据隐私 | ✅ 100% 设备本地 | ❌ 云端处理 | ❌ 云端 | ❌ 云端 |
-| 价格 | ✅ 免费，仅 token 费用 | 💳 订阅制 | 💳 订阅制 | 💳 订阅制 |
+通用 AI 工具很容易产出“差不多就那样”的设计。Open CoDesign 内置了 **十二个设计技能模块**，包括幻灯片、仪表盘、落地页、SVG 图表、玻璃拟态、编辑风排版、Hero 区块、价格页、页脚、聊天界面、数据表格和日历，同时还有一层内置的设计约束，帮助模型更稳定地做出更讲究的排版、留白和配色。
+
+每次生成时，这些能力都会自动参与。在模型真正开始写 CSS 之前，它会先判断当前需求适合哪些技能，并围绕布局意图、设计系统一致性和对比度做推理，从而让你用任意模型时，都更容易得到像样的设计结果。
+
+如果你想把自己的风格教给模型，只需要在项目里加一个 `SKILL.md`。
 
 ---
 
-## 快速开始
+## 你能得到什么
 
-### 1. 安装
+### 模型与提供商
+- **统一的 provider 抽象**：支持 Anthropic、OpenAI、Gemini、DeepSeek、OpenRouter、SiliconFlow、本地 Ollama，以及任意 OpenAI-compatible relay；同时支持无 key 的 IP 白名单代理
+- **一键导入 Claude Code 和 Codex 配置**：现有的 provider、model 和 key 可以直接带进来
+- **动态模型选择器**：每个 provider 都会展示真实模型列表，而不是一小撮写死的选项
 
-**直接下载**（v0.1.x）从 [GitHub Releases](https://github.com/OpenCoworkAI/open-codesign/releases)：
+### 生成与编辑
+- **提示词 → HTML 或 JSX/React 组件原型**，渲染在隔离的 sandbox iframe 中（本地 vendored React 18 + Babel）
+- **十五个内置 demo + 十二个设计技能模块**：给常见设计需求准备好的起点
+- **实时 Agent 面板**：模型编辑文件时，工具调用会实时流式展示
+- **AI 自动生成调节参数**：模型会主动暴露值得调的参数，比如颜色、间距和字体
+- **Comment mode**：点击预览中的任意元素，留下批注，模型只重写对应局部
+- **支持中途取消生成**：停止后也不会丢失之前的上下文和结果
 
-| 平台 | 文件 |
-|---|---|
-| macOS（Apple Silicon）| `open-codesign-*-arm64.dmg` |
-| macOS（Intel）| `open-codesign-*-x64.dmg` |
-| Windows（x64）| `open-codesign-*-x64-setup.exe` |
-| Windows（ARM64）| `open-codesign-*-arm64-setup.exe` |
-| Linux（x64）| `open-codesign-*-x64.AppImage` |
+### 预览与工作流
+- **手机 / 平板 / 桌面预览**：一键切换真实响应式视图
+- **Files 面板**：导出前先检查多文件产物（HTML、CSS、JS）
+- **即时设计切换**：最近五个设计会保持 iframe 存活，因此 Hub 和 Workspace 之间切换几乎零延迟
+- **连接诊断面板**：一键检测任意 provider 的连接状态，并给出可操作的报错信息
+- **每次生成的 token 计数**：侧边栏直接看到这一轮花了多少 token
+- **四个设置页签**：Models、Appearance、Storage、Advanced
+- **浅色 / 深色主题**，以及 **英文 / 简体中文 UI** 的实时切换
 
-每个 release 附带 `SHA256SUMS.txt` 和 CycloneDX SBOM（`*-sbom.cdx.json`），可用于校验下载完整性。
-
-<details>
-<summary><b>包管理器</b>——v0.1.x 状态</summary>
-
-| 管理器 | 命令 | 状态 |
-|---|---|---|
-| Homebrew Cask（macOS）| `brew install --cask opencoworkai/tap/open-codesign` | 🟡 Tap 待建 —— 模板见 [`packaging/homebrew/`](./packaging/homebrew/) |
-| winget（Windows）| `winget install OpenCoworkAI.OpenCoDesign` | 🟡 首次提交待处理 —— 模板见 [`packaging/winget/`](./packaging/winget/) |
-| Flathub（Linux）| `flatpak install flathub ai.opencowork.codesign` | 🟡 Flathub 提交待处理 —— 模板见 [`packaging/flatpak/`](./packaging/flatpak/) |
-| Snap（Linux）| `snap install --dangerous open-codesign-*.snap` | 🟡 每次 release 尽力附带；尚未推到 Snap Store |
-
-一旦配好对应的 tap / manifest / secret，CI 会在每次发版时自动开 PR —— 具体步骤见 `packaging/*/README.md`。
-</details>
-
-> **v0.1 说明：** 安装包暂未签名。macOS：右键 → 打开，或安装后在终端执行 `xattr -d com.apple.quarantine /Applications/open-codesign.app`。Windows：SmartScreen → 更多信息 → 仍要运行。
-> 需要已验证的构建？请从源码自行编译，参见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
-
-### 2. 添加 API Key
-
-首次启动会打开设置页面。粘贴任意 provider 的密钥：
-
-- Anthropic（`sk-ant-…`）
-- OpenAI（`sk-…`）
-- Google Gemini
-- 任意 OpenAI 兼容端点（OpenRouter、SiliconFlow、本地 Ollama）
-
-凭证通过 Electron `safeStorage` 加密，存储在 `~/.config/open-codesign/config.toml`。没有任何内容离开你的设备。
-
-### 3. 输入第一个提示词
-
-从**十五个内置 demo** 中选一个——落地页、仪表盘、演讲幻灯片、定价、移动应用、聊天 UI、事件日历、博客文章、发票、作品集、设置面板等等——或者自由描述你的想法。沙箱原型几秒内就会出现。
+### 导出与发布
+- **五种导出格式**：HTML（内联 CSS）、PDF（本地 Chrome）、PPTX、ZIP、Markdown
+- **GitHub Release 发布链路**：当前提供未签名的 DMG（macOS）、EXE（Windows）和 AppImage（Linux）；v0.5 会加入代码签名和可选自动更新
 
 ---
 
-## 内置 Anthropic 风格的设计智能
-
-通用 AI 工具产出通用结果。Open CoDesign 内置 **12 个设计 skill 模块**——幻灯片、仪表盘、落地页、SVG 图表、玻璃质感、编辑排版、Hero、定价、页脚、聊天 UI、数据表格、日历——还有一套**反 AI 糟粕设计 Skill**，引导模型走向深思熟虑的排版、有意义的留白和有目的的配色，而不是每个产物都用 `#3B82F6` 蓝色按钮。
-
-每个 skill 都已经在每次生成中生效。在模型写出一行 CSS 之前，它会先挑选适合的 skill，再推理布局意图、设计系统连贯性和对比度——这和 Claude Design 最优秀产出背后的编辑纪律一致，适用于你带来的任何模型。
-
-在任何项目中添加 `SKILL.md`，即可教会模型你自己的审美。
-
----
-
-## 当前已实现功能
-
-- **统一 provider 模型** — Anthropic、OpenAI、Gemini、DeepSeek、OpenRouter、SiliconFlow、本地 Ollama，或任意 OpenAI 兼容中继；支持 keyless（IP 白名单）代理
-- **Claude Code / Codex 配置一键导入** — 把已有的 provider、model、API Key 一次带过来
-- **动态 model 选择器** — 每个 provider 显示自己真实的模型目录，不再写死
-- **提示词 → HTML 或 JSX/React 组件**原型，在沙箱 iframe 中渲染（vendored React 18 + Babel，全在本机）
-- **15 个内置 demo + 12 个设计 skill 模块** — 覆盖常见设计命题的即用起点
-- **实时 agent 面板** — 模型调用工具写文件时的 tool call 流实时可见
-- **AI 生成滑块** — 模型主动给出值得调整的参数（颜色、间距、字体），拖动即可零往返微调
-- **评论模式** — 在预览中点击任意元素落一枚 pin 留下评论，模型只重写该区域
-- **手机 / 平板 / 桌面预览** — 真实响应式框，一键切换
-- **文件面板** — 导出前检查多文件 artifact（HTML、CSS、JS）
-- **设计间切换瞬答** — 最近 5 个 design 的预览 iframe 常驻内存，Hub ↔ 工作区、侧栏切换都是零延迟
-- **连接诊断面板** — 任意 provider 一键测试，附可操作的错误信息
-- **浅色 + 深色主题**，**EN + 简体中文** 界面，支持实时切换
-- **五种导出格式** — HTML（内联 CSS）、PDF（本机 Chrome）、PPTX、ZIP、Markdown
-- **生成取消** — 随时打断流式输出，之前的轮次不丢失
-- **每次生成的 token 计数** — Sidebar 直接显示每轮消耗的 token 数
-- **设置页面四个 tab** — Models（provider + key）、Appearance（主题 / 语言）、Storage（配置与数据路径）、Advanced（更新通道）
-- **GitHub Release 流水线** — 未签名 DMG（macOS）、EXE（Windows）、AppImage（Linux）。代码签名 + 可选自动更新将在 v0.5 引入。
-
----
-
-## 路线图
+## 接下来会做什么
 
 | 功能 | 状态 |
 |---|---|
-| 多 provider 入门 + 设置 | ✅ 已上线 |
-| Claude Code / Codex 一键配置导入 | ✅ 已上线 |
-| 每 provider 动态 model 选择器 | ✅ 已上线 |
-| Keyless（IP 白名单）代理支持 | ✅ 已上线 |
-| 提示词 → HTML 原型（沙箱 iframe） | ✅ 已上线 |
-| 提示词 → JSX/React 组件（本机 React 18 + Babel） | ✅ 已上线 |
-| 实时 agent 活动面板（流式 tool call） | ✅ 已上线 |
-| AI 生成可调滑块 | ✅ 已上线 |
-| 评论模式（pin + AI 局部重写） | ✅ 已上线 |
-| 设计间切换瞬答（预览 pool） | ✅ 已上线 |
-| 双语界面（EN + 简体中文） | ✅ 已上线 |
-| HTML 导出（内联 CSS） | ✅ 已上线 |
-| PDF 导出（本机 Chrome） | ✅ 已上线 |
-| PPTX 导出 | ✅ 已上线 |
-| ZIP / Markdown 导出 | ✅ 已上线 |
-| 成本透明（生成前 token 估算 + 周预算，每次生成 token 数已上线） | 🔜 即将推出 |
+| 成本透明化：生成前估算 + 每周预算控制（当前已支持每轮 token 计数） | 🔜 即将推出 |
 | 版本快照 + 并排 diff | 🔜 即将推出 |
-| 代码库 → 设计系统（token 提取） | 🔜 即将推出 |
-| 三风格并发探索 | 🔜 即将推出 |
+| 从代码库提取设计系统 token | 🔜 即将推出 |
+| 三种风格并行探索 | 🔜 即将推出 |
 | 代码签名（Apple ID + Authenticode）+ 可选自动更新 | 🔜 v0.5 |
-| Figma 图层导出 | 🔜 1.0 版本后 |
+| Figma 图层导出 | 🔜 1.0 之后 |
 
 ---
 
@@ -211,30 +226,32 @@ Open CoDesign 把自然语言提示词变成精美的 HTML 原型、幻灯片或
 
 ---
 
-## 引用本项目
-
-如果你在论文、文章或产品对比中引用 Open CoDesign，请使用：
-
-```
-OpenCoworkAI (2026). open-codesign: Open-source desktop AI design tool.
-GitHub. https://github.com/OpenCoworkAI/open-codesign
-Apache-2.0 License.
-```
-
-或使用仓库根目录的机器可读 `CITATION.cff`。
-
----
-
-## 技术栈
+## 基于这些技术构建
 
 - Electron + React 19 + Vite 6 + Tailwind v4
-- `@mariozechner/pi-ai`（多 provider 模型抽象层）
+- `@mariozechner/pi-ai`（多 provider 模型抽象）
 - `better-sqlite3`、`electron-builder`
 
-## 贡献
+## 参与贡献
 
-请先阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。写代码前先开 Issue，提交需附 DCO 签名，提 PR 前运行 `pnpm lint && pnpm typecheck && pnpm test`。
+请先阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。开始写代码前建议先开 issue，提交时需要签 DCO，发 PR 前请先运行 `pnpm lint && pnpm typecheck && pnpm test`。
 
 ## 许可证
 
-Apache-2.0 — 可 Fork、可商用、可分发。保留 [NOTICE](./NOTICE) 即可。
+MIT。你可以 fork、发布、商用。第三方依赖相关声明保留在 [NOTICE](./NOTICE)。
+
+## 如何引用这个项目
+
+如果你在论文、文章或产品对比中引用 Open CoDesign，可以使用下面的格式：
+
+```bibtex
+@misc{open_codesign_github,
+  author       = {OpenCoworkAI Contributors},
+  title        = {Open CoDesign: An Open-Source Desktop AI Design Tool},
+  year         = {2026},
+  howpublished = {\url{https://github.com/OpenCoworkAI/open-codesign}},
+  note         = {GitHub repository}
+}
+````
+
+或者直接使用仓库根目录下机器可读的 `CITATION.cff`。

@@ -1,12 +1,12 @@
 # Open CoDesign
 
-> Open CoDesign is an open-source desktop AI design tool. The open-source alternative to Anthropic Claude Design. Bring your own API key (Anthropic, OpenAI, Gemini, DeepSeek, OpenRouter, SiliconFlow, Ollama, any OpenAI-compatible relay). Everything runs locally. Apache-2.0 licensed.
+> Open CoDesign is an open-source desktop AI design tool. The open-source alternative to Anthropic Claude Design. Bring your own API key (Anthropic, OpenAI, Gemini, DeepSeek, OpenRouter, SiliconFlow, Ollama, any OpenAI-compatible relay). Everything runs locally. MIT licensed.
 
 ## Key facts
 
 - Repository: https://github.com/OpenCoworkAI/open-codesign
 - Website: https://opencoworkai.github.io/open-codesign/
-- License: Apache-2.0
+- License: MIT
 - Latest release: v0.1.0 (2026-04-18), installers for macOS / Windows / Linux
 - Stack: Electron, React 19, Vite 6, TypeScript, Tailwind v4, better-sqlite3
 - Local-first: SQLite (design history) + encrypted TOML config via Electron `safeStorage`, nothing leaves the machine
@@ -67,7 +67,7 @@
 ## Differentiation vs Claude Design
 
 Open CoDesign differs from Claude Design in the following ways:
-- Open CoDesign is open source (Apache-2.0); Claude Design is closed source.
+- Open CoDesign is open source (MIT); Claude Design is closed source.
 - Open CoDesign supports any AI model via BYOK; Claude Design uses Anthropic Opus only.
 - Open CoDesign runs entirely on the user's machine; Claude Design processes data in the cloud.
 - Open CoDesign costs only the token usage of the user's own API key; Claude Design requires a paid subscription.

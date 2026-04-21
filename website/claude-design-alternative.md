@@ -18,7 +18,7 @@ Both tools turn prompts into polished designs. They make different trade-offs. T
 
 ## At a glance
 
-Claude Design is a hosted web app by Anthropic that runs Claude Opus on their infrastructure. Open CoDesign is an Apache-2.0 desktop app you run on your own machine with whichever model provider you already use.
+Claude Design is a hosted web app by Anthropic that runs Claude Opus on their infrastructure. Open CoDesign is an MIT-licensed desktop app you run on your own machine with whichever model provider you already use.
 
 Pick **Claude Design** if you want zero setup, are happy on an Anthropic subscription, and don't need model flexibility or offline use.
 
@@ -28,7 +28,7 @@ Pick **Open CoDesign** if you want BYOK cost control, any model beyond Claude, o
 
 |                         | Open CoDesign (open-source) | Claude Design |
 | ----------------------- | :-------------------------: | :-----------: |
-| License                 | **Apache-2.0**              | Closed        |
+| License                 | **MIT**                     | Closed        |
 | Runs on                 | **Your laptop (macOS / Windows / Linux)** | Cloud (browser) |
 | Models                  | **Any — Anthropic, OpenAI, Gemini, DeepSeek, OpenRouter, SiliconFlow, Ollama, OpenAI-compatible** | Claude Opus |
 | Keyless proxy support   | **Yes (IP-allowlisted)**    | No            |
@@ -75,5 +75,4 @@ No. Open CoDesign is an independent, clean-room open-source project built by Ope
 - **Is it really free?** Yes. You pay only the token cost to whichever model provider you bring.
 - **Does it send anything to the cloud?** Only the prompts you send to your own model provider. Nothing goes to OpenCoworkAI or a shared backend.
 - **Can I use it with Ollama?** Yes. Any OpenAI-compatible endpoint works, keyless proxies included.
-- **License?** Apache-2.0. Fork it, ship it, sell it. Keep the NOTICE.
-
+- **License?** MIT. Fork it, ship it, sell it.

@@ -28,7 +28,7 @@ Use the issue templates. For bugs, include reproduction steps, OS/version, and a
 
 Adding a production dependency requires PR description to include:
 - **Install size impact** (run `pnpm why <pkg>` and report the unpacked size)
-- **License** (must be Apache-2.0 compatible: MIT, BSD, ISC, Apache-2.0; never GPL/AGPL/SSPL)
+- **License** (must be MIT-compatible permissive software: MIT, BSD, ISC, or similar; never GPL/AGPL/SSPL)
 - **Why this and not alternatives**
 - **Could it be a peer dep instead?**
 
@@ -40,7 +40,7 @@ Biome handles formatting and most lint rules. `pnpm lint:fix` applies fixes. Don
 
 ## Licensing of contributions
 
-By submitting a PR with `Signed-off-by`, you certify the [Developer Certificate of Origin](https://developercertificate.org/). Your contributions are licensed under Apache-2.0.
+By submitting a PR with `Signed-off-by`, you certify the [Developer Certificate of Origin](https://developercertificate.org/). Your contributions are licensed under MIT.
 
 ## Where to ask questions
 

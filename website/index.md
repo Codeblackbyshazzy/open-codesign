@@ -1,8 +1,8 @@
 ---
 layout: home
 title: Open CoDesign
-titleTemplate: Open-Source AI Design Tool — BYOK, Local-First, Apache-2.0
-description: Open CoDesign is an open-source desktop AI design tool — a self-hosted alternative to Claude Design. Bring your own API key (Anthropic, OpenAI, Gemini, DeepSeek, Ollama). Everything runs locally. Apache-2.0.
+titleTemplate: Open-Source AI Design Tool — BYOK, Local-First, MIT
+description: Open CoDesign is an open-source desktop AI design tool — a self-hosted alternative to Claude Design. Bring your own API key (Anthropic, OpenAI, Gemini, DeepSeek, Ollama). Everything runs locally. MIT licensed.
 
 hero:
   name: Open CoDesign
@@ -152,7 +152,7 @@ import { withBase } from 'vitepress'
 
 |                       | Open source    | Models             | Runs locally | Pricing             |
 | --------------------- | :------------: | :----------------: | :----------: | :-----------------: |
-| **Open CoDesign**     | **Apache-2.0** | **Any (BYOK)**     | **✓**        | **Token cost only** |
+| **Open CoDesign**     | **MIT**        | **Any (BYOK)**     | **✓**        | **Token cost only** |
 | Claude Design         | ✗ Closed       | Opus only          | ✗            | Subscription        |
 | v0 by Vercel          | ✗ Closed       | Curated            | ✗            | Subscription        |
 | Lovable               | ✗ Closed       | Curated            | ✗            | Subscription        |

@@ -2,7 +2,7 @@
   "version": "0.1.1",
   "description": "Open-source desktop AI design tool — prompt to prototype, BYOK, local-first",
   "homepage": "https://github.com/OpenCoworkAI/open-codesign",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "url": "https://github.com/OpenCoworkAI/open-codesign/releases/download/v0.1.1/open-codesign.Setup.0.1.1.exe#/dl.7z",
   "hash": "REPLACE_WITH_WIN_SHA256",
   "bin": "open-codesign.exe",

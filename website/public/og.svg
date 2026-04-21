@@ -16,7 +16,7 @@
     <text x="0" y="120" font-family="Plus Jakarta Sans, system-ui, sans-serif" font-weight="600" font-size="56" fill="url(#accent)" letter-spacing="-1.5">Design with any model.</text>
     <text x="0" y="190" font-family="Plus Jakarta Sans, system-ui, sans-serif" font-weight="600" font-size="56" fill="url(#accent)" letter-spacing="-1.5">On your own laptop.</text>
     <text x="0" y="290" font-family="Plus Jakarta Sans, system-ui, sans-serif" font-weight="400" font-size="28" fill="#57544c">Open-source desktop AI design tool. Multi-model, BYOK, local-first.</text>
-    <text x="0" y="332" font-family="Plus Jakarta Sans, system-ui, sans-serif" font-weight="400" font-size="28" fill="#57544c">The open counterpart to Claude Design. Apache-2.0.</text>
+    <text x="0" y="332" font-family="Plus Jakarta Sans, system-ui, sans-serif" font-weight="400" font-size="28" fill="#57544c">The open counterpart to Claude Design. MIT licensed.</text>
   </g>
   <g transform="translate(80,560)">
     <rect x="0" y="0" width="220" height="48" rx="10" fill="#c96442"/>

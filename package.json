@@ -3,7 +3,7 @@
   "version": "0.1.2",
   "private": true,
   "description": "Open-source AI design tool — prompt to interactive prototype, slide deck, and marketing assets. Multi-model, BYOK, runs on your laptop.",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "homepage": "https://github.com/OpenCoworkAI/open-codesign",
   "repository": {
     "type": "git",

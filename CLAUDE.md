@@ -18,7 +18,7 @@ These are project-level commitments, not preferences:
 2. **No bundled model runtimes.** No Ollama, llama.cpp, Python, or browser binaries shipped in the installer. Use system installs or lazy-download on demand.
 3. **BYOK only.** No proxied API calls, no cloud account, no telemetry by default. User credentials stay in `~/.config/open-codesign/config.toml` (encrypted via Electron `safeStorage`).
 4. **Local-first storage.** Designs, history, and codebase scans live on disk (SQLite via `better-sqlite3`). No mandatory cloud sync.
-5. **Apache-2.0 compatible only.** Reject GPL/AGPL/SSPL/proprietary deps. Check license before adding anything.
+5. **MIT-compatible permissive licenses only.** Reject GPL/AGPL/SSPL/proprietary deps. Check license before adding anything.
 6. **Lazy-load heavy features.** PPTX export, web capture, codebase scan, etc. must dynamic-import on first use, not on app start.
 7. **Compatibility, upgradeability, no bloat, elegance** — the four PRINCIPLES §5b checks. Every PR description must mark all four green.
 

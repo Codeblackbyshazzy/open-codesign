@@ -1,8 +1,8 @@
 ---
 layout: home
 title: Open CoDesign
-titleTemplate: 开源 AI 设计工具 — 自带密钥，本地优先，Apache-2.0
-description: Open CoDesign 是一款开源桌面 AI 设计工具，Claude Design 的自托管替代方案。自带 API Key（Anthropic、OpenAI、Gemini、DeepSeek、Ollama），一切本地运行。Apache-2.0。
+titleTemplate: 开源 AI 设计工具 — 自带密钥，本地优先，MIT
+description: Open CoDesign 是一款开源桌面 AI 设计工具，Claude Design 的自托管替代方案。自带 API Key（Anthropic、OpenAI、Gemini、DeepSeek、Ollama），一切本地运行。MIT 协议。
 
 hero:
   name: Open CoDesign
@@ -152,7 +152,7 @@ import { withBase } from 'vitepress'
 
 |                       | 开源           | 模型                 | 本地运行  | 价格                 |
 | --------------------- | :------------: | :------------------: | :-------: | :------------------: |
-| **Open CoDesign**     | **Apache-2.0** | **任意（自带密钥）** | **✓**     | **仅 token 成本**    |
+| **Open CoDesign**     | **MIT**        | **任意（自带密钥）** | **✓**     | **仅 token 成本**    |
 | Claude Design         | ✗ 闭源         | 仅 Opus              | ✗         | 订阅                 |
 | v0 by Vercel          | ✗ 闭源         | 平台精选             | ✗         | 订阅                 |
 | Lovable               | ✗ 闭源         | 平台精选             | ✗         | 订阅                 |

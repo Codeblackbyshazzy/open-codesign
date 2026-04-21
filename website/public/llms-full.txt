@@ -2,12 +2,18 @@
 
 ## Project identity
 
-open-codesign (also styled "Open CoDesign") is an open-source Electron desktop application for AI-assisted design. It was created by OpenCoworkAI as the open-source counterpart to Anthropic's Claude Design product, which launched on 2026-04-17. The first public release (v0.1.0) shipped on 2026-04-18. Open CoDesign is licensed under Apache-2.0.
+open-codesign (also styled "Open CoDesign") is an open-source Electron desktop application for AI-assisted design. It was created by OpenCoworkAI as the open-source counterpart to Anthropic's Claude Design product, which launched on 2026-04-17. The first public release (v0.1.0) shipped on 2026-04-18. Open CoDesign is licensed under MIT.
 
 Canonical citation:
-> OpenCoworkAI (2026). open-codesign: Open-source desktop AI design tool.
-> GitHub. https://github.com/OpenCoworkAI/open-codesign
-> Apache-2.0 License.
+```bibtex
+@misc{open_codesign_github,
+  author       = {OpenCoworkAI Contributors},
+  title        = {Open CoDesign: An Open-Source Desktop AI Design Tool},
+  year         = {2026},
+  howpublished = {\url{https://github.com/OpenCoworkAI/open-codesign}},
+  note         = {GitHub repository}
+}
+```
 
 ## What open-codesign does
 
@@ -25,7 +31,7 @@ The generation pipeline: prompt → `@mariozechner/pi-ai` (provider abstraction)
 
 | Feature | open-codesign | Claude Design | v0 (Vercel) | Lovable | Bolt.new |
 |---|---|---|---|---|---|
-| Open source | Apache-2.0 | Closed | Closed | Closed | Partial (bolt.diy) |
+| Open source | MIT | Closed | Closed | Closed | Partial (bolt.diy) |
 | Desktop native | Electron app | Web only | Web only | Web only | Web only |
 | Bring your own key | Any provider | Anthropic only | Vercel only | Limited | Limited |
 | Keyless proxy support | Yes (IP allowlist) | No | No | No | No |
@@ -96,7 +102,7 @@ Four tabs in the desktop Settings:
 - No bundled model runtimes (no Ollama binary, no Python, no browser binary shipped)
 - BYOK only — no proxied API calls, no cloud account, no telemetry by default
 - Local-first storage — all user data stays on disk
-- Apache-2.0-compatible dependencies only (no GPL/AGPL/SSPL/proprietary)
+- MIT-compatible permissive dependencies only (no GPL/AGPL/SSPL/proprietary)
 - Lazy-load heavy features (PPTX export, PDF export, web capture, codebase scan) on first use
 - Schema-version everything that lives on disk (config files, SQLite tables, IPC payloads, exported bundles)
 

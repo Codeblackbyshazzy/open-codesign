@@ -58,7 +58,7 @@ First public release. Electron desktop app, GitHub releases for macOS (DMG), Win
 - **Local-first storage** — SQLite (better-sqlite3) for design history and snapshots; TOML (encrypted via Electron `safeStorage`) for config. No electron-store blob. XDG-compliant paths.
 - **Zero mandatory telemetry, zero cloud account, zero API proxy.**
 - **Install size ≤ 80 MB** across macOS and Windows installers (CI-enforced).
-- **Apache-2.0 license** with NOTICE file and machine-readable `CITATION.cff`.
+- **MIT license** with third-party NOTICE file and machine-readable `CITATION.cff`.
 
 ### Technical foundation
 

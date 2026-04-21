@@ -17,7 +17,7 @@ PublisherUrl: https://github.com/OpenCoworkAI
 PublisherSupportUrl: https://github.com/OpenCoworkAI/open-codesign/issues
 PackageName: Open CoDesign
 PackageUrl: https://opencoworkai.github.io/open-codesign/
-License: Apache-2.0
+License: MIT
 LicenseUrl: https://github.com/OpenCoworkAI/open-codesign/blob/main/LICENSE
 ShortDescription: Prompt to polished HTML prototype, slide deck, and marketing assets.
 Tags:
