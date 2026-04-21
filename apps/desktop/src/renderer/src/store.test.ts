@@ -508,7 +508,6 @@ describe('useCodesignStore design management', () => {
     vi.stubGlobal('window', {
       codesign: {
         snapshots: {
-          listMessages: vi.fn(() => Promise.resolve([])),
           list: vi.fn(() => Promise.resolve([])),
         },
       },
@@ -604,7 +603,6 @@ describe('useCodesignStore artifact persistence', () => {
         message: 'Generated.',
       }),
     );
-    const replaceMessages = vi.fn(() => Promise.resolve([]));
     const setThumbnail = vi.fn(() => Promise.resolve(designRow));
     const renameDesign = vi.fn(() => Promise.resolve(designRow));
     const listDesigns = vi.fn(() => Promise.resolve([designRow]));
@@ -623,26 +621,6 @@ describe('useCodesignStore artifact persistence', () => {
       snapshotsByDesign.set(input.designId, bucket);
       return Promise.resolve(row);
     });
-    const listMessages = vi.fn(() =>
-      Promise.resolve([
-        {
-          schemaVersion: 1 as const,
-          designId,
-          ordinal: 0,
-          role: 'user' as const,
-          content: 'make a hero section',
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
-        {
-          schemaVersion: 1 as const,
-          designId,
-          ordinal: 1,
-          role: 'assistant' as const,
-          content: 'Generated.',
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
-      ]),
-    );
 
     vi.stubGlobal('window', {
       codesign: {
@@ -651,10 +629,8 @@ describe('useCodesignStore artifact persistence', () => {
           listDesigns,
           list,
           create,
-          replaceMessages,
           setThumbnail,
           renameDesign,
-          listMessages,
         },
       },
       setTimeout,

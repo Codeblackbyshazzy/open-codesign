@@ -4,7 +4,6 @@
  * No Electron, no filesystem — just better-sqlite3 :memory:.
  */
 
-import { DesignMessageV1 } from '@open-codesign/shared';
 import { describe, expect, it } from 'vitest';
 import {
   appendChatMessage,
@@ -17,10 +16,8 @@ import {
   initInMemoryDb,
   listChatMessages,
   listDesigns,
-  listMessages,
   listSnapshots,
   renameDesign,
-  replaceMessages,
   setDesignThumbnail,
   softDeleteDesign,
   updateChatToolCallStatus,
@@ -371,69 +368,11 @@ describe('softDeleteDesign + listDesigns filter', () => {
   });
 });
 
-describe('design messages: replaceMessages + listMessages', () => {
-  it('persists a message list keyed by design and ordinal', () => {
-    const db = makeDb();
-    const d = createDesign(db);
-    replaceMessages(db, d.id, [
-      { role: 'user', content: 'first' },
-      { role: 'assistant', content: 'reply' },
-      { role: 'user', content: 'second' },
-    ]);
-    const list = listMessages(db, d.id);
-    expect(list).toHaveLength(3);
-    expect(list[0]?.ordinal).toBe(0);
-    expect(list[0]?.role).toBe('user');
-    expect(list[1]?.role).toBe('assistant');
-    expect(list[2]?.content).toBe('second');
-  });
-
-  it('replaces (not appends) when called again', () => {
-    const db = makeDb();
-    const d = createDesign(db);
-    replaceMessages(db, d.id, [{ role: 'user', content: 'a' }]);
-    replaceMessages(db, d.id, [
-      { role: 'user', content: 'b' },
-      { role: 'assistant', content: 'c' },
-    ]);
-    const list = listMessages(db, d.id);
-    expect(list.map((m) => m.content)).toEqual(['b', 'c']);
-  });
-
-  it('persists and loads system role messages (validates against DesignMessageV1)', () => {
-    const db = makeDb();
-    const d = createDesign(db);
-    replaceMessages(db, d.id, [
-      { role: 'system', content: 'you are a designer' },
-      { role: 'user', content: 'make a hero' },
-      { role: 'assistant', content: 'done' },
-    ]);
-    const list = listMessages(db, d.id);
-    expect(list).toHaveLength(3);
-    expect(list[0]?.role).toBe('system');
-    for (const row of list) {
-      expect(() => DesignMessageV1.parse(row)).not.toThrow();
-    }
-  });
-
-  it('cascades: deleting the design row removes its messages', () => {
-    const db = makeDb();
-    const d = createDesign(db);
-    replaceMessages(db, d.id, [{ role: 'user', content: 'doomed' }]);
-    db.prepare('DELETE FROM designs WHERE id = ?').run(d.id);
-    expect(listMessages(db, d.id)).toEqual([]);
-  });
-});
-
 describe('duplicateDesign', () => {
-  it('clones the design row, all messages, and all snapshots with parent rewiring', () => {
+  it('clones the design row and all snapshots with parent rewiring', () => {
     const db = makeDb();
     const source = createDesign(db, 'Source');
     setDesignThumbnail(db, source.id, 'thumbnail preview');
-    replaceMessages(db, source.id, [
-      { role: 'user', content: 'make a hero' },
-      { role: 'assistant', content: 'here you go' },
-    ]);
     const s1 = createSnapshot(db, {
       designId: source.id,
       parentId: null,
@@ -456,9 +395,6 @@ describe('duplicateDesign', () => {
     expect(cloned?.name).toBe('Source copy');
     expect(cloned?.thumbnailText).toBe('thumbnail preview');
     expect(cloned?.id).not.toBe(source.id);
-
-    const clonedMessages = listMessages(db, cloned?.id ?? '');
-    expect(clonedMessages.map((m) => m.content)).toEqual(['make a hero', 'here you go']);
 
     const clonedSnaps = listSnapshots(db, cloned?.id ?? '');
     expect(clonedSnaps).toHaveLength(2);

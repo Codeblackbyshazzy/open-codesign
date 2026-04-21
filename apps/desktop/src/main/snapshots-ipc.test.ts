@@ -361,8 +361,6 @@ describe('schemaVersion gating', () => {
     ['snapshots:v1:set-thumbnail', { id: 'x', thumbnailText: null }],
     ['snapshots:v1:soft-delete-design', { id: 'x' }],
     ['snapshots:v1:duplicate-design', { id: 'x', name: 'n' }],
-    ['snapshots:v1:list-messages', { designId: 'd' }],
-    ['snapshots:v1:replace-messages', { designId: 'd', messages: [] }],
     [
       'snapshots:v1:create',
       {
@@ -653,37 +651,6 @@ describe('snapshots:v1:duplicate-design', () => {
     ) as { id: string; name: string };
     expect(cloned.id).not.toBe(source.id);
     expect(cloned.name).toBe('Source copy');
-  });
-});
-
-describe('snapshots:v1:list-messages + replace-messages', () => {
-  it('round-trips a message list', () => {
-    const d = createDesign(db);
-    call(
-      'snapshots:v1:replace-messages',
-      v1({
-        designId: d.id,
-        messages: [
-          { role: 'user', content: 'hello' },
-          { role: 'assistant', content: 'hi' },
-        ],
-      }),
-    );
-    const list = call('snapshots:v1:list-messages', v1({ designId: d.id })) as Array<{
-      role: string;
-      content: string;
-    }>;
-    expect(list.map((m) => m.content)).toEqual(['hello', 'hi']);
-  });
-
-  it('rejects malformed roles', () => {
-    const d = createDesign(db);
-    expect(() =>
-      call(
-        'snapshots:v1:replace-messages',
-        v1({ designId: d.id, messages: [{ role: 'bot', content: 'x' }] }),
-      ),
-    ).toThrow();
   });
 });
 

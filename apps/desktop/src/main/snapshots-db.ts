@@ -24,7 +24,6 @@ import type {
   CommentUpdateInput,
   Design,
   DesignFile,
-  DesignMessage,
   DesignSnapshot,
   SnapshotCreateInput,
 } from '@open-codesign/shared';
@@ -364,17 +363,6 @@ function rowToSnapshot(row: SnapshotRow): DesignSnapshot {
   };
 }
 
-function rowToMessage(row: MessageRow): DesignMessage {
-  return {
-    schemaVersion: 1,
-    designId: row.design_id,
-    role: row.role as DesignMessage['role'],
-    content: row.content,
-    ordinal: row.ordinal,
-    createdAt: row.created_at,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Designs
 // ---------------------------------------------------------------------------
@@ -548,48 +536,6 @@ export function getSnapshot(db: Database, id: string): DesignSnapshot | null {
 
 export function deleteSnapshot(db: Database, id: string): void {
   db.prepare('DELETE FROM design_snapshots WHERE id = ?').run(id);
-}
-
-// ---------------------------------------------------------------------------
-// Messages
-// ---------------------------------------------------------------------------
-
-export function listMessages(db: Database, designId: string): DesignMessage[] {
-  return (
-    db
-      .prepare('SELECT * FROM design_messages WHERE design_id = ? ORDER BY ordinal ASC')
-      .all(designId) as MessageRow[]
-  ).map(rowToMessage);
-}
-
-export interface MessageInput {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
-
-/**
- * Replace the entire message list for a design atomically. We rewrite rather
- * than appending so the renderer's source-of-truth stays trivially in sync —
- * the chat list is small (< 200 entries) so a full rewrite is cheap and avoids
- * ordinal-conflict bugs across edits / cancels / retries.
- */
-export function replaceMessages(
-  db: Database,
-  designId: string,
-  messages: MessageInput[],
-): DesignMessage[] {
-  const now = new Date().toISOString();
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM design_messages WHERE design_id = ?').run(designId);
-    const insert = db.prepare(
-      'INSERT INTO design_messages (design_id, ordinal, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
-    );
-    messages.forEach((m, i) => {
-      insert.run(designId, i, m.role, m.content, now);
-    });
-  });
-  tx();
-  return listMessages(db, designId);
 }
 
 // ---------------------------------------------------------------------------

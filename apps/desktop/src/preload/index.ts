@@ -7,7 +7,6 @@ import type {
   CommentRow,
   CommentStatus,
   Design,
-  DesignMessage,
   DesignSnapshot,
   GeneratePayloadV1,
   LocalInputFile,
@@ -386,17 +385,6 @@ const api = {
         id,
         name,
       }) as Promise<Design>,
-    listMessages: (designId: string) =>
-      ipcRenderer.invoke('snapshots:v1:list-messages', {
-        schemaVersion: 1,
-        designId,
-      }) as Promise<DesignMessage[]>,
-    replaceMessages: (designId: string, messages: Array<{ role: string; content: string }>) =>
-      ipcRenderer.invoke('snapshots:v1:replace-messages', {
-        schemaVersion: 1,
-        designId,
-        messages,
-      }) as Promise<DesignMessage[]>,
     list: (designId: string) =>
       ipcRenderer.invoke('snapshots:v1:list', { schemaVersion: 1, designId }) as Promise<
         DesignSnapshot[]

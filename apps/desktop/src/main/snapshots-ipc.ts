@@ -9,18 +9,12 @@
  * initSnapshotsDb().
  */
 
-import type {
-  Design,
-  DesignMessage,
-  DesignSnapshot,
-  SnapshotCreateInput,
-} from '@open-codesign/shared';
+import type { Design, DesignSnapshot, SnapshotCreateInput } from '@open-codesign/shared';
 import { CodesignError } from '@open-codesign/shared';
 import type BetterSqlite3 from 'better-sqlite3';
 import { ipcMain } from './electron-runtime';
 import { getLogger } from './logger';
 import {
-  type MessageInput,
   createDesign,
   createSnapshot,
   deleteSnapshot,
@@ -28,10 +22,8 @@ import {
   getDesign,
   getSnapshot,
   listDesigns,
-  listMessages,
   listSnapshots,
   renameDesign,
-  replaceMessages,
   setDesignThumbnail,
   softDeleteDesign,
 } from './snapshots-db';
@@ -345,27 +337,6 @@ export function registerSnapshotsIpc(db: Database): void {
     logger.info('design.duplicated', { sourceId: r['id'], newId: cloned.id });
     return cloned;
   });
-
-  ipcMain.handle('snapshots:v1:list-messages', (_e: unknown, raw: unknown): DesignMessage[] => {
-    const id = parseDesignIdPayload(raw, 'list-messages');
-    return runDb('list-messages', () => listMessages(db, id));
-  });
-
-  ipcMain.handle('snapshots:v1:replace-messages', (_e: unknown, raw: unknown): DesignMessage[] => {
-    if (typeof raw !== 'object' || raw === null) {
-      throw new CodesignError(
-        'snapshots:v1:replace-messages expects { designId, messages }',
-        'IPC_BAD_INPUT',
-      );
-    }
-    const r = raw as Record<string, unknown>;
-    requireSchemaV1(r, 'snapshots:v1:replace-messages');
-    if (typeof r['designId'] !== 'string' || r['designId'].trim().length === 0) {
-      throw new CodesignError('designId must be a non-empty string', 'IPC_BAD_INPUT');
-    }
-    const messages = parseMessageList(r['messages']);
-    return runDb('replace-messages', () => replaceMessages(db, r['designId'] as string, messages));
-  });
 }
 
 function parseIdPayload(raw: unknown, channel: string): string {
@@ -378,41 +349,6 @@ function parseIdPayload(raw: unknown, channel: string): string {
     throw new CodesignError('id must be a non-empty string', 'IPC_BAD_INPUT');
   }
   return r['id'] as string;
-}
-
-function parseDesignIdPayload(raw: unknown, channel: string): string {
-  if (typeof raw !== 'object' || raw === null) {
-    throw new CodesignError(`snapshots:v1:${channel} expects { designId }`, 'IPC_BAD_INPUT');
-  }
-  const r = raw as Record<string, unknown>;
-  requireSchemaV1(r, `snapshots:v1:${channel}`);
-  if (typeof r['designId'] !== 'string' || r['designId'].trim().length === 0) {
-    throw new CodesignError('designId must be a non-empty string', 'IPC_BAD_INPUT');
-  }
-  return r['designId'] as string;
-}
-
-function parseMessageList(raw: unknown): MessageInput[] {
-  if (!Array.isArray(raw)) {
-    throw new CodesignError('messages must be an array', 'IPC_BAD_INPUT');
-  }
-  const validRoles = ['user', 'assistant', 'system'] as const;
-  return raw.map((entry, index) => {
-    if (typeof entry !== 'object' || entry === null) {
-      throw new CodesignError(`messages[${index}] must be an object`, 'IPC_BAD_INPUT');
-    }
-    const e = entry as Record<string, unknown>;
-    if (!validRoles.includes(e['role'] as (typeof validRoles)[number])) {
-      throw new CodesignError(
-        `messages[${index}].role must be one of: ${validRoles.join(', ')}`,
-        'IPC_BAD_INPUT',
-      );
-    }
-    if (typeof e['content'] !== 'string') {
-      throw new CodesignError(`messages[${index}].content must be a string`, 'IPC_BAD_INPUT');
-    }
-    return { role: e['role'] as MessageInput['role'], content: e['content'] as string };
-  });
 }
 
 /**
@@ -432,8 +368,6 @@ export const SNAPSHOTS_CHANNELS_V1 = [
   'snapshots:v1:set-thumbnail',
   'snapshots:v1:soft-delete-design',
   'snapshots:v1:duplicate-design',
-  'snapshots:v1:list-messages',
-  'snapshots:v1:replace-messages',
   'snapshots:v1:list',
   'snapshots:v1:get',
   'snapshots:v1:create',
