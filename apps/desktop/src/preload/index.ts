@@ -67,6 +67,7 @@ export type ClaudeCodeUserType =
   | 'oauth-only'
   | 'local-proxy'
   | 'remote-gateway'
+  | 'parse-error'
   | 'no-config';
 
 export interface ExternalConfigsDetection {
@@ -79,8 +80,13 @@ export interface ExternalConfigsDetection {
   claudeCode?: {
     userType: ClaudeCodeUserType;
     baseUrl: string;
+    defaultModel: string;
     hasApiKey: boolean;
     apiKeySource: 'settings-json' | 'shell-env' | 'none';
+    settingsPath: string;
+    /** Parser-emitted notes for the user (malformed apiKeyHelper, partial
+     * data, etc.). Rendered as muted one-liners under the banner. */
+    warnings: string[];
   };
 }
 

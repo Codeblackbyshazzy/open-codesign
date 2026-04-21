@@ -735,8 +735,11 @@ async function runUpdateProvider(input: UpdateProviderInput): Promise<Onboarding
 interface ClaudeCodeDetectionMeta {
   userType: ClaudeCodeImport['userType'];
   baseUrl: string;
+  defaultModel: string;
   hasApiKey: boolean;
   apiKeySource: ClaudeCodeImport['apiKeySource'];
+  settingsPath: string;
+  warnings: string[];
 }
 
 interface ExternalConfigsDetection {
@@ -995,8 +998,12 @@ export function registerOnboardingIpc(): void {
         out.claudeCode = {
           userType: claudeCode.userType,
           baseUrl: claudeCode.provider?.baseUrl ?? 'https://api.anthropic.com',
+          defaultModel:
+            claudeCode.provider?.defaultModel ?? claudeCode.activeModel ?? 'claude-sonnet-4-6',
           hasApiKey: claudeCode.apiKey !== null,
           apiKeySource: claudeCode.apiKeySource,
+          settingsPath: claudeCode.settingsPath,
+          warnings: claudeCode.warnings,
         };
       }
       return out;
