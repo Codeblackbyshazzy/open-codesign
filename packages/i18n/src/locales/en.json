@@ -297,6 +297,15 @@
         "connectionOk": "Connection OK",
         "connectionFailed": "Connection failed"
       },
+      "cliProxyApi": {
+        "presetName": "CLIProxyAPI",
+        "presetDescription": "Local proxy that wraps Claude/Codex/Gemini OAuth subscriptions",
+        "apiKeyOptional": "API key only required if you configured `api-keys` in CPA config.yaml",
+        "thinkingHint": "Tip: append `(high)` / `(xhigh)` / `(8192)` to model name to control thinking budget",
+        "discoveringModels": "Discovering models...",
+        "discoveredModels": "Found {{count}} models",
+        "discoveryFailed": "Could not connect to CPA"
+      },
       "reasoning": {
         "label": "Reasoning depth",
         "default": "Default (auto)",
