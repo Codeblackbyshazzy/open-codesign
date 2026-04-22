@@ -829,7 +829,7 @@ function ModelsTab() {
           blocked: boolean;
         }
       | undefined;
-    opencode?: { count: number } | undefined;
+    opencode?: { count: number; warnings: string[] } | undefined;
   } | null>(null);
   /**
    * When set, `AddCustomProviderModal` mounts with these fields pre-filled.
@@ -914,7 +914,12 @@ function ModelsTab() {
               }
             : {}),
           ...(detected.opencode !== undefined && !dismissedOpencode
-            ? { opencode: { count: detected.opencode.providers.length } }
+            ? {
+                opencode: {
+                  count: detected.opencode.providers.length,
+                  warnings: detected.opencode.warnings ?? [],
+                },
+              }
             : {}),
         });
       })
@@ -967,11 +972,24 @@ function ModelsTab() {
 
   async function handleImportOpencode() {
     if (!window.codesign) return;
+    // Capture pre-import warnings: OpenCode commonly has OAuth entries that
+    // we skip, and without surfacing those reasons the user sees "imported
+    // 3 providers" success toast but the other 2 entries vanish silently.
+    const skippedSummary = externalConfigs?.opencode?.warnings ?? [];
     try {
       await window.codesign.config.importOpencodeConfig();
       setExternalConfigs((prev) => (prev === null ? null : { ...prev, opencode: undefined }));
       await reloadRows();
-      pushToast({ variant: 'success', title: t('settings.providers.import.opencodeDone') });
+      const description =
+        skippedSummary.length > 0
+          ? skippedSummary.slice(0, 3).join('\n') +
+            (skippedSummary.length > 3 ? `\n+${skippedSummary.length - 3} more` : '')
+          : undefined;
+      pushToast({
+        variant: 'success',
+        title: t('settings.providers.import.opencodeDone'),
+        ...(description !== undefined ? { description } : {}),
+      });
     } catch (err) {
       pushToast({
         variant: 'error',
