@@ -291,5 +291,71 @@ describe('composeSummaryMarkdown', () => {
       expect(md).toContain('1/2/3');
       expect(md).not.toContain('<path omitted>');
     });
+
+    it('redacts macOS /var/folders temp paths', () => {
+      const md = composeSummaryMarkdown(
+        baseInput({
+          event: baseEvent({ message: 'ENOENT /var/folders/xy/abc/T/cache broken' }),
+          includePaths: false,
+        }),
+      );
+      expect(md).not.toContain('/var/folders');
+      expect(md).toContain('<path omitted>');
+    });
+
+    it('redacts /tmp paths', () => {
+      const md = composeSummaryMarkdown(
+        baseInput({
+          event: baseEvent({ message: 'wrote /tmp/open-codesign-cache/foo then failed' }),
+          includePaths: false,
+        }),
+      );
+      expect(md).not.toContain('/tmp/open-codesign-cache');
+      expect(md).toContain('<path omitted>');
+    });
+
+    it('redacts /etc paths', () => {
+      const md = composeSummaryMarkdown(
+        baseInput({
+          event: baseEvent({ message: 'ENOENT /etc/hosts missing' }),
+          includePaths: false,
+        }),
+      );
+      expect(md).not.toContain('/etc/hosts');
+      expect(md).toContain('<path omitted>');
+    });
+
+    it('redacts /private/var paths', () => {
+      const md = composeSummaryMarkdown(
+        baseInput({
+          event: baseEvent({ message: 'failed at /private/var/folders/abc end' }),
+          includePaths: false,
+        }),
+      );
+      expect(md).not.toContain('/private/var');
+      expect(md).toContain('<path omitted>');
+    });
+
+    it('does NOT redact API-style paths like generate/v1/endpoint', () => {
+      const md = composeSummaryMarkdown(
+        baseInput({
+          event: baseEvent({ message: 'POST generate/v1/endpoint returned 500' }),
+          includePaths: false,
+        }),
+      );
+      expect(md).toContain('generate/v1/endpoint');
+      expect(md).not.toContain('<path omitted>');
+    });
+
+    it('does NOT redact "10/30 ratio" style fractions', () => {
+      const md = composeSummaryMarkdown(
+        baseInput({
+          event: baseEvent({ message: 'success 10/30 ratio observed' }),
+          includePaths: false,
+        }),
+      );
+      expect(md).toContain('10/30 ratio');
+      expect(md).not.toContain('<path omitted>');
+    });
   });
 });

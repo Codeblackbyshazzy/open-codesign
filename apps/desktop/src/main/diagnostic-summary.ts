@@ -29,7 +29,7 @@ const PROMPT_OMITTED = '<prompt omitted>';
 const PATH_OMITTED = '<path omitted>';
 const URL_OMITTED = '<url omitted>';
 const PATH_REGEX =
-  /(?:(?:[A-Za-z]:\\|\\\\)[^\s'"<>`]+|(?:[/\\](?:Users|home|root|opt|Applications))[/\\][^\s'"<>`]+|~[/\\][^\s'"<>`]+)/g;
+  /(?:(?:[A-Za-z]:\\|\\\\)[^\s'"<>`]+|(?:[/\\](?:Users|home|root|opt|Applications|var|tmp|etc|private))[/\\][^\s'"<>`]+|~[/\\][^\s'"<>`]+)/g;
 const URL_REGEX = /(?:https?|wss?|file):\/\/[^\s'"<>]+/g;
 
 export function composeSummaryMarkdown(input: SummaryInput): string {
