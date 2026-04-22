@@ -25,6 +25,9 @@ import type {
   Design,
   DesignFile,
   DesignSnapshot,
+  DiagnosticEventInput,
+  DiagnosticEventRow,
+  DiagnosticLevel,
   SnapshotCreateInput,
 } from '@open-codesign/shared';
 import type BetterSqlite3 from 'better-sqlite3';
@@ -162,6 +165,24 @@ function applySchema(db: Database): void {
       UNIQUE (design_id, path)
     );
     CREATE INDEX IF NOT EXISTS idx_design_files_design ON design_files(design_id);
+
+    CREATE TABLE IF NOT EXISTS diagnostic_events (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      schema_version  INTEGER NOT NULL DEFAULT 1,
+      ts              INTEGER NOT NULL,
+      level           TEXT    NOT NULL CHECK (level IN ('info','warn','error')),
+      code            TEXT    NOT NULL,
+      scope           TEXT    NOT NULL,
+      run_id          TEXT,
+      fingerprint     TEXT    NOT NULL,
+      message         TEXT    NOT NULL,
+      stack           TEXT,
+      transient       INTEGER NOT NULL DEFAULT 0,
+      count           INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_diag_events_ts          ON diagnostic_events(ts DESC);
+    CREATE INDEX IF NOT EXISTS idx_diag_events_fingerprint ON diagnostic_events(fingerprint);
   `);
 
   applyAdditiveMigrations(db);
@@ -1008,4 +1029,111 @@ export function insertInDesignFile(
     row.id,
   );
   return rowToDesignFile({ ...row, content: next, updated_at: now });
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostic events (PR3 — main-process error/log capture store)
+//
+// 200ms dedup: if the most recent row with the same fingerprint was inserted
+// within the window, bump its count + ts and OR-merge the transient flag
+// instead of inserting a new row. Run_id is intentionally ignored for the
+// match — dedup groups collapse regardless of which run produced the repeat.
+// ---------------------------------------------------------------------------
+
+const DIAGNOSTIC_DEDUP_WINDOW_MS = 200;
+
+interface DiagnosticEventRowDb {
+  id: number;
+  schema_version: number;
+  ts: number;
+  level: string;
+  code: string;
+  scope: string;
+  run_id: string | null;
+  fingerprint: string;
+  message: string;
+  stack: string | null;
+  transient: number;
+  count: number;
+}
+
+function rowToDiagnosticEvent(row: DiagnosticEventRowDb): DiagnosticEventRow {
+  return {
+    id: row.id,
+    schemaVersion: 1,
+    ts: row.ts,
+    level: row.level as DiagnosticLevel,
+    code: row.code,
+    scope: row.scope,
+    runId: row.run_id ?? undefined,
+    fingerprint: row.fingerprint,
+    message: row.message,
+    stack: row.stack ?? undefined,
+    transient: row.transient === 1,
+    count: row.count,
+  };
+}
+
+export function recordDiagnosticEvent(
+  db: Database,
+  input: DiagnosticEventInput,
+  now: () => number = Date.now,
+): void {
+  const ts = now();
+  const recent = db
+    .prepare(
+      'SELECT id, count, transient FROM diagnostic_events WHERE fingerprint = ? AND ts > ? ORDER BY ts DESC LIMIT 1',
+    )
+    .get(input.fingerprint, ts - DIAGNOSTIC_DEDUP_WINDOW_MS) as
+    | { id: number; count: number; transient: number }
+    | undefined;
+
+  if (recent !== undefined) {
+    const mergedTransient = recent.transient === 1 || input.transient ? 1 : 0;
+    db.prepare(
+      'UPDATE diagnostic_events SET count = count + 1, ts = ?, transient = ? WHERE id = ?',
+    ).run(ts, mergedTransient, recent.id);
+    return;
+  }
+
+  db.prepare(
+    `INSERT INTO diagnostic_events
+       (schema_version, ts, level, code, scope, run_id, fingerprint, message, stack, transient, count)
+     VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+  ).run(
+    ts,
+    input.level,
+    input.code,
+    input.scope,
+    input.runId ?? null,
+    input.fingerprint,
+    input.message,
+    input.stack ?? null,
+    input.transient ? 1 : 0,
+  );
+}
+
+export function listDiagnosticEvents(
+  db: Database,
+  opts?: { limit?: number; includeTransient?: boolean },
+): DiagnosticEventRow[] {
+  const limit = opts?.limit ?? 100;
+  const includeTransient = opts?.includeTransient ?? false;
+  const sql = includeTransient
+    ? 'SELECT * FROM diagnostic_events ORDER BY ts DESC, id DESC LIMIT ?'
+    : 'SELECT * FROM diagnostic_events WHERE transient = 0 ORDER BY ts DESC, id DESC LIMIT ?';
+  const rows = db.prepare(sql).all(limit) as DiagnosticEventRowDb[];
+  return rows.map(rowToDiagnosticEvent);
+}
+
+export function pruneDiagnosticEvents(db: Database, maxRows: number): number {
+  const result = db
+    .prepare(
+      `DELETE FROM diagnostic_events
+       WHERE id NOT IN (
+         SELECT id FROM diagnostic_events ORDER BY ts DESC, id DESC LIMIT ?
+       )`,
+    )
+    .run(maxRows);
+  return result.changes;
 }

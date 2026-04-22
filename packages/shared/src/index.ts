@@ -329,6 +329,38 @@ export type { CodesignErrorCode } from './error-codes';
 export { computeFingerprint, normalizeFrame } from './fingerprint';
 export type { FingerprintInput } from './fingerprint';
 
+// ---------------------------------------------------------------------------
+// Diagnostic events (PR3 — main-process diagnostic_events table)
+// ---------------------------------------------------------------------------
+
+export type DiagnosticLevel = 'info' | 'warn' | 'error';
+
+export interface DiagnosticEventInput {
+  level: DiagnosticLevel;
+  code: string;
+  scope: string;
+  runId: string | undefined;
+  fingerprint: string;
+  message: string;
+  stack: string | undefined;
+  transient: boolean;
+}
+
+export interface DiagnosticEventRow {
+  id: number;
+  schemaVersion: 1;
+  ts: number;
+  level: DiagnosticLevel;
+  code: string;
+  scope: string;
+  runId: string | undefined;
+  fingerprint: string;
+  message: string;
+  stack: string | undefined;
+  transient: boolean;
+  count: number;
+}
+
 export {
   ensureEditmodeMarkers,
   parseEditmodeBlock,
