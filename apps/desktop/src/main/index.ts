@@ -33,6 +33,7 @@ import { runCodexGenerate } from './codex-generate';
 import { registerCodexOAuthIpc } from './codex-oauth-ipc';
 import { generateCodexTitle } from './codex-title';
 import { registerCommentsIpc, registerCommentsUnavailableIpc } from './comments-ipc';
+import { configDir } from './config';
 import { registerConnectionIpc } from './connection-ipc';
 import { scanDesignSystem } from './design-system';
 import { registerDiagnosticsIpc } from './diagnostics-ipc';
@@ -55,6 +56,7 @@ import { readPersisted as readPreferences, registerPreferencesIpc } from './pref
 import { preparePromptContext } from './prompt-context';
 import { createProviderContextStore } from './provider-context';
 import { resolveActiveModel } from './provider-settings';
+import { cleanupStaleTmps } from './reported-fingerprints';
 import { withRun } from './runContext';
 import { pruneDiagnosticEvents, recordDiagnosticEvent, safeInitSnapshotsDb } from './snapshots-db';
 import { registerSnapshotsIpc, registerSnapshotsUnavailableIpc } from './snapshots-ipc';
@@ -1052,6 +1054,10 @@ void app.whenReady().then(async () => {
     const aborted = await maybeAbortIfRunningFromDmg();
     if (aborted) return;
     await loadConfigOnBoot();
+    // Best-effort sweep of leftover `<file>.tmp.<pid>` siblings from previous
+    // crashes. pid changes across restarts so without this the config dir
+    // accumulates 0o600 litter forever.
+    cleanupStaleTmps(join(configDir(), 'reported-fingerprints.json'));
     // Snapshot persistence is best-effort at boot — a failure here (corrupt DB,
     // permission denied, missing native binding) must NOT block the BrowserWindow
     // from opening. Surface it via an error dialog and skip registering the
