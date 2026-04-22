@@ -41,29 +41,17 @@ export function scheduleAutoDismiss(
   };
 }
 
-/**
- * Report-button target for an error toast. Prefer the eventId the caller
- * attached when emitting the toast; otherwise fall back to the most recent
- * diagnostic event. Returns null when neither source has an id — in that
- * case the Report button shouldn't open the dialog.
- */
-export function resolveReportEventId(
-  toastEventId: number | undefined,
-  recentEventId: number | undefined,
-): number | null {
-  if (typeof toastEventId === 'number') return toastEventId;
-  if (typeof recentEventId === 'number') return recentEventId;
-  return null;
-}
-
 function ToastItem({ toast }: { toast: ToastModel }) {
   const dismiss = useCodesignStore((s) => s.dismissToast);
-  const recentEvents = useCodesignStore((s) => s.recentEvents);
+  const resolveToastEventId = useCodesignStore((s) => s.resolveToastEventId);
   const t = useT();
   const Icon = iconFor[toast.variant];
   const isError = toast.variant === 'error';
   const autoMs = AUTO_DISMISS_MS[toast.variant];
   const [reportId, setReportId] = useState<number | null>(null);
+  const [resolving, setResolving] = useState(false);
+  // `null` = not attempted yet; `number` = resolved; `'none'` = resolved to no match.
+  const [resolved, setResolved] = useState<number | 'none' | null>(null);
 
   useEffect(() => {
     const cleanup = scheduleAutoDismiss(toast.variant, () => {
@@ -72,13 +60,27 @@ function ToastItem({ toast }: { toast: ToastModel }) {
     return cleanup ?? undefined;
   }, [toast.id, toast.variant, dismiss]);
 
-  // Error toast → Report button. Prefer the eventId set when the toast was
-  // emitted; otherwise fall back to the most recent diagnostic event. This
-  // approximation is acceptable while not every error push paths through
-  // the diagnostic event recorder — MVP scope.
-  function openReport(): void {
-    setReportId(resolveReportEventId(toast.eventId, recentEvents[0]?.id));
+  async function openReport(): Promise<void> {
+    setResolving(true);
+    try {
+      const id = await resolveToastEventId(toast);
+      if (id === null) {
+        setResolved('none');
+        return;
+      }
+      setResolved(id);
+      setReportId(id);
+    } finally {
+      setResolving(false);
+    }
   }
+
+  const disableReport = resolving || resolved === 'none';
+  const reportTitle = resolving
+    ? t('diagnostics.toast.resolving')
+    : resolved === 'none'
+      ? t('diagnostics.toast.noEvent')
+      : undefined;
 
   return (
     <div
@@ -113,8 +115,10 @@ function ToastItem({ toast }: { toast: ToastModel }) {
         {isError ? (
           <button
             type="button"
-            onClick={openReport}
-            className="h-6 px-2 rounded-[var(--radius-sm)] text-[var(--text-xs)] font-medium text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] transition-colors"
+            onClick={() => void openReport()}
+            disabled={disableReport}
+            title={reportTitle}
+            className="h-6 px-2 rounded-[var(--radius-sm)] text-[var(--text-xs)] font-medium text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--color-text-secondary)]"
           >
             {t('toast.error.report')}
           </button>

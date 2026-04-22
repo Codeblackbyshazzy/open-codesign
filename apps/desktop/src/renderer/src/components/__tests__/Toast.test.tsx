@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AUTO_DISMISS_MS, resolveReportEventId, scheduleAutoDismiss } from '../Toast';
+import { useCodesignStore } from '../../store';
+import type { Toast } from '../../store';
+import { AUTO_DISMISS_MS, scheduleAutoDismiss } from '../Toast';
 
 describe('Toast auto-dismiss', () => {
   beforeEach(() => {
@@ -49,18 +51,106 @@ describe('Toast auto-dismiss', () => {
   });
 });
 
-describe('resolveReportEventId', () => {
-  it('prefers the toast-provided eventId when set', () => {
-    expect(resolveReportEventId(42, 7)).toBe(42);
+describe('resolveToastEventId', () => {
+  const baseToast = (over: Partial<Toast> = {}): Toast => ({
+    id: 't1',
+    variant: 'error',
+    title: 'boom',
+    ...over,
   });
-  it('falls back to the most recent diagnostic event id', () => {
-    expect(resolveReportEventId(undefined, 7)).toBe(7);
+
+  beforeEach(() => {
+    useCodesignStore.setState({ recentEvents: [] });
   });
-  it('returns null when neither is available', () => {
-    expect(resolveReportEventId(undefined, undefined)).toBeNull();
+
+  it('returns toast.eventId when set (no store lookup needed)', async () => {
+    // Also ensure it does not accidentally hit a recentEvents fallback.
+    useCodesignStore.setState({
+      recentEvents: [
+        {
+          id: 999,
+          schemaVersion: 1,
+          ts: Date.now(),
+          level: 'error',
+          code: 'x',
+          scope: 's',
+          runId: 'other',
+          fingerprint: 'f',
+          message: 'm',
+          stack: undefined,
+          transient: false,
+          count: 1,
+          context: undefined,
+        },
+      ],
+    });
+    const id = await useCodesignStore
+      .getState()
+      .resolveToastEventId(baseToast({ eventId: 42, runId: 'other' }));
+    expect(id).toBe(42);
   });
-  it('treats 0 as a valid id (not falsy)', () => {
-    expect(resolveReportEventId(0, 5)).toBe(0);
-    expect(resolveReportEventId(undefined, 0)).toBe(0);
+
+  it('looks up by runId after refreshing events', async () => {
+    useCodesignStore.setState({
+      recentEvents: [
+        {
+          id: 100,
+          schemaVersion: 1,
+          ts: Date.now(),
+          level: 'error',
+          code: 'x',
+          scope: 's',
+          runId: 'run-xyz',
+          fingerprint: 'f',
+          message: 'm',
+          stack: undefined,
+          transient: false,
+          count: 1,
+          context: undefined,
+        },
+      ],
+      // Stub refreshDiagnosticEvents so it doesn't require window.codesign.
+      refreshDiagnosticEvents: async () => {
+        /* noop — test provides recentEvents directly */
+      },
+    });
+    const id = await useCodesignStore
+      .getState()
+      .resolveToastEventId(baseToast({ runId: 'run-xyz' }));
+    expect(id).toBe(100);
+  });
+
+  it('returns null when runId has no match', async () => {
+    useCodesignStore.setState({
+      recentEvents: [
+        {
+          id: 100,
+          schemaVersion: 1,
+          ts: Date.now(),
+          level: 'error',
+          code: 'x',
+          scope: 's',
+          runId: 'run-other',
+          fingerprint: 'f',
+          message: 'm',
+          stack: undefined,
+          transient: false,
+          count: 1,
+          context: undefined,
+        },
+      ],
+      refreshDiagnosticEvents: async () => {
+        /* noop */
+      },
+    });
+    const id = await useCodesignStore
+      .getState()
+      .resolveToastEventId(baseToast({ runId: 'run-missing' }));
+    expect(id).toBeNull();
+  });
+
+  it('returns null when neither eventId nor runId is set', async () => {
+    const id = await useCodesignStore.getState().resolveToastEventId(baseToast());
+    expect(id).toBeNull();
   });
 });

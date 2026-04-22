@@ -50,9 +50,18 @@ export interface Toast {
    * Optional id of a DiagnosticEventRow — attached by the store when an
    * error becomes a toast so the "Report" button inside an error toast
    * can open the exact event in ReportEventDialog. If absent the Report
-   * button falls back to the most recent diagnostic event.
+   * button falls back to resolving via `runId`, then to the most recent
+   * diagnostic event.
    */
   eventId?: number;
+  /**
+   * Optional generation / run id the toast was emitted for. Used by
+   * `findDiagnosticEventIdByRunId` so each toast's Report button opens
+   * the event that corresponds to *this* toast rather than the globally
+   * most recent one — critical when multiple errors fire in quick
+   * succession.
+   */
+  runId?: string;
   /**
    * Optional secondary action rendered as a button inside the toast. Used
    * to turn diagnostic toasts into actionable ones — e.g. a "no API key"
@@ -210,6 +219,11 @@ interface CodesignState {
   reportDiagnosticEvent: (
     input: Omit<ReportEventInput, 'schemaVersion' | 'timeline'>,
   ) => Promise<ReportEventResult>;
+  /** Resolve the diagnostic event id a toast's Report button should open.
+   *  Returns toast.eventId if set, otherwise looks up by toast.runId after
+   *  refreshing events, otherwise null. No last-event fallback — an unrelated
+   *  event would be worse than disabling the button. */
+  resolveToastEventId: (toast: Toast) => Promise<number | null>;
 
   loadConfig: () => Promise<void>;
   completeOnboarding: (next: OnboardingState) => void;
@@ -890,6 +904,7 @@ function applyGenerateError(
     variant: 'error',
     title: tr('notifications.generationFailed'),
     description: msg,
+    runId: generationId,
   });
 }
 
@@ -1361,6 +1376,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
         variant: 'error',
         title: tr('notifications.cancellationFailed'),
         description: msg,
+        runId: id,
       });
       return;
     }
@@ -1383,6 +1399,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
           variant: 'error',
           title: tr('notifications.cancellationFailed'),
           description: msg,
+          runId: id,
         });
       });
   },
@@ -2331,5 +2348,13 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
       ...input,
       timeline: snapshotTimeline(),
     });
+  },
+
+  async resolveToastEventId(toast) {
+    if (typeof toast.eventId === 'number') return toast.eventId;
+    if (!toast.runId) return null;
+    await get().refreshDiagnosticEvents();
+    const match = get().recentEvents.find((e) => e.runId === toast.runId);
+    return match?.id ?? null;
   },
 }));

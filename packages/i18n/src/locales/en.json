@@ -640,6 +640,7 @@
     "reportOnGitHub": "Report on GitHub",
     "reportViaDiagnostics": "Report via Diagnostics",
     "reportViaDiagnosticsEmpty": "No diagnostic events have been recorded yet.",
+    "reportDiagnosticsUnavailable": "No matching diagnostic event. Copy the stack and open an issue manually.",
     "reload": "Reload"
   },
   "errors": {
@@ -729,6 +730,10 @@
     "status": "Status: {{status}}",
     "attempted": "What we tried: {{url}}",
     "mostLikelyCause": "Most likely cause:",
+    "toast": {
+      "resolving": "Preparing report…",
+      "noEvent": "No matching diagnostic event"
+    },
     "cause": {
       "keyInvalid": "API key invalid or revoked.",
       "balanceEmpty": "Account balance is empty.",

@@ -151,7 +151,14 @@ function ErrorBoundaryFallback({
   const t = useT();
   const recentEvents = useCodesignStore((s) => s.recentEvents);
   const [reportId, setReportId] = useState<number | null>(null);
-  const latestEventId = recentEvents[0]?.id ?? null;
+  // Capture when the fallback first mounted. We only treat events logged at
+  // or shortly before this moment as "belonging to" this crash — otherwise
+  // the button opens an unrelated historical event.
+  const [errorCapturedAt] = useState<number>(() => Date.now());
+  const matchingEvent = recentEvents.find(
+    (e) => e.level === 'error' && e.ts >= errorCapturedAt - 2000,
+  );
+  const matchingEventId = matchingEvent?.id ?? null;
   const scopeLabel = scope ?? t('errorBoundary.scopeFallback');
   return (
     <div className="h-full w-full flex items-center justify-center p-6 bg-[var(--color-background)]">
@@ -174,11 +181,11 @@ function ErrorBoundaryFallback({
             type="button"
             variant="secondary"
             size="md"
-            disabled={latestEventId === null}
+            disabled={matchingEventId === null}
             title={
-              latestEventId === null ? t('errorBoundary.reportViaDiagnosticsEmpty') : undefined
+              matchingEventId === null ? t('errorBoundary.reportDiagnosticsUnavailable') : undefined
             }
-            onClick={() => setReportId(latestEventId)}
+            onClick={() => setReportId(matchingEventId)}
           >
             {t('errorBoundary.reportViaDiagnostics')}
           </Button>

@@ -17,7 +17,8 @@ import { getActiveStorageLocations } from './storage-settings';
  * Format example:
  *   [2026-04-18 12:34:56.789] [info] [main:onboarding] save-key provider=openai
  *
- * Surface in UI: Settings → Storage → "Open log folder" (TODO).
+ * Surface in UI: Settings → Diagnostics → "Open log folder" and "Export
+ * diagnostic bundle" (shipped in PR4).
  */
 
 let initialized = false;

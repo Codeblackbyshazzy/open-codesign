@@ -757,15 +757,23 @@ export async function generateTitle(input: GenerateTitleInput): Promise<string> 
     modelId: input.model.modelId,
   });
   try {
-    const result = await complete(input.model, messages, {
-      apiKey: input.apiKey,
-      ...(input.baseUrl !== undefined ? { baseUrl: input.baseUrl } : {}),
-      ...(input.wire !== undefined ? { wire: input.wire } : {}),
-      ...(input.httpHeaders !== undefined ? { httpHeaders: input.httpHeaders } : {}),
-      ...(input.allowKeyless === true ? { allowKeyless: true } : {}),
-      ...(input.signal !== undefined ? { signal: input.signal } : {}),
-      maxTokens: 200,
-    });
+    const result = await completeWithRetry(
+      input.model,
+      messages,
+      {
+        apiKey: input.apiKey,
+        ...(input.baseUrl !== undefined ? { baseUrl: input.baseUrl } : {}),
+        ...(input.wire !== undefined ? { wire: input.wire } : {}),
+        ...(input.httpHeaders !== undefined ? { httpHeaders: input.httpHeaders } : {}),
+        ...(input.allowKeyless === true ? { allowKeyless: true } : {}),
+        ...(input.signal !== undefined ? { signal: input.signal } : {}),
+        maxTokens: 200,
+      },
+      {
+        logger: log,
+        provider: input.model.provider,
+      },
+    );
     log.info('[title] step=send_request.ok', { ms: Date.now() - started });
     const title = sanitizeTitle(result.content);
     if (title.length === 0) {
