@@ -152,7 +152,12 @@ function renderTimeline(input: SummaryInput): string {
   for (const entry of sorted) {
     const offset = Math.round((entry.ts - input.event.ts) / 1000);
     const offsetLabel = `${offset} s`;
-    const details = formatTimelineData(entry.data);
+    let details = formatTimelineData(entry.data);
+    if (!input.includePromptText) details = scrubPromptInLine(details);
+    details = redactPathsAndUrls(details, {
+      includePaths: input.includePaths,
+      includeUrls: input.includeUrls,
+    });
     rows.push(`| ${offsetLabel} | ${entry.type} | ${details} |`);
   }
   return rows.join('\n');

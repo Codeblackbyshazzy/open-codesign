@@ -102,6 +102,56 @@ describe('composeSummaryMarkdown', () => {
     expect(md).not.toContain('| Offset | Type |');
   });
 
+  it('timeline data is scrubbed for paths when includePaths=false', () => {
+    const eventTs = Date.UTC(2026, 0, 1, 12, 0, 0);
+    const timeline: ActionTimelineEntry[] = [
+      {
+        ts: eventTs - 1_000,
+        type: 'design.open',
+        data: { path: '/Users/alice/secret.md' } as unknown as Record<string, never>,
+      },
+    ];
+    const md = composeSummaryMarkdown(
+      baseInput({ event: baseEvent({ ts: eventTs }), timeline, includePaths: false }),
+    );
+    expect(md).not.toContain('/Users/alice/secret.md');
+    expect(md).toContain('<path omitted>');
+  });
+
+  it('timeline data is scrubbed for prompt JSON when includePromptText=false', () => {
+    const eventTs = Date.UTC(2026, 0, 1, 12, 0, 0);
+    const timeline: ActionTimelineEntry[] = [
+      {
+        ts: eventTs - 1_000,
+        type: 'prompt.submit',
+        data: {
+          payload: { prompt: 'super secret body' },
+        } as unknown as Record<string, never>,
+      },
+    ];
+    const md = composeSummaryMarkdown(
+      baseInput({ event: baseEvent({ ts: eventTs }), timeline, includePromptText: false }),
+    );
+    expect(md).not.toContain('super secret body');
+    expect(md).toContain('<prompt omitted>');
+  });
+
+  it('timeline data is scrubbed for urls when includeUrls=false', () => {
+    const eventTs = Date.UTC(2026, 0, 1, 12, 0, 0);
+    const timeline: ActionTimelineEntry[] = [
+      {
+        ts: eventTs - 1_000,
+        type: 'provider.switch',
+        data: { endpoint: 'https://example.com/private' } as unknown as Record<string, never>,
+      },
+    ];
+    const md = composeSummaryMarkdown(
+      baseInput({ event: baseEvent({ ts: eventTs }), timeline, includeUrls: false }),
+    );
+    expect(md).not.toContain('https://example.com/private');
+    expect(md).toContain('<url omitted>');
+  });
+
   it('renders upstream context for provider scope with all 4 fields', () => {
     const md = composeSummaryMarkdown(
       baseInput({

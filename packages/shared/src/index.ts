@@ -375,8 +375,9 @@ export interface DiagnosticEventRow {
 
 /**
  * Ring-buffered record of a recent renderer-side user action, used to help
- * triage a bug report. The schema forbids prompt text, file paths, and URLs
- * so the timeline can be shared without a redaction pass.
+ * triage a bug report. Entries should avoid raw prompt text, file paths, and
+ * URLs by convention. Redaction is enforced at the summary composer, not at
+ * construction, so callers must still rely on the composer's redaction passes.
  */
 export interface ActionTimelineEntry {
   ts: number;
