@@ -12,7 +12,8 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { CodesignError, computeFingerprint } from '@open-codesign/shared';
+import { CodesignError } from '@open-codesign/shared';
+import { computeFingerprint } from '@open-codesign/shared/fingerprint';
 import type BetterSqlite3 from 'better-sqlite3';
 import { configPath } from './config';
 import { app, ipcMain, shell } from './electron-runtime';

@@ -20,8 +20,8 @@ import {
   CodesignError,
   GeneratePayload,
   GeneratePayloadV1,
-  computeFingerprint,
 } from '@open-codesign/shared';
+import { computeFingerprint } from '@open-codesign/shared/fingerprint';
 import type BetterSqlite3 from 'better-sqlite3';
 import type { BrowserWindow as ElectronBrowserWindow } from 'electron';
 import { autoUpdater } from 'electron-updater';
