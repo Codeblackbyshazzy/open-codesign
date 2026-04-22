@@ -580,9 +580,10 @@ function maskBaseUrlCreds(raw: string): string {
     if (u.username === '' && u.password === '') return raw;
     u.username = '';
     u.password = '';
-    // URL.toString() adds a trailing slash on bare-host URLs; strip it so
-    // "https://proxy.local/" doesn't become "https://proxy.local/" while
-    // the raw was "https://proxy.local".
+    // URL.toString() always appends a trailing slash on bare-host URLs.
+    // Preserve the input's original slash/no-slash shape so
+    // `https://proxy.local` round-trips unchanged — only the credentials
+    // get stripped.
     return u.toString().replace(/\/$/, raw.endsWith('/') ? '/' : '');
   } catch {
     return raw;

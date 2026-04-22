@@ -192,7 +192,7 @@ export async function readGeminiCliConfig(
     return {
       kind: 'blocked',
       warnings: [
-        'Vertex AI detected (GOOGLE_GENAI_USE_VERTEXAI=true). This importer only supports Gemini Developer API keys (AIzaSy…). Configure Vertex manually.',
+        "Google Vertex AI projects aren't supported yet — paste a Gemini Developer API key (starts with AIzaSy…) to use Gemini here.",
       ],
     };
   }
