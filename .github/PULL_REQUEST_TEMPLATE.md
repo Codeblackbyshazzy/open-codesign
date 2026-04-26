@@ -17,7 +17,7 @@
 
 ## Checklist
 
-- [ ] I read [`README.md`](../README.md) and [`CLAUDE.md`](../CLAUDE.md) before starting
+- [ ] I checked the linked issue / relevant context before starting
 - [ ] `pnpm lint && pnpm typecheck && pnpm test` passes locally
 - [ ] Added/updated tests for the change
 - [ ] Added a changeset (`pnpm changeset`) if user-visible
