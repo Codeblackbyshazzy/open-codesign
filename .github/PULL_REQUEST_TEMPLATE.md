@@ -18,7 +18,6 @@
 ## Checklist
 
 - [ ] I read [`docs/VISION.md`](../docs/VISION.md), [`docs/PRINCIPLES.md`](../docs/PRINCIPLES.md), and [`CLAUDE.md`](../CLAUDE.md) before starting
-- [ ] Commits are signed with DCO (`git commit -s`)
 - [ ] `pnpm lint && pnpm typecheck && pnpm test` passes locally
 - [ ] Added/updated tests for the change
 - [ ] Added a changeset (`pnpm changeset`) if user-visible
