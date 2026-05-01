@@ -86,6 +86,85 @@ export function runGh(args, options = {}) {
   }
 }
 
+function runGitGrepFromRgArgs(args) {
+  let fixedStrings = false;
+  let lineNumbers = false;
+  let maxCount = null;
+  const patterns = [];
+  const pathspecs = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '-F') {
+      fixedStrings = true;
+      continue;
+    }
+    if (arg === '-n') {
+      lineNumbers = true;
+      continue;
+    }
+    if (arg === '--max-count') {
+      maxCount = args[index + 1] || null;
+      index += 1;
+      continue;
+    }
+    if (arg === '-e') {
+      const pattern = args[index + 1];
+      if (pattern) {
+        patterns.push(pattern);
+      }
+      index += 1;
+      continue;
+    }
+    if (arg === '--glob') {
+      const glob = args[index + 1];
+      if (glob?.startsWith('!')) {
+        pathspecs.push(`:!${glob.slice(1)}`);
+      } else if (glob) {
+        pathspecs.push(glob);
+      }
+      index += 1;
+      continue;
+    }
+    if (!arg.startsWith('-')) {
+      pathspecs.push(arg);
+    }
+  }
+
+  if (patterns.length === 0) {
+    return '';
+  }
+
+  const gitArgs = ['grep'];
+  if (lineNumbers) {
+    gitArgs.push('-n');
+  }
+  if (fixedStrings) {
+    gitArgs.push('-F');
+  }
+  if (maxCount) {
+    gitArgs.push(`--max-count=${maxCount}`);
+  }
+  for (const pattern of patterns) {
+    gitArgs.push('-e', pattern);
+  }
+  gitArgs.push('--', ...(pathspecs.length > 0 ? pathspecs : ['.']));
+
+  try {
+    return execFileSync('git', gitArgs, {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+  } catch (error) {
+    if (error.status === 1) {
+      return '';
+    }
+    throw new Error(formatCommandError('git', gitArgs, error));
+  }
+}
+
 export function runRg(args) {
   try {
     return execFileSync('rg', args, {
@@ -97,6 +176,9 @@ export function runRg(args) {
   } catch (error) {
     if (error.status === 1) {
       return '';
+    }
+    if (error.code === 'ENOENT') {
+      return runGitGrepFromRgArgs(args);
     }
     throw new Error(formatCommandError('rg', args, error));
   }
