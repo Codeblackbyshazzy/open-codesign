@@ -1,5 +1,6 @@
 import {
-  callDeepSeekJson,
+  assertNonEmptyParsedString,
+  callDeepSeekJsonWithRetries,
   ensureBotSignature,
   listPullRequestFiles,
   loadEventPayload,
@@ -158,7 +159,7 @@ async function main() {
     followUpContext,
   ].join('\n');
 
-  const { parsed, usage } = await callDeepSeekJson({
+  const { parsed, usage } = await callDeepSeekJsonWithRetries({
     apiKey,
     baseUrl,
     model,
@@ -167,7 +168,7 @@ async function main() {
     userPrompt,
   });
 
-  const body = ensureBotSignature(String(parsed.body || ''));
+  const body = ensureBotSignature(assertNonEmptyParsedString(parsed, 'body'));
   const liveHeadSha = runGh([
     'pr',
     'view',
