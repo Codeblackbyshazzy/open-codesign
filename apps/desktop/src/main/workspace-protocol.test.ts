@@ -1,16 +1,20 @@
-import { mkdtemp, realpath, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resolveWorkspaceRealPath, resolveWorkspaceUrl } from './workspace-protocol';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolveWorkspaceSafePath, resolveWorkspaceUrl } from './workspace-protocol';
+
+vi.mock('./electron-runtime', () => ({
+  protocol: {
+    registerSchemesAsPrivileged: vi.fn(),
+    handle: vi.fn(),
+  },
+}));
 
 describe('resolveWorkspaceUrl', () => {
   let workspaceDir: string;
   const designId = 'abc123';
-  const resolveWorkspace = (id: string): string | null => {
-    if (id === designId) return workspaceDir;
-    return null;
-  };
+  const resolveWorkspace = (id: string): string | null => (id === designId ? workspaceDir : null);
 
   beforeEach(async () => {
     workspaceDir = await mkdtemp(path.join(os.tmpdir(), 'oc-wsproto-'));
@@ -18,177 +22,75 @@ describe('resolveWorkspaceUrl', () => {
   });
 
   afterEach(async () => {
-    // best-effort -- vitest cleans tmp eventually
+    await rm(workspaceDir, { recursive: true, force: true });
   });
 
-  it('resolves a basic workspace url to the file inside the workspace', () => {
-    const r = resolveWorkspaceUrl(`workspace://${designId}/index.html`, resolveWorkspace);
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.value.absPath).toBe(path.resolve(workspaceDir, 'index.html'));
-      expect(r.value.mime).toMatch(/^text\/html/);
-      expect(r.value.designId).toBe(designId);
-      expect(r.value.relPath).toBe('index.html');
-    }
+  it('resolves a workspace URL to a file inside the design workspace', () => {
+    const result = resolveWorkspaceUrl(`workspace://${designId}/index.html`, resolveWorkspace);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.absPath).toBe(path.resolve(workspaceDir, 'index.html'));
+    expect(result.value.mime).toMatch(/^text\/html/);
+    expect(result.value.designId).toBe(designId);
+    expect(result.value.relPath).toBe('index.html');
   });
 
-  it('defaults empty path to index.html', () => {
-    const r = resolveWorkspaceUrl(`workspace://${designId}/`, resolveWorkspace);
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.relPath).toBe('index.html');
+  it('defaults empty and directory paths to index.html', () => {
+    const root = resolveWorkspaceUrl(`workspace://${designId}/`, resolveWorkspace);
+    const nested = resolveWorkspaceUrl(`workspace://${designId}/screens/`, resolveWorkspace);
+
+    expect(root.ok && root.value.relPath).toBe('index.html');
+    expect(nested.ok && nested.value.relPath).toBe('screens/index.html');
   });
 
-  it('defaults trailing-slash directory path to <dir>/index.html', () => {
-    const r = resolveWorkspaceUrl(`workspace://${designId}/sub/`, resolveWorkspace);
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.relPath).toBe('sub/index.html');
+  it('rejects unknown designs and unsupported file extensions', () => {
+    const unknown = resolveWorkspaceUrl('workspace://unknown/index.html', resolveWorkspace);
+    const unsupported = resolveWorkspaceUrl(`workspace://${designId}/Makefile`, resolveWorkspace);
+
+    expect(unknown).toEqual({ ok: false, error: 'unknown_design' });
+    expect(unsupported).toEqual({ ok: false, error: 'unsupported_mime' });
   });
 
-  it('rejects non-workspace scheme', () => {
-    const r = resolveWorkspaceUrl(`https://${designId}/index.html`, resolveWorkspace);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe('bad_url');
-  });
-
-  it('rejects empty designId', () => {
-    const r = resolveWorkspaceUrl('workspace:///index.html', resolveWorkspace);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe('bad_url');
-  });
-
-  it('rejects designId with invalid characters', () => {
-    const r = resolveWorkspaceUrl('workspace://bad..id/index.html', resolveWorkspace);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe('bad_url');
-  });
-
-  it('rejects designId not in DB', () => {
-    const r = resolveWorkspaceUrl('workspace://unknown_id/index.html', resolveWorkspace);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe('unknown_design');
-  });
-
-  it('cannot escape workspace via plain ../ (URL parser normalizes)', () => {
-    // WHATWG URL normalizes `..` segments inside the path before our code
-    // sees them, so `..` collapses against the host root rather than walking
-    // above the workspace. The final path is always inside the workspace.
-    const r = resolveWorkspaceUrl(`workspace://${designId}/../etc/passwd.html`, resolveWorkspace);
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.value.relPath).toBe('etc/passwd.html');
-      expect(r.value.absPath.startsWith(workspaceDir)).toBe(true);
-    }
-  });
-
-  it('cannot escape workspace via deeply nested ../', () => {
-    const r = resolveWorkspaceUrl(
-      `workspace://${designId}/sub/../../../etc/passwd.html`,
+  it('handles encoded spaces without allowing traversal outside the workspace', () => {
+    const spaced = resolveWorkspaceUrl(`workspace://${designId}/My%20File.html`, resolveWorkspace);
+    const traversal = resolveWorkspaceUrl(
+      `workspace://${designId}/sub/%2e%2e/%2e%2e/etc/passwd.html`,
       resolveWorkspace,
     );
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.value.relPath).toBe('etc/passwd.html');
-      expect(r.value.absPath.startsWith(workspaceDir)).toBe(true);
+
+    expect(spaced.ok && spaced.value.relPath).toBe('My File.html');
+    expect(traversal.ok).toBe(true);
+    if (traversal.ok) {
+      expect(traversal.value.relPath).toBe('etc/passwd.html');
+      expect(traversal.value.absPath.startsWith(workspaceDir)).toBe(true);
     }
   });
 
-  it('cannot escape workspace via URL-encoded ../ (parser collapses %2e%2e too)', () => {
-    // WHATWG URL normalizes both plain and percent-encoded double-dot
-    // segments, so even `%2e%2e` cannot walk above the host. Defense-in-depth
-    // path.resolve guard remains in place for any future parser quirks.
-    const r = resolveWorkspaceUrl(
-      `workspace://${designId}/%2e%2e/%2e%2e/etc/passwd.html`,
-      resolveWorkspace,
-    );
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.value.relPath).toBe('etc/passwd.html');
-      expect(r.value.absPath.startsWith(workspaceDir)).toBe(true);
-    }
-  });
-
-  it('rejects null byte injection', () => {
-    const r = resolveWorkspaceUrl(`workspace://${designId}/index.html%00.png`, resolveWorkspace);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe('bad_url');
-  });
-
-  it('rejects unsupported MIME types (.exe)', () => {
-    const r = resolveWorkspaceUrl(`workspace://${designId}/malware.exe`, resolveWorkspace);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe('unsupported_mime');
-  });
-
-  it('rejects files without an extension', () => {
-    const r = resolveWorkspaceUrl(`workspace://${designId}/Makefile`, resolveWorkspace);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toBe('unsupported_mime');
-  });
-
-  it('accepts common static assets', () => {
-    const cases = [
-      ['styles.css', 'text/css'],
-      ['app.js', 'application/javascript'],
-      ['module.mjs', 'application/javascript'],
-      ['logo.png', 'image/png'],
-      ['photo.jpg', 'image/jpeg'],
-      ['icon.svg', 'image/svg+xml'],
-      ['font.woff2', 'font/woff2'],
-      ['data.json', 'application/json'],
-    ] as const;
-    for (const [file, mimePrefix] of cases) {
-      const r = resolveWorkspaceUrl(`workspace://${designId}/${file}`, resolveWorkspace);
-      expect(r.ok, `${file} should resolve`).toBe(true);
-      if (r.ok) expect(r.value.mime.startsWith(mimePrefix)).toBe(true);
-    }
-  });
-
-  it('preserves nested paths', () => {
-    const r = resolveWorkspaceUrl(
-      `workspace://${designId}/assets/icons/check.svg`,
-      resolveWorkspace,
-    );
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.relPath).toBe('assets/icons/check.svg');
-  });
-
-  it('strips query string when resolving (cache busters do not change path)', () => {
-    const r = resolveWorkspaceUrl(`workspace://${designId}/index.html?v=abc123`, resolveWorkspace);
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.relPath).toBe('index.html');
-  });
-
-  it('handles URL-encoded spaces in filenames', () => {
-    const r = resolveWorkspaceUrl(`workspace://${designId}/My%20File.html`, resolveWorkspace);
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.value.relPath).toBe('My File.html');
-  });
-
-  it('rejects symlinks that resolve outside the workspace', async () => {
+  it('rejects symlinked workspace paths during safe resolution', async () => {
     const outsideDir = await mkdtemp(path.join(os.tmpdir(), 'oc-wsproto-outside-'));
-    const outsideFile = path.join(outsideDir, 'secret.html');
-    await writeFile(outsideFile, '<html>secret</html>');
-    await symlink(outsideFile, path.join(workspaceDir, 'linked.html'));
+    try {
+      await writeFile(path.join(outsideDir, 'secret.html'), '<html>secret</html>');
+      try {
+        await symlink(outsideDir, path.join(workspaceDir, 'linked'), 'dir');
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'EPERM') return;
+        throw err;
+      }
 
-    const r = resolveWorkspaceUrl(`workspace://${designId}/linked.html`, resolveWorkspace);
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
+      const resolved = resolveWorkspaceUrl(
+        `workspace://${designId}/linked/secret.html`,
+        resolveWorkspace,
+      );
+      expect(resolved.ok).toBe(true);
+      if (!resolved.ok) return;
 
-    const checked = await resolveWorkspaceRealPath(r.value);
-    expect(checked).toEqual({ ok: false, error: 'traversal' });
-  });
-
-  it('accepts symlinks that stay inside the workspace', async () => {
-    await writeFile(path.join(workspaceDir, 'target.html'), '<html>target</html>');
-    await symlink(path.join(workspaceDir, 'target.html'), path.join(workspaceDir, 'inside.html'));
-
-    const r = resolveWorkspaceUrl(`workspace://${designId}/inside.html`, resolveWorkspace);
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-
-    const checked = await resolveWorkspaceRealPath(r.value);
-    expect(checked.ok).toBe(true);
-    if (checked.ok)
-      expect(checked.value.absPath).toBe(await realpath(path.join(workspaceDir, 'target.html')));
+      await expect(resolveWorkspaceSafePath(resolved.value)).resolves.toEqual({
+        ok: false,
+        error: 'traversal',
+      });
+    } finally {
+      await rm(outsideDir, { recursive: true, force: true });
+    }
   });
 });

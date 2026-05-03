@@ -152,7 +152,7 @@ Installers are unsigned as of v0.1.x. Apple Developer ID notarization and Window
 
 - **Report bugs** — open an issue with reproduction steps.
 - **Suggest features** — use [GitHub Discussions → Ideas](https://github.com/OpenCoworkAI/open-codesign/discussions/categories/ideas).
-- **Send PRs** — read [CONTRIBUTING.md](https://github.com/OpenCoworkAI/open-codesign/blob/main/CONTRIBUTING.md), run `pnpm lint && pnpm typecheck && pnpm test`, and add a changeset for user-visible changes.
+- **Send PRs** — read [CONTRIBUTING.md](https://github.com/OpenCoworkAI/open-codesign/blob/main/CONTRIBUTING.md). Sign commits with DCO, run `pnpm lint && pnpm typecheck && pnpm test`, add a changeset.
 - **Share what you built** — post in [Show & Tell](https://github.com/OpenCoworkAI/open-codesign/discussions/categories/show-and-tell). Standout posts get featured in release notes.
 
 ## Where can I get help?

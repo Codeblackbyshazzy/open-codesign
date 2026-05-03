@@ -1,16 +1,21 @@
-import type { ChatToolCallPayload } from '@open-codesign/shared';
 import {
-  BookOpen,
+  type ChatToolCallPayload,
+  getToolManifestEntry,
+  TOOL_MANIFEST_V1,
+  type ToolManifestIconKeyV1,
+} from '@open-codesign/shared';
+import {
   Check,
-  CheckCircle2,
   Eye,
   FileEdit,
   FilePlus,
-  FolderTree,
-  Globe,
+  Image,
   ListChecks,
   type LucideIcon,
+  MessageCircleQuestion,
+  SlidersHorizontal,
   Sparkles,
+  Type,
   Wrench,
 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -99,7 +104,7 @@ function isCreateCommand(call: ChatToolCallPayload): boolean {
 }
 
 function isTextEditorTool(call: ChatToolCallPayload): boolean {
-  return call.toolName === 'str_replace_based_edit_tool' || call.toolName === 'text_editor';
+  return call.toolName === 'str_replace_based_edit_tool';
 }
 
 function pathOf(call: ChatToolCallPayload): string | null {
@@ -107,19 +112,34 @@ function pathOf(call: ChatToolCallPayload): string | null {
   return typeof p === 'string' ? p : null;
 }
 
+const LEGACY_TOOL_NAMES = new Set([
+  ...TOOL_MANIFEST_V1.tools.filter((tool) => tool.status === 'legacy').map((tool) => tool.name),
+]);
+
+const ICONS_BY_KEY: Record<ToolManifestIconKeyV1, LucideIcon> = {
+  check: Check,
+  eye: Eye,
+  'file-edit': FileEdit,
+  'file-plus': FilePlus,
+  image: Image,
+  'list-checks': ListChecks,
+  'message-circle-question': MessageCircleQuestion,
+  'sliders-horizontal': SlidersHorizontal,
+  sparkles: Sparkles,
+  type: Type,
+  wrench: Wrench,
+};
+
 function iconAndLabel(call: ChatToolCallPayload): { Icon: LucideIcon; label: string } {
-  if (call.toolName === 'set_todos') return { Icon: ListChecks, label: 'set_todos' };
-  if (call.toolName === 'load_skill') return { Icon: Sparkles, label: 'load_skill' };
-  if (call.toolName === 'verify_html') return { Icon: CheckCircle2, label: 'verify_html' };
-  if (call.toolName === 'read_url') return { Icon: Globe, label: 'read_url' };
-  if (call.toolName === 'read_design_system')
-    return { Icon: BookOpen, label: 'read_design_system' };
-  if (call.toolName === 'list_files') return { Icon: FolderTree, label: 'list_files' };
-  if (call.toolName === 'str_replace_based_edit_tool' || call.toolName === 'text_editor') {
+  if (call.toolName === 'str_replace_based_edit_tool') {
     if (call.command === 'view') return { Icon: Eye, label: 'view' };
     if (isCreateCommand(call)) return { Icon: FilePlus, label: 'create' };
     if (isEditCommand(call)) return { Icon: FileEdit, label: 'edit' };
     return { Icon: FileEdit, label: call.command ?? 'edit' };
+  }
+  const manifestEntry = getToolManifestEntry(call.toolName);
+  if (manifestEntry) {
+    return { Icon: ICONS_BY_KEY[manifestEntry.iconKey], label: manifestEntry.label };
   }
   return { Icon: Wrench, label: call.toolName };
 }
@@ -129,8 +149,13 @@ function detailOf(call: ChatToolCallPayload): string | null {
   if (path) return path;
   const name = call.args?.['name'];
   if (typeof name === 'string') return name;
+  const kind = call.args?.['kind'];
+  if (typeof kind === 'string') return kind;
+  const title = call.args?.['title'];
+  if (typeof title === 'string') return title;
   const url = call.args?.['url'];
   if (typeof url === 'string') return url;
+  if (LEGACY_TOOL_NAMES.has(call.toolName)) return call.toolName;
   return null;
 }
 

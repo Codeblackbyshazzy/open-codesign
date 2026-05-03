@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { WorkspaceFileKind } from '../../../preload/index';
 import { useCodesignStore } from '../store';
+import { tr } from '../store/lib/locale';
 
-export type DesignFileKind = 'html' | 'asset';
+export type DesignFileKind = WorkspaceFileKind;
 
 export interface DesignFileEntry {
   path: string;
@@ -13,105 +15,181 @@ export interface DesignFileEntry {
 export interface UseDesignFilesResult {
   files: DesignFileEntry[];
   loading: boolean;
-  backend: 'snapshots' | 'files-ipc';
+  backend: 'workspace' | 'snapshots';
 }
 
-// Two backends:
-//   - files-ipc: design has a bound workspace folder. Main walks it and
-//     returns real files (html + assets). Refreshed whenever previewHtml
-//     flips so freshly-written files appear without a manual refresh.
-//   - snapshots: legacy / no-workspace mode. Synthesize a single virtual
-//     `index.html` row from the in-memory previewHtml + the latest snapshot
-//     timestamp.
+/**
+ * Read the design's bound workspace directory directly. The list reflects
+ * whatever is on disk right now — every write path (edit tool, scaffold,
+ * generate_image_asset, the user dragging a file in by hand) shows up
+ * because we do not depend on any tool remembering to fire an event.
+ *
+ * Live updates come from two sources, both of which trigger a re-list:
+ *   1. Agent stream events (`fs_updated`, `tool_call_result`, `turn_end`,
+ *      `agent_end`) — fast path while a turn is in flight.
+ *   2. A main-process `chokidar`-style fs watcher on the bound workspace —
+ *      catches edits made in Finder / a separate IDE while the agent is
+ *      idle. Throttled in main to one IPC emit per 250ms.
+ */
 export function useDesignFiles(designId: string | null): UseDesignFilesResult {
   const previewHtml = useCodesignStore((s) => s.previewHtml);
-  const designs = useCodesignStore((s) => s.designs);
-  const currentDesign = designId ? designs.find((d) => d.id === designId) : undefined;
-  const useWorkspaceBackend = currentDesign?.workspacePath != null;
-
-  const [latestSnapshotAt, setLatestSnapshotAt] = useState<string | null>(null);
-  const [workspaceFiles, setWorkspaceFiles] = useState<DesignFileEntry[]>([]);
+  const workspacePath = useCodesignStore((s) =>
+    designId === null ? null : (s.designs.find((d) => d.id === designId)?.workspacePath ?? null),
+  );
+  const pushToast = useCodesignStore((s) => s.pushToast);
+  const [files, setFiles] = useState<DesignFileEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const lastListErrorRef = useRef<string | null>(null);
+  const backend: 'workspace' | 'snapshots' =
+    typeof window !== 'undefined' && (window.codesign as unknown as { files?: unknown })?.files
+      ? 'workspace'
+      : 'snapshots';
 
-  // Workspace-backed listing.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: previewHtml is intentionally a fresh-write signal
-  useEffect(() => {
-    if (!useWorkspaceBackend || !designId || !window.codesign?.files?.list) {
-      setWorkspaceFiles([]);
+  const refetch = useCallback(async () => {
+    if (!designId) {
+      setFiles([]);
       return;
     }
-    let cancelled = false;
-    setLoading(true);
-    window.codesign.files
-      .list(designId)
-      .then((res) => {
-        if (cancelled) return;
-        setWorkspaceFiles(
-          res.files.map((f) => ({
-            path: f.path,
-            kind: f.kind,
-            updatedAt: f.updatedAt,
-            size: f.size,
+    if (backend === 'workspace') {
+      if (workspacePath === null) {
+        lastListErrorRef.current = null;
+        setFiles([]);
+        return;
+      }
+      try {
+        setLoading(true);
+        const rows = await (
+          window.codesign as unknown as {
+            files: {
+              list: (
+                id: string,
+              ) => Promise<
+                Array<{ path: string; kind: DesignFileKind; size: number; updatedAt: string }>
+              >;
+            };
+          }
+        ).files.list(designId);
+        setFiles(
+          rows.map((r) => ({
+            path: r.path,
+            kind: r.kind,
+            size: r.size,
+            updatedAt: r.updatedAt,
           })),
         );
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setWorkspaceFiles([]);
-      })
-      .finally(() => {
-        if (cancelled) return;
+        lastListErrorRef.current = null;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : tr('errors.unknown');
+        setFiles([]);
+        const errorKey = `${designId}:${workspacePath}:${message}`;
+        if (lastListErrorRef.current !== errorKey) {
+          lastListErrorRef.current = errorKey;
+          pushToast({
+            variant: 'error',
+            title: tr('canvas.workspace.updateFailed'),
+            description: message,
+          });
+        }
+      } finally {
         setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [designId, useWorkspaceBackend, previewHtml]);
+      }
+      return;
+    }
+    // Legacy fallback: no files IPC → derive a single index.html entry from
+    // the last preview if we have one. Kept so downstream tests that mock a
+    // codesign-without-files preload keep passing.
+    if (previewHtml) {
+      setFiles([
+        {
+          path: 'index.html',
+          kind: 'html',
+          size: previewHtml.length,
+          updatedAt: new Date().toISOString(),
+        },
+      ]);
+    } else {
+      setFiles([]);
+    }
+  }, [designId, backend, previewHtml, pushToast, workspacePath]);
 
-  // Snapshots-backed timestamp -- only run in fallback mode to skip a wasted
-  // IPC round-trip when the workspace backend already ships per-file mtimes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: previewHtml is intentionally a fresh-generation signal
+  // Initial fetch + refetch when the design changes.
   useEffect(() => {
-    if (useWorkspaceBackend) {
-      setLatestSnapshotAt(null);
-      return;
-    }
-    if (!designId || !window.codesign) {
-      setLatestSnapshotAt(null);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    window.codesign.snapshots
-      .list(designId)
-      .then((snaps) => {
-        if (cancelled) return;
-        setLatestSnapshotAt(snaps[0]?.createdAt ?? null);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setLatestSnapshotAt(null);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
+    void refetch();
+  }, [refetch]);
+
+  // Throttle-refetch on agent events for the same design.
+  const throttleRef = useRef<{ pending: boolean; lastRun: number }>({
+    pending: false,
+    lastRun: 0,
+  });
+  useEffect(() => {
+    if (backend !== 'workspace') return;
+    if (!designId || !window.codesign) return;
+    const off = window.codesign.chat?.onAgentEvent?.((event) => {
+      if (event.designId !== designId) return;
+      const relevant =
+        event.type === 'fs_updated' ||
+        event.type === 'tool_call_result' ||
+        event.type === 'turn_end' ||
+        event.type === 'agent_end';
+      if (!relevant) return;
+      const slot = throttleRef.current;
+      const now = Date.now();
+      const elapsed = now - slot.lastRun;
+      if (elapsed > 250) {
+        slot.lastRun = now;
+        void refetch();
+        return;
+      }
+      if (!slot.pending) {
+        slot.pending = true;
+        setTimeout(
+          () => {
+            slot.pending = false;
+            slot.lastRun = Date.now();
+            void refetch();
+          },
+          Math.max(0, 250 - elapsed),
+        );
+      }
+    });
     return () => {
-      cancelled = true;
+      off?.();
     };
-  }, [designId, useWorkspaceBackend, previewHtml]);
+  }, [backend, designId, refetch]);
 
-  if (useWorkspaceBackend) {
-    return { files: workspaceFiles, loading, backend: 'files-ipc' };
-  }
+  // Subscribe to filesystem changes outside the agent stream — Finder edits,
+  // a separate IDE saving a file, git checkouts. Main coalesces bursts to
+  // 250ms so this won't fire-hose readdir.
+  useEffect(() => {
+    if (backend !== 'workspace') return;
+    if (!designId || workspacePath === null) return;
+    const filesApi = window.codesign?.files as
+      | {
+          subscribe?: (id: string) => Promise<unknown>;
+          unsubscribe?: (id: string) => Promise<unknown>;
+          onChanged?: (cb: (e: { designId: string }) => void) => () => void;
+        }
+      | undefined;
+    if (!filesApi?.subscribe || !filesApi.unsubscribe || !filesApi.onChanged) return;
+    void filesApi.subscribe(designId).catch((err: unknown) => {
+      pushToast({
+        variant: 'error',
+        title: tr('canvas.workspace.updateFailed'),
+        description: err instanceof Error ? err.message : tr('errors.unknown'),
+      });
+    });
+    const off = filesApi.onChanged((event) => {
+      if (event.designId !== designId) return;
+      void refetch();
+    });
+    return () => {
+      off();
+      void filesApi.unsubscribe?.(designId);
+    };
+  }, [backend, designId, pushToast, refetch, workspacePath]);
 
-  const files: DesignFileEntry[] = [];
-  if (designId && previewHtml) {
-    const updatedAt = latestSnapshotAt ?? currentDesign?.updatedAt ?? new Date().toISOString();
-    files.push({ path: 'index.html', kind: 'html', updatedAt, size: previewHtml.length });
-  }
-
-  return { files, loading, backend: 'snapshots' };
+  return { files, loading, backend };
 }
 
 // Format an ISO timestamp as "22h ago" / "3d ago". Pure for testability.

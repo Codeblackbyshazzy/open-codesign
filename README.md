@@ -163,7 +163,7 @@ Each release ships with `SHA256SUMS.txt` and a CycloneDX SBOM (`*-sbom.cdx.json`
 
 | Manager | Command | Status |
 |---|---|---|
-| Scoop (Windows) | `scoop bucket add opencoworkai https://github.com/OpenCoworkAI/scoop-bucket && scoop install open-codesign` | 🟢 Live |
+| Scoop (Windows) | `scoop bucket add opencoworkai https://github.com/OpenCoworkAI/scoop-bucket && scoop install opencoworkai/open-codesign` | 🟢 Live |
 | Flathub (Linux) | `flatpak install flathub ai.opencowork.codesign` | ⏸ Deferred to v0.2 (needs signed build + AppStream metadata) |
 | Snap (Linux) | `snap install --dangerous open-codesign-*.snap` | 🟡 Attached to releases best-effort; Snap Store publish not yet wired |
 
@@ -342,7 +342,7 @@ See also the Chinese README: [README.zh-CN.md#社群](./README.zh-CN.md#%E7%A4%B
 
 ## Contributing
 
-Read [CONTRIBUTING.md](./CONTRIBUTING.md). Open an issue before larger changes and run `pnpm lint && pnpm typecheck && pnpm test` before a PR.
+Read [CONTRIBUTING.md](./CONTRIBUTING.md). Open an issue before writing code and run `pnpm lint && pnpm typecheck && pnpm test` before a PR.
 
 ## License
 

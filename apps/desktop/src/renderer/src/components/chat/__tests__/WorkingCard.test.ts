@@ -41,7 +41,7 @@ describe('WorkingCard.buildRows', () => {
   });
 
   it('merges legacy text-editor calls without command field', () => {
-    // Old chat_messages rows persisted before `command` was plumbed.
+    // Old session chat rows persisted before `command` was plumbed.
     const calls = [
       call({ toolName: 'str_replace_based_edit_tool', args: { path: 'index.html' } }),
       call({ toolName: 'str_replace_based_edit_tool', args: { path: 'index.html' } }),
@@ -113,5 +113,16 @@ describe('WorkingCard.buildRows', () => {
     ];
     const rows = buildRows(calls);
     expect(rows[0]?.status).toBe('running');
+  });
+
+  it('demotes removed helper tools to a generic legacy row', () => {
+    const rows = buildRows([
+      call({ toolName: 'read_url', args: { url: 'https://example.com' } }),
+      call({ toolName: 'text_editor', command: 'str_replace', args: { path: 'index.html' } }),
+    ]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.label)).toEqual(['legacy tool', 'legacy tool']);
+    expect(rows.map((row) => row.detail)).toEqual(['https://example.com', 'index.html']);
   });
 });

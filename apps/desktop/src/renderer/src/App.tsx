@@ -1,21 +1,27 @@
 import { useT } from '@open-codesign/i18n';
-import { ChevronLeft } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { AskModal } from './components/AskModal';
+import { CommentsPanel } from './components/comment/CommentsPanel';
 import { DeleteDesignDialog } from './components/DeleteDesignDialog';
 import { DesignsView } from './components/DesignsView';
+import { ReportEventDialog } from './components/diagnostics/ReportEventDialog';
 import { NewDesignDialog } from './components/NewDesignDialog';
+import { PermissionDialog } from './components/PermissionDialog';
 import { PreviewPane } from './components/PreviewPane';
 import { RebindWorkspaceDialog } from './components/RebindWorkspaceDialog';
 import { RenameDesignDialog } from './components/RenameDesignDialog';
-import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { ToastViewport } from './components/Toast';
 import { TopBar } from './components/TopBar';
 import { UpdateBanner } from './components/UpdateBanner';
-import { CommentsPanel } from './components/comment/CommentsPanel';
-import { ReportEventDialog } from './components/diagnostics/ReportEventDialog';
 import { useKeyboard } from './hooks/useKeyboard';
 import { useUpdateWiring } from './hooks/useUpdateWiring';
+
+// Settings opens in a separate view (Hub ↔ Workspace ↔ Settings). Keep it
+// out of the first-paint chunk — its ~2700-line tree + dynamic provider
+// cards add ~16kb gzipped that users rarely need on launch.
+const Settings = lazy(() => import('./components/Settings').then((m) => ({ default: m.Settings })));
+
 import { createUpdateStore } from './state/update-store';
 import { useCodesignStore } from './store';
 import { HubView } from './views/HubView';
@@ -43,7 +49,7 @@ export function App() {
   const requestRenameDesign = useCodesignStore((s) => s.requestRenameDesign);
   const interactionMode = useCodesignStore((s) => s.interactionMode);
   const setInteractionMode = useCodesignStore((s) => s.setInteractionMode);
-  const sidebarCollapsed = useCodesignStore((s) => s.sidebarCollapsed);
+  const _sidebarCollapsed = useCodesignStore((s) => s.sidebarCollapsed);
   const activeReportLocalId = useCodesignStore((s) => s.activeReportLocalId);
   const closeReportDialog = useCodesignStore((s) => s.closeReportDialog);
 
@@ -127,7 +133,7 @@ export function App() {
     setPrompt('');
   }
 
-  const ready = configLoaded && config !== null && config.hasKey;
+  const ready = configLoaded && config?.hasKey;
 
   const bindings = useMemo(
     () => [
@@ -215,7 +221,11 @@ export function App() {
       <UpdateBanner store={updateStore} />
       <TopBar />
       <div className="flex-1 min-h-0 relative">
-        {view === 'settings' ? <Settings /> : null}
+        {view === 'settings' ? (
+          <Suspense fallback={null}>
+            <Settings />
+          </Suspense>
+        ) : null}
         {hubMounted ? (
           <div hidden={view !== 'hub'} className="h-full">
             <HubView
@@ -262,6 +272,8 @@ export function App() {
       <NewDesignDialog />
       <ToastViewport />
       <CommentsPanel />
+      <PermissionDialog />
+      <AskModal />
       <ReportEventDialog localId={activeReportLocalId} onClose={closeReportDialog} />
     </div>
   );

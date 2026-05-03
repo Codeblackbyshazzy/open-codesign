@@ -14,6 +14,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { AgentStreamEvent } from '../../../preload/index';
+import { resolveReferencedWorkspacePreviewPath } from '../preview/workspace-source';
 import { useCodesignStore } from '../store';
 
 interface PendingPersist {
@@ -47,6 +48,7 @@ export function useAgentStream(): void {
   const setPreviewHtmlFromAgent = useCodesignStore((s) => s.setPreviewHtmlFromAgent);
   const updateChatToolStatus = useCodesignStore((s) => s.updateChatToolStatus);
   const persistAgentRunSnapshot = useCodesignStore((s) => s.persistAgentRunSnapshot);
+  const renameDesign = useCodesignStore((s) => s.renameDesign);
   const inFlight = useRef<InFlightTurn | null>(null);
 
   // Throttled live-preview push. iframe srcdoc reloads the whole page on every
@@ -162,6 +164,22 @@ export function useAgentStream(): void {
         toolName,
         toolCallId: event.toolCallId,
       });
+      // set_title runs with no side effects on disk — its whole job is
+      // to rename the design. Trigger the rename immediately off the
+      // start event so the sidebar label flips without waiting for the
+      // result round-trip.
+      if (toolName === 'set_title') {
+        const rawTitle = (event.args as { title?: unknown } | undefined)?.title;
+        if (typeof rawTitle === 'string' && rawTitle.trim().length > 0) {
+          const cleaned = rawTitle
+            .trim()
+            .replace(/[\s.,;:!?—–-]+$/u, '')
+            .slice(0, 60);
+          if (cleaned.length > 0) {
+            void renameDesign(designId, cleaned);
+          }
+        }
+      }
       // DB row rather than an in-memory shadow. Capture seq via promise so
       // the result handler can patch the same row even if it lands before
       // the append round-trip completes.
@@ -218,16 +236,27 @@ export function useAgentStream(): void {
     };
 
     const handleFsUpdated = (event: AgentStreamEvent) => {
-      // Live mirror of the agent's text_editor mutations into the iframe.
-      // We only react to index.html — other paths (frames/, skills/) are
-      // read-only context and never become the rendered artifact.
-      if (event.path === 'index.html' && typeof event.content === 'string') {
+      // Live mirror of the agent edit tool's mutations into the iframe.
+      // `index.html` is the default artifact file, but some workspaces keep a
+      // small HTML placeholder that points at a sibling JSX/TSX source.
+      if (typeof event.path !== 'string' || typeof event.content !== 'string') return;
+      if (event.path === 'index.html') {
+        scheduleFs({ designId: event.designId, content: event.content });
+        return;
+      }
+      const state = useCodesignStore.getState();
+      const visible =
+        state.currentDesignId === event.designId || state.generatingDesignId === event.designId;
+      const currentSource = visible ? state.previewHtml : state.previewHtmlByDesign[event.designId];
+      if (!currentSource) return;
+      const referencedPath = resolveReferencedWorkspacePreviewPath(currentSource, 'index.html');
+      if (referencedPath === event.path) {
         scheduleFs({ designId: event.designId, content: event.content });
       }
     };
 
     const handleError = (event: AgentStreamEvent) => {
-      const current = inFlight.current;
+      const _current = inFlight.current;
       // TODO: replace with rendererLogger once renderer-logger lands
       console.error('[agent] error', {
         generationId: event.generationId,
@@ -354,5 +383,6 @@ export function useAgentStream(): void {
     setPreviewHtmlFromAgent,
     updateChatToolStatus,
     persistAgentRunSnapshot,
+    renameDesign,
   ]);
 }

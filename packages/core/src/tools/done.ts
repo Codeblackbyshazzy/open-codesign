@@ -122,6 +122,25 @@ function findMissingAlt(html: string): DoneError[] {
   return issues;
 }
 
+function isFullHtmlDocument(src: string): boolean {
+  return (
+    /<!doctype\s+html/i.test(src) ||
+    /<html[\s>]/i.test(src) ||
+    (/<head[\s>]/i.test(src) && /<body[\s>]/i.test(src))
+  );
+}
+
+function isJsxShaped(src: string): boolean {
+  if (isFullHtmlDocument(src)) return false;
+  return (
+    /ReactDOM\.createRoot\s*\(/.test(src) ||
+    /\/\*\s*EDITMODE-BEGIN\s*\*\//.test(src) ||
+    /(?:^|\n)\s*function\s+App\s*\(/.test(src) ||
+    /(?:^|\n)\s*const\s+App\s*=/.test(src) ||
+    /<[A-Z][A-Za-z0-9]*(?:\s|>|\/)/.test(src)
+  );
+}
+
 /**
  * Cheap structural JSX sanity check — catches the 90% of agent mistakes that
  * break Babel compile before the 3-second runtime BrowserWindow load even
@@ -132,12 +151,12 @@ function findMissingAlt(html: string): DoneError[] {
  * skipped — those have their own checks via findUnclosedTags etc.
  */
 function findJsxStructuralIssues(src: string): DoneError[] {
-  const looksJsx =
-    /ReactDOM\.createRoot\s*\(/.test(src) ||
-    /\/\*\s*EDITMODE-BEGIN\s*\*\//.test(src) ||
-    /(?:^|\n)\s*function\s+App\s*\(/.test(src) ||
-    /(?:^|\n)\s*const\s+App\s*=/.test(src);
-  if (!looksJsx) return [];
+  // Plain HTML files are first-class in v0.2 (agent writes index.html into
+  // the workspace; puppeteer renders file:// directly — no JSX wrap needed).
+  // Skip the JSX structural checks entirely when the source looks like an
+  // HTML document, otherwise the "missing ReactDOM.createRoot" error trains
+  // the agent to rewrite the file as React, which is a regression.
+  if (!isJsxShaped(src)) return [];
 
   const issues: DoneError[] = [];
 
@@ -229,8 +248,12 @@ function findJsxStructuralIssues(src: string): DoneError[] {
 
   // Required JSX anchors — without them the runtime can't mount.
   if (!/ReactDOM\.createRoot\s*\(/.test(src)) {
+    const legacyRender = /(?:^|\n)\s*render\s*\(\s*<([A-Z][A-Za-z0-9]*)\b/.exec(src);
     issues.push({
-      message: 'Missing ReactDOM.createRoot(...) call — the artifact will not mount.',
+      message:
+        legacyRender !== null
+          ? `Legacy render(<${legacyRender[1]} />) helper is not available. Define function App() and mount with ReactDOM.createRoot(document.getElementById('root')).render(<App />).`
+          : 'Missing ReactDOM.createRoot(...) call — the artifact will not mount.',
       source: 'syntax',
     });
   }
@@ -283,8 +306,10 @@ export function makeDoneTool(
       'syntax checks AND loads the file in an isolated runtime to capture ' +
       'console errors / load failures, then replies with ' +
       '`{ status: "ok" | "has_errors", errors: [...] }`. If errors come back, ' +
-      'fix them with str_replace_based_edit_tool and call `done` again. ' +
-      'Stop calling once status is "ok" or after 5 rounds.',
+      'you MUST fix them with str_replace_based_edit_tool and call `done` again. ' +
+      'Stop calling once status is "ok" or after 5 rounds. If errors still ' +
+      'remain with a valid artifact after those repair rounds, the host may ' +
+      'keep the latest artifact but will surface warnings to the user.',
     parameters: DoneParams,
     async execute(_id, params): Promise<AgentToolResult<DoneDetails>> {
       const path = params.path ?? 'index.html';
@@ -303,7 +328,7 @@ export function makeDoneTool(
       }
       const errors: DoneError[] = [
         ...findJsxStructuralIssues(file.content),
-        ...findUnclosedTags(file.content),
+        ...(isJsxShaped(file.content) ? [] : findUnclosedTags(file.content)),
         ...findDuplicateIds(file.content),
         ...findMissingAlt(file.content),
       ];
@@ -327,9 +352,18 @@ export function makeDoneTool(
       };
       const text =
         status === 'ok'
-          ? runtimeVerify
-            ? 'ok — no syntactic or runtime issues detected.'
-            : 'ok — no syntactic issues detected. (Runtime verification not configured in this host.)'
+          ? [
+              runtimeVerify
+                ? 'ok — no syntactic or runtime issues detected.'
+                : 'ok — no syntactic issues detected. (Runtime verification not configured in this host.)',
+              '',
+              'STOP. The design is verified. Your only remaining action is a short',
+              '2–3 sentence natural-language summary of the design decisions — no',
+              'code, no fenced blocks, no `<artifact>` tags, no file re-emission.',
+              'Do NOT call `done` again. Do NOT call any other tool. The host',
+              'extracts the artifact from the virtual filesystem automatically;',
+              "anything else you emit is wasted tokens and pollutes the user's chat.",
+            ].join('\n')
           : `has_errors\n${errors.map((e) => `- ${e.message}${e.lineno ? ` (line ${e.lineno})` : ''}`).join('\n')}`;
       return { content: [{ type: 'text', text }], details };
     },

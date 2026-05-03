@@ -47,9 +47,7 @@
     "files": {
       "sectionTitle": "Design files",
       "sectionSubtitle": "{{count}} files",
-      "empty": "No files yet. Send a prompt to have the agent generate a design — files will show up here.",
-      "collapse": "Hide file list",
-      "expand": "Show file list"
+      "empty": "No files yet. Send a prompt to have the agent generate a design — files will show up here."
     },
     "newDesignDialog": {
       "title": "New design",
@@ -61,7 +59,7 @@
     "workspace": {
       "sectionTitle": "Workspace",
       "label": "Folder",
-      "default": "Default internal storage",
+      "default": "No workspace bound",
       "choose": "Choose folder",
       "change": "Change",
       "open": "Open folder",
@@ -244,6 +242,7 @@
       "empty": "No providers configured yet. Add one to start generating.",
       "active": "Active",
       "activeNotInList": "(active, not in provider list)",
+      "noModel": "No model selected",
       "decryptionFailed": "Decryption failed",
       "setActive": "Set active",
       "reEnterKey": "Re-enter key",
@@ -380,6 +379,7 @@
       "reasoning": {
         "label": "Reasoning depth",
         "default": "Default (auto)",
+        "off": "Off",
         "minimal": "Minimal",
         "low": "Low",
         "medium": "Medium",
@@ -419,6 +419,7 @@
       "data": "Data directory",
       "change": "Change",
       "restartHint": "Choose where open-codesign stores config, logs, and local design data. Changes are saved permanently and take effect after restarting the app.",
+      "workspaceHint": "Design workspace folders are managed per design from the Files panel. Changing these storage paths does not move or rebind existing workspace files.",
       "locationSavedToast": "Storage location saved. Restart the app to apply it.",
       "locationSaveFailed": "Could not save storage location",
       "onboardingTitle": "Onboarding",
@@ -432,6 +433,7 @@
       "diagnosticsTitle": "Diagnostics",
       "diagnosticsHint": "Open the log folder to inspect logs, or export a redacted bundle for bug reports.",
       "openLogFolder": "Open log folder",
+      "openTemplatesFolder": "Open templates folder",
       "exportDiagnostics": "Export diagnostics",
       "diagnosticsExported": "Exported to {{path}}",
       "diagnosticsExportFailed": "Could not export diagnostics"
@@ -859,9 +861,18 @@
       "timedOut": "Request timed out — check firewall or VPN.",
       "corsError": "CORS error (should not happen in main process). This is a bug.",
       "sslError": "SSL / certificate error (self-signed cert on relay?).",
+      "endpointNotFound": "The endpoint path exists in the Base URL but the provider did not expose this route.",
       "gatewayIncompatible": "The gateway accepted the connection but does not implement this provider's API. Try switching wire (e.g. openai-chat).",
       "openaiResponsesMisconfigured": "The endpoint rejected the request shape. The wire may be wrong — try switching to openai-chat.",
+      "unsupportedRole": "The endpoint rejected the role format sent to the model. This is usually a wire or model-policy mismatch.",
+      "reasoningPolicy": "The endpoint rejected reasoning metadata for this model. Lower the reasoning depth and try again.",
+      "modelIdShape": "The selected model id includes a provider prefix this endpoint does not accept.",
       "relayStreamingBug": "The gateway may mishandle OpenAI Responses API SSE events (older sub2api / claude2api / anyrouter builds cut the stream short).",
+      "transportInterrupted": "The provider connection ended before the turn completed. This is usually a gateway timeout or network interruption.",
+      "referenceUrlInvalid": "The reference URL is invalid or not supported.",
+      "referenceUrlFetchFailed": "The reference URL could not be fetched.",
+      "referenceUrlTimeout": "Fetching the reference URL timed out.",
+      "referenceUrlTooLarge": "The reference URL content is too large to include.",
       "serverError": "Upstream server error. May be transient — try again.",
       "unknown": "Unknown error — check the full log for details."
     },
@@ -876,6 +887,10 @@
       "reportBug": "Report this bug",
       "disableTls": "Disable TLS verify",
       "switchWire": "Switch wire in Settings",
+      "setReasoningMinimal": "Set reasoning to minimal",
+      "disableReasoning": "Turn reasoning off",
+      "normalizeModelId": "Remove model prefix",
+      "checkReferenceUrl": "Check reference URL",
       "relayStreamingBug": "Upgrade the relay, switch wire to openai-chat, or use api.openai.com directly"
     },
     "applyFix": "Apply this fix",
@@ -1121,6 +1136,10 @@
     "INPUT_EMPTY_HTML": "Existing HTML is required for this operation.",
     "INPUT_UNSUPPORTED_MODE": "This generation mode is not supported.",
     "GENERATION_TIMEOUT": "Generation timed out. Try a shorter prompt or increase the timeout in Settings.",
+    "GENERATION_INCOMPLETE": "The agent stopped before completing verification. Continue the run to finish the workspace artifact.",
+    "WORKSPACE_MISSING": "This design has no workspace bound. Reopen or recreate the design.",
+    "ARTIFACT_PROTOCOL_INVALID": "The generated artifact did not follow the required protocol.",
+    "TOOL_EXECUTION_FAILED": "A design tool failed while running. Details are in the log.",
     "CONFIG_READ_FAILED": "Failed to read configuration file. Check file permissions.",
     "CONFIG_PARSE_FAILED": "Configuration file could not be parsed. It may be corrupt.",
     "CONFIG_SCHEMA_INVALID": "Configuration file has an unrecognised format. Please reconfigure.",

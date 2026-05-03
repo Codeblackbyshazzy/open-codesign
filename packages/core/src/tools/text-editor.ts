@@ -1,5 +1,5 @@
 /**
- * Phase 2 — text_editor tool wired to the design_files virtual FS.
+ * str_replace_based_edit_tool wired to the workspace-backed virtual FS.
  *
  * Mirrors Anthropic's native `str_replace_based_edit_tool` shape so Claude
  * models recognize it without extra schema training. Other models that
@@ -59,6 +59,28 @@ function ok(text: string, details: TextEditorDetails): AgentToolResult<TextEdito
   };
 }
 
+function requireString(
+  value: unknown,
+  field: string,
+  command: TextEditorDetails['command'],
+): string {
+  if (typeof value !== 'string') {
+    throw new Error(`${command} requires ${field}`);
+  }
+  return value;
+}
+
+function requireNumber(
+  value: unknown,
+  field: string,
+  command: TextEditorDetails['command'],
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${command} requires numeric ${field}`);
+  }
+  return value;
+}
+
 export function makeTextEditorTool(
   fs: TextEditorFsCallbacks,
 ): AgentTool<typeof TextEditorParams, TextEditorDetails> {
@@ -92,12 +114,20 @@ export function makeTextEditorTool(
             // prefer this after the first orientation read.
             if (params.view_range) {
               const [rawStart, rawEnd] = params.view_range;
-              if (typeof rawStart !== 'number' || typeof rawEnd !== 'number') {
-                throw new Error('view_range must be [startLine, endLine] as two numbers');
+              if (
+                typeof rawStart !== 'number' ||
+                typeof rawEnd !== 'number' ||
+                !Number.isFinite(rawStart) ||
+                !Number.isFinite(rawEnd)
+              ) {
+                throw new Error('view_range must be [startLine, endLine] as two finite numbers');
               }
               const lines = file.content.split('\n');
-              const start = Math.max(1, Math.floor(rawStart));
-              const end = rawEnd === -1 ? lines.length : Math.max(start, Math.floor(rawEnd));
+              const eof = lines.length;
+              const normalizeBound = (value: number): number =>
+                value === -1 ? eof : Math.max(1, Math.floor(value));
+              const start = Math.min(normalizeBound(rawStart), eof);
+              const end = rawEnd === -1 ? eof : Math.max(start, normalizeBound(rawEnd));
               const clampedEnd = Math.min(end, lines.length);
               const slice = lines
                 .slice(start - 1, clampedEnd)
@@ -138,20 +168,20 @@ export function makeTextEditorTool(
           return ok(entries.join('\n'), { command: 'view', path, result: { entries } });
         }
         case 'create': {
-          const text = params.file_text ?? '';
+          const text = requireString(params.file_text, 'file_text', 'create');
           const result = await fs.create(path, text);
           return ok(`Created ${result.path}`, { command: 'create', path, result });
         }
         case 'str_replace': {
-          const oldStr = params.old_str ?? '';
-          const newStr = params.new_str ?? '';
+          const oldStr = requireString(params.old_str, 'old_str', 'str_replace');
+          const newStr = requireString(params.new_str, 'new_str', 'str_replace');
           if (oldStr.length === 0) throw new Error('str_replace requires non-empty old_str');
           const result = await fs.strReplace(path, oldStr, newStr);
           return ok(`Edited ${result.path}`, { command: 'str_replace', path, result });
         }
         case 'insert': {
-          const line = params.insert_line ?? 0;
-          const text = params.new_str ?? '';
+          const line = requireNumber(params.insert_line, 'insert_line', 'insert');
+          const text = requireString(params.new_str, 'new_str', 'insert');
           const result = await fs.insert(path, line, text);
           return ok(`Inserted at ${result.path}:${line}`, { command: 'insert', path, result });
         }

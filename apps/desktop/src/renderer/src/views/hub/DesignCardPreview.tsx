@@ -1,7 +1,11 @@
-import { buildSrcdoc } from '@open-codesign/runtime';
+import { buildPreviewDocument, requiresPreviewScripts } from '@open-codesign/runtime';
 import type { Design } from '@open-codesign/shared';
 import { Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  hasWorkspaceSourceReference,
+  resolveWorkspacePreviewSource,
+} from '../../preview/workspace-source';
 
 // Hub cards render many iframes in parallel; live CSS animations / transitions /
 // autoplaying media in each one thrash compositor + GPU for no user value (the
@@ -29,20 +33,8 @@ function injectThumbnailStyle(srcDoc: string): string {
   return THUMBNAIL_STYLE + srcDoc;
 }
 
-// Lightweight JSX detection — mirrors runtime's isJsxArtifact without importing it.
-// JSX markers take priority over HTML tags: our agent always emits
-// `EDITMODE-BEGIN` (and often `ReactDOM.createRoot`) in JSX artifacts, and the
-// JSX body itself commonly includes `<html>`/`<head>` tags inside a
-// `function App(){ return <html>...</html> }` return. Checking HTML first made
-// every JSX thumbnail render as raw source text in the hub grid.
 export function needsJsxRuntime(source: string): boolean {
-  const hasJsxMarker =
-    /EDITMODE-BEGIN/.test(source) ||
-    /ReactDOM\.createRoot\s*\(/.test(source) ||
-    /^\s*function\s+App\s*\(/m.test(source);
-  if (hasJsxMarker) return true;
-  if (/<!doctype/i.test(source) || /<html[^>]*>/i.test(source)) return false;
-  return false;
+  return requiresPreviewScripts(source);
 }
 
 export interface DesignCardPreviewProps {
@@ -53,13 +45,14 @@ export interface DesignCardPreviewProps {
 // session) + localStorage (cold start after reopening the app). Keyed on
 // designId + updatedAt so a fresh generate invalidates automatically.
 const memCache = new Map<string, string>();
-const LS_PREFIX = 'designCardPreview:';
+const CACHE_VERSION = 'v2';
+const LS_PREFIX = `designCardPreview:${CACHE_VERSION}:`;
 const LS_MAX_CHARS = 300_000; // ~ 300 KB per entry ceiling; skip caching huge HTML
 const LS_MAX_ENTRIES = 40;
 const MEM_MAX_ENTRIES = 40;
 
 function cacheKey(id: string, updatedAt: string): string {
-  return `${id}:${updatedAt}`;
+  return `${CACHE_VERSION}:${id}:${updatedAt}`;
 }
 
 // Map preserves insertion order, so delete+set on access makes the eviction
@@ -192,13 +185,14 @@ export function DesignCardPreview({ design }: DesignCardPreviewProps) {
     if (!visible) return;
     const key = cacheKey(design.id, design.updatedAt);
     const cached = readCache(key);
-    if (cached !== null) {
+    if (cached !== null && !hasWorkspaceSourceReference(cached)) {
       setHtml(cached);
       setFailed(false);
       return;
     }
     if (typeof window === 'undefined' || !window.codesign) return;
     let cancelled = false;
+    // TODO(v0.2/T2.4): re-route through session JSONL — see T2.6.
     void window.codesign.snapshots
       .list(design.id)
       .then((snaps) => {
@@ -209,8 +203,19 @@ export function DesignCardPreview({ design }: DesignCardPreviewProps) {
           setFailed(true);
           return;
         }
-        writeCache(key, source);
-        setHtml(source);
+        return resolveWorkspacePreviewSource({
+          designId: design.id,
+          source,
+          path: 'index.html',
+          read: window.codesign?.files?.read,
+          requireReferencedSource: hasWorkspaceSourceReference(source),
+        });
+      })
+      .then((result) => {
+        if (cancelled || !mounted.current || !result) return;
+        writeCache(key, result.content);
+        setHtml(result.content);
+        setFailed(false);
       })
       .catch(() => {
         if (!cancelled && mounted.current) setFailed(true);
@@ -224,7 +229,7 @@ export function DesignCardPreview({ design }: DesignCardPreviewProps) {
   const isJsx = useMemo(() => (html ? needsJsxRuntime(html) : false), [html]);
   const srcDoc = useMemo(() => {
     if (!html) return null;
-    const base = isJsx ? buildSrcdoc(html) : html;
+    const base = isJsx ? buildPreviewDocument(html) : html;
     return injectThumbnailStyle(base);
   }, [html, isJsx]);
 

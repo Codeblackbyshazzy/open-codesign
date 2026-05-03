@@ -1,23 +1,23 @@
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import {
+  buildAuthorizeUrl,
   type CallbackServer,
   CodexTokenStore,
-  type StoredCodexAuth,
-  type TokenSet,
-  buildAuthorizeUrl,
   decodeJwtClaims,
   exchangeCode,
   generatePkce,
+  type StoredCodexAuth,
   startCallbackServer,
+  type TokenSet,
 } from '@open-codesign/providers/codex';
 import {
   CHATGPT_CODEX_PROVIDER_ID,
   CodesignError,
   type Config,
   ERROR_CODES,
-  type ProviderEntry,
   hydrateConfig,
+  type ProviderEntry,
 } from '@open-codesign/shared';
 import { configDir, writeConfig } from './config';
 import { ipcMain, shell } from './electron-runtime';
@@ -254,15 +254,22 @@ async function runCancelLogin(): Promise<boolean> {
 async function runLogout(): Promise<CodexOAuthStatus> {
   await getCodexTokenStore().clear();
   const cfg = getCachedConfig();
-  if (cfg?.providers[CHATGPT_CODEX_PROVIDER_ID] !== undefined) {
-    await persistProviderMutation((providers) => {
-      delete providers[CHATGPT_CODEX_PROVIDER_ID];
-      return providers;
+  if (
+    cfg !== null &&
+    (cfg.providers[CHATGPT_CODEX_PROVIDER_ID] !== undefined ||
+      cfg.activeProvider === CHATGPT_CODEX_PROVIDER_ID)
+  ) {
+    const nextProviders = { ...cfg.providers };
+    delete nextProviders[CHATGPT_CODEX_PROVIDER_ID];
+    const activeWasCodex = cfg.activeProvider === CHATGPT_CODEX_PROVIDER_ID;
+    const next: Config = hydrateConfig({
+      version: 3,
+      activeProvider: activeWasCodex ? '' : cfg.activeProvider,
+      activeModel: activeWasCodex ? '' : cfg.activeModel,
+      secrets: cfg.secrets,
+      providers: nextProviders,
+      ...(cfg.designSystem !== undefined ? { designSystem: cfg.designSystem } : {}),
     });
-  }
-  const cfgAfter = getCachedConfig();
-  if (cfgAfter !== null && cfgAfter.activeProvider === CHATGPT_CODEX_PROVIDER_ID) {
-    const next: Config = { ...cfgAfter, activeProvider: '', activeModel: '' };
     await writeConfig(next);
     setCachedConfig(next);
   }
@@ -277,9 +284,9 @@ async function runLogout(): Promise<CodexOAuthStatus> {
  * requiring a manual re-login. No-op when the entry is absent or already
  * canonical. Safe to call on every boot — writes only when state diverges.
  *
- * Phase 1 released the card in "coming soon" disabled mode, so this migration
- * only fires for users who ran this feat branch directly; zero writes on
- * fresh installs or first-time upgraders from a stock main build.
+ * The public card used to ship disabled, so this migration only fires for
+ * users who ran the experimental branch directly; zero writes on fresh
+ * installs or first-time upgraders from a stock main build.
  */
 export async function migrateStaleCodexEntryIfNeeded(): Promise<void> {
   const cfg = getCachedConfig();

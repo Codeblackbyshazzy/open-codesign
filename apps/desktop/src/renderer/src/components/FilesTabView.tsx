@@ -1,16 +1,33 @@
 import { useT } from '@open-codesign/i18n';
-import { buildSrcdoc } from '@open-codesign/runtime';
-import { ChevronLeft, ChevronRight, FileCode2, Folder, FolderOpen } from 'lucide-react';
+import { buildPreviewDocument, isRenderablePath } from '@open-codesign/runtime';
+import { FileCode2, Folder, FolderOpen } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useDesignFiles } from '../hooks/useDesignFiles';
+import { type DesignFileEntry, type DesignFileKind, useDesignFiles } from '../hooks/useDesignFiles';
 import { workspacePathComparisonKey } from '../lib/workspace-path';
+import {
+  formatIframeError,
+  handlePreviewMessage,
+  isTrustedPreviewMessageSource,
+} from '../preview/helpers';
+import { readWorkspacePreviewSource } from '../preview/workspace-source';
 import { useCodesignStore } from '../store';
+
+export { resolveReferencedWorkspacePreviewPath } from '../preview/workspace-source';
 
 function truncatePath(path: string, maxLength = 40): string {
   if (path.length <= maxLength) return path;
   const start = path.substring(0, maxLength / 2 - 2);
   const end = path.substring(path.length - maxLength / 2 + 2);
-  return `${start}...${end}`;
+  return `${start}…${end}`;
+}
+
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function WorkspaceSection() {
@@ -161,21 +178,218 @@ function formatBytes(n: number | undefined): string {
   return `${(n / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+export function isRenderableDesignFileKind(kind: DesignFileKind | undefined): boolean {
+  return kind === 'html' || kind === 'jsx' || kind === 'tsx';
+}
+
+export function defaultWorkspacePreviewPath(files: DesignFileEntry[]): string | null {
+  return (
+    files.find((f) => f.path === 'index.html')?.path ??
+    files.find((f) => f.path === 'index.jsx')?.path ??
+    files.find((f) => f.path === 'index.tsx')?.path ??
+    files.find((f) => isRenderableDesignFileKind(f.kind))?.path ??
+    files[0]?.path ??
+    null
+  );
+}
+
+export function workspaceBaseHrefForFile(input: {
+  designId: string | null | undefined;
+  workspacePath: string | null | undefined;
+  filePath: string | null | undefined;
+}): string | undefined {
+  if (!input.designId || !input.workspacePath) return undefined;
+  const normalizedPath = (input.filePath ?? '').replaceAll('\\', '/');
+  const slashIndex = normalizedPath.lastIndexOf('/');
+  const dir = slashIndex >= 0 ? normalizedPath.slice(0, slashIndex + 1) : '';
+  const encodedDir = dir
+    .split('/')
+    .filter((segment) => segment.length > 0)
+    .map(encodeURIComponent)
+    .join('/');
+  return `workspace://${input.designId}/${encodedDir}${encodedDir.length > 0 ? '/' : ''}`;
+}
+
+export type WorkspacePreviewSourceMode = 'read-workspace' | 'preview-html-fallback' | 'unavailable';
+
+export function chooseWorkspacePreviewSourceMode(input: {
+  path: string;
+  hasReadApi: boolean;
+  hasPreviewHtml: boolean;
+}): WorkspacePreviewSourceMode {
+  if (input.hasReadApi) return 'read-workspace';
+  if (input.path === 'index.html' && input.hasPreviewHtml) return 'preview-html-fallback';
+  return 'unavailable';
+}
+
+function designFileRevisionKey(file: DesignFileEntry | null | undefined): string | null {
+  if (!file) return null;
+  return `${file.path}:${file.updatedAt}:${file.size ?? ''}`;
+}
+
+export function workspacePreviewDependencyKey(
+  files: DesignFileEntry[],
+  selectedPath: string,
+  sourcePath: string | null | undefined,
+): string | null {
+  const selected = designFileRevisionKey(files.find((f) => f.path === selectedPath));
+  const source =
+    sourcePath && sourcePath !== selectedPath
+      ? designFileRevisionKey(files.find((f) => f.path === sourcePath))
+      : null;
+  return [selected, source].filter((part): part is string => part !== null).join('|') || null;
+}
+
+interface WorkspaceFilePreviewProps {
+  path: string;
+  file?: DesignFileEntry | null | undefined;
+  files?: DesignFileEntry[] | null | undefined;
+}
+
+interface WorkspacePreviewSource {
+  content: string;
+  path: string;
+}
+
+export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreviewProps) {
+  const t = useT();
+  const currentDesignId = useCodesignStore((s) => s.currentDesignId);
+  const designs = useCodesignStore((s) => s.designs);
+  const previewHtml = useCodesignStore((s) => s.previewHtml);
+  const interactionMode = useCodesignStore((s) => s.interactionMode);
+  const pushIframeError = useCodesignStore((s) => s.pushIframeError);
+  const { files: observedFiles } = useDesignFiles(files ? null : currentDesignId);
+  const workspaceFiles = files ?? observedFiles;
+  const currentDesign = designs.find((d) => d.id === currentDesignId);
+  const effectiveFile = file ?? workspaceFiles.find((f) => f.path === path) ?? null;
+  const renderable = effectiveFile
+    ? isRenderableDesignFileKind(effectiveFile.kind)
+    : isRenderablePath(path);
+  const [previewSource, setPreviewSource] = useState<WorkspacePreviewSource | null>(null);
+  const previewDependencyKey = workspacePreviewDependencyKey(
+    workspaceFiles,
+    path,
+    previewSource?.path,
+  );
+  const [readError, setReadError] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent): void {
+      if (!isTrustedPreviewMessageSource(event.source, iframeRef.current?.contentWindow)) return;
+      handlePreviewMessage(event.data, {
+        onElementSelected: () => {},
+        onElementRects: () => {},
+        onIframeError: (msg) =>
+          pushIframeError(formatIframeError(msg.kind, msg.message, msg.source, msg.lineno)),
+      });
+    }
+
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [pushIframeError]);
+
+  useEffect(() => {
+    // Re-read when the file watcher reports changed metadata for either the
+    // selected file or an HTML placeholder's resolved JSX/TSX source.
+    void previewDependencyKey;
+    if (!renderable || !currentDesignId) {
+      setPreviewSource(null);
+      setReadError(null);
+      return;
+    }
+    const read = window.codesign?.files?.read;
+    const sourceMode = chooseWorkspacePreviewSourceMode({
+      path,
+      hasReadApi: typeof read === 'function',
+      hasPreviewHtml: Boolean(previewHtml),
+    });
+    if (sourceMode === 'preview-html-fallback' && previewHtml) {
+      setPreviewSource({ content: previewHtml, path });
+      setReadError(null);
+      return;
+    }
+    if (sourceMode === 'unavailable' || !read) {
+      setPreviewSource(null);
+      setReadError(t('canvas.filesTabEmpty'));
+      return;
+    }
+    let cancelled = false;
+    setReadError(null);
+    void readWorkspacePreviewSource({ designId: currentDesignId, path, read })
+      .then((result) => {
+        if (cancelled) return;
+        setPreviewSource(result);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setPreviewSource(null);
+        setReadError(err instanceof Error ? err.message : t('errors.unknown'));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentDesignId, previewDependencyKey, path, previewHtml, renderable, t]);
+
+  const srcDoc = useMemo(() => {
+    if (!previewSource || !renderable) return null;
+    try {
+      const baseHref = workspaceBaseHrefForFile({
+        designId: currentDesignId,
+        workspacePath: currentDesign?.workspacePath,
+        filePath: previewSource.path,
+      });
+      return buildPreviewDocument(previewSource.content, { path: previewSource.path, baseHref });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return `<!doctype html><html><body style="font: 13px system-ui; color: #71717a; display: grid; place-items: center; min-height: 100vh; margin: 0;">${escapeHtmlText(message)}</body></html>`;
+    }
+  }, [currentDesign?.workspacePath, currentDesignId, previewSource, renderable]);
+
+  if (!renderable) {
+    return (
+      <div className="h-full flex items-center justify-center text-[var(--text-sm)] text-[var(--color-text-muted)]">
+        {t('canvas.filesTabEmpty')}
+      </div>
+    );
+  }
+
+  if (!srcDoc) {
+    return (
+      <div className="h-full flex items-center justify-center text-[var(--text-sm)] text-[var(--color-text-muted)]">
+        {readError ?? t('canvas.filesTabEmpty')}
+      </div>
+    );
+  }
+
+  return (
+    <iframe
+      ref={iframeRef}
+      title={`design-preview-${path}`}
+      sandbox="allow-scripts"
+      srcDoc={srcDoc}
+      onLoad={() => {
+        const win = iframeRef.current?.contentWindow;
+        if (!win) return;
+        try {
+          win.postMessage({ __codesign: true, type: 'SET_MODE', mode: interactionMode }, '*');
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          pushIframeError(`SET_MODE postMessage failed: ${reason}`);
+        }
+      }}
+      className="w-full h-full bg-white border-0 block"
+    />
+  );
+}
+
 export function FilesTabView() {
   const t = useT();
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
-  const previewHtml = useCodesignStore((s) => s.previewHtml);
   const openFileTab = useCodesignStore((s) => s.openCanvasFileTab);
-  const interactionMode = useCodesignStore((s) => s.interactionMode);
-  const pushIframeError = useCodesignStore((s) => s.pushIframeError);
-  const collapsed = useCodesignStore((s) => s.filesPanelCollapsed);
-  const setCollapsed = useCodesignStore((s) => s.setFilesPanelCollapsed);
   const { files } = useDesignFiles(currentDesignId);
 
-  const defaultPath = useMemo(() => {
-    if (files.find((f) => f.path === 'index.html')) return 'index.html';
-    return files[0]?.path ?? null;
-  }, [files]);
+  const defaultPath = useMemo(() => defaultWorkspacePreviewPath(files), [files]);
 
   const [selectedPath, setSelectedPath] = useState<string | null>(defaultPath);
 
@@ -185,60 +399,15 @@ export function FilesTabView() {
     }
   }, [defaultPath, files, selectedPath]);
 
-  const selectedSource = selectedPath === 'index.html' ? previewHtml : null;
-  const srcDoc = useMemo(
-    () => (selectedSource ? buildSrcdoc(selectedSource) : null),
-    [selectedSource],
-  );
-
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // Thin column shown in place of the full aside when the user collapses
-  // the file list. Carries only the expand button so the canvas tab bar
-  // (rendered by PreviewPane above us) stays the way to switch between
-  // already-opened tabs.
-  const collapsedRail = (
-    <aside className="w-[var(--size-files-rail)] shrink-0 border-r border-[var(--color-border-muted)] bg-[var(--color-background)] flex flex-col items-center pt-[var(--space-3)]">
-      <button
-        type="button"
-        onClick={() => setCollapsed(false)}
-        title={t('canvas.files.expand')}
-        aria-label={t('canvas.files.expand')}
-        className="w-6 h-6 inline-flex items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] transition-colors"
-      >
-        <ChevronRight className="w-3.5 h-3.5" aria-hidden />
-      </button>
-    </aside>
-  );
-
-  const collapseButton = (
-    <button
-      type="button"
-      onClick={() => setCollapsed(true)}
-      title={t('canvas.files.collapse')}
-      aria-label={t('canvas.files.collapse')}
-      className="ml-auto w-6 h-6 inline-flex items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] transition-colors"
-    >
-      <ChevronLeft className="w-3.5 h-3.5" aria-hidden />
-    </button>
-  );
-
   if (files.length === 0) {
     return (
       <div className="flex h-full min-h-0">
-        {collapsed ? (
-          collapsedRail
-        ) : (
-          <aside className="w-[35%] shrink-0 border-r border-[var(--color-border-muted)] bg-[var(--color-background)] overflow-y-auto flex flex-col">
-            <WorkspaceSection />
-            <div className="flex items-center px-[var(--space-4)] py-[var(--space-2)] border-b border-[var(--color-border-muted)]">
-              {collapseButton}
-            </div>
-            <div className="flex-1 flex items-center justify-center text-[var(--text-sm)] text-[var(--color-text-muted)] px-[var(--space-6)]">
-              {t('canvas.filesTabEmpty')}
-            </div>
-          </aside>
-        )}
+        <aside className="w-[35%] shrink-0 border-r border-[var(--color-border-muted)] bg-[var(--color-background)] overflow-y-auto flex flex-col">
+          <WorkspaceSection />
+          <div className="flex-1 flex items-center justify-center text-[var(--text-sm)] text-[var(--color-text-muted)] px-[var(--space-6)]">
+            {t('canvas.filesTabEmpty')}
+          </div>
+        </aside>
         <div className="flex-1 min-w-0 h-full bg-[var(--color-background-secondary)] flex items-center justify-center text-[var(--text-sm)] text-[var(--color-text-muted)]">
           {t('canvas.filesTabEmpty')}
         </div>
@@ -247,59 +416,6 @@ export function FilesTabView() {
   }
 
   const selectedFile = selectedPath ? (files.find((f) => f.path === selectedPath) ?? null) : null;
-
-  if (collapsed) {
-    return (
-      <div className="flex h-full min-h-0">
-        {collapsedRail}
-        <div className="flex-1 min-w-0 h-full bg-[var(--color-background-secondary)] flex flex-col min-h-0">
-          <div className="shrink-0 h-[36px] px-[var(--space-4)] flex items-center justify-between gap-[var(--space-3)] border-b border-[var(--color-border-muted)] bg-[var(--color-background)]">
-            <span
-              className="truncate text-[12px] text-[var(--color-text-secondary)]"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              {selectedFile?.path ?? selectedPath ?? ''}
-            </span>
-            <button
-              type="button"
-              onClick={() => selectedPath && openFileTab(selectedPath)}
-              className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
-            >
-              {t('canvas.openInTab')}
-            </button>
-          </div>
-          <div className="flex-1 min-h-0 bg-[var(--color-background-secondary)]">
-            {srcDoc ? (
-              <iframe
-                ref={iframeRef}
-                title={`design-preview-${selectedPath ?? ''}`}
-                sandbox="allow-scripts"
-                srcDoc={srcDoc}
-                onLoad={() => {
-                  const win = iframeRef.current?.contentWindow;
-                  if (!win) return;
-                  try {
-                    win.postMessage(
-                      { __codesign: true, type: 'SET_MODE', mode: interactionMode },
-                      '*',
-                    );
-                  } catch (err) {
-                    const reason = err instanceof Error ? err.message : String(err);
-                    pushIframeError(`SET_MODE postMessage failed: ${reason}`);
-                  }
-                }}
-                className="w-full h-full bg-white border-0 block"
-              />
-            ) : (
-              <div className="h-full flex items-center justify-center text-[var(--text-sm)] text-[var(--color-text-muted)]">
-                {t('canvas.filesTabEmpty')}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-full min-h-0">
@@ -316,7 +432,6 @@ export function FilesTabView() {
             >
               {files.length}
             </span>
-            {collapseButton}
           </div>
 
           <ul className="list-none p-0 m-0 flex flex-col gap-[var(--space-1)]">
@@ -391,27 +506,8 @@ export function FilesTabView() {
           </button>
         </div>
         <div className="flex-1 min-h-0 bg-[var(--color-background-secondary)]">
-          {srcDoc ? (
-            <iframe
-              ref={iframeRef}
-              title={`design-preview-${selectedPath ?? ''}`}
-              sandbox="allow-scripts"
-              srcDoc={srcDoc}
-              onLoad={() => {
-                const win = iframeRef.current?.contentWindow;
-                if (!win) return;
-                try {
-                  win.postMessage(
-                    { __codesign: true, type: 'SET_MODE', mode: interactionMode },
-                    '*',
-                  );
-                } catch (err) {
-                  const reason = err instanceof Error ? err.message : String(err);
-                  pushIframeError(`SET_MODE postMessage failed: ${reason}`);
-                }
-              }}
-              className="w-full h-full bg-white border-0 block"
-            />
+          {selectedPath ? (
+            <WorkspaceFilePreview path={selectedPath} file={selectedFile} files={files} />
           ) : (
             <div className="h-full flex items-center justify-center text-[var(--text-sm)] text-[var(--color-text-muted)]">
               {t('canvas.filesTabEmpty')}

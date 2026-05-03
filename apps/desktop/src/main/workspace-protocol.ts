@@ -1,11 +1,14 @@
-import { readFile, realpath } from 'node:fs/promises';
-import path_module from 'node:path';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import type { CoreLogger } from '@open-codesign/core';
-import type Database from 'better-sqlite3';
 import { protocol } from './electron-runtime';
-import { getDesign } from './snapshots-db';
+import { type Database, getDesign } from './snapshots-db';
+import { normalizeWorkspacePath } from './workspace-path';
+import { resolveSafeWorkspaceChildPath } from './workspace-reader';
 
 export const WORKSPACE_SCHEME = 'workspace';
+
+const VALID_DESIGN_ID = /^[a-zA-Z0-9_-]+$/;
 
 const ALLOWED_MIME_BY_EXT = new Map<string, string>([
   ['.html', 'text/html; charset=utf-8'],
@@ -14,9 +17,6 @@ const ALLOWED_MIME_BY_EXT = new Map<string, string>([
   ['.js', 'application/javascript; charset=utf-8'],
   ['.mjs', 'application/javascript; charset=utf-8'],
   ['.cjs', 'application/javascript; charset=utf-8'],
-  // Source files often referenced by `<script type="text/babel">` for in-browser
-  // transpilation. We hand them out as application/javascript regardless of
-  // extension; Babel inspects the script type, not the response Content-Type.
   ['.jsx', 'application/javascript; charset=utf-8'],
   ['.ts', 'application/javascript; charset=utf-8'],
   ['.tsx', 'application/javascript; charset=utf-8'],
@@ -34,7 +34,6 @@ const ALLOWED_MIME_BY_EXT = new Map<string, string>([
   ['.woff2', 'font/woff2'],
   ['.ttf', 'font/ttf'],
   ['.otf', 'font/otf'],
-  ['.eot', 'application/vnd.ms-fontobject'],
   ['.txt', 'text/plain; charset=utf-8'],
   ['.md', 'text/markdown; charset=utf-8'],
   ['.map', 'application/json; charset=utf-8'],
@@ -45,50 +44,10 @@ const ALLOWED_MIME_BY_EXT = new Map<string, string>([
   ['.ogg', 'audio/ogg'],
 ]);
 
-const VALID_DESIGN_ID = /^[a-zA-Z0-9_-]+$/;
-
-// Injected at the end of every HTML response served from a workspace. Its
-// job is to convert in-iframe navigations (a user clicking a `<a href="...">`
-// that resolves to another file in the same workspace) into a postMessage
-// to the parent renderer, which then opens that file in its own canvas tab.
-// Without this, clicking a link inside, say, "Aide Sketch.html" would silently
-// repoint the iframe at "Profil Sketch.html" while the tab still showed
-// "Aide Sketch.html" -- one tab, two files, total confusion.
-//
-// Only `.html` / `.htm` workspace links are intercepted. Hash links, JS URLs,
-// external schemes, and asset links pass through to the browser default.
-export const WORKSPACE_NAV_INTERCEPT_SCRIPT = `<script>
-(function () {
-  function onClick(e) {
-    try {
-      var anchor = e.target && e.target.closest && e.target.closest('a[href]');
-      if (!anchor) return;
-      var href = anchor.getAttribute('href');
-      if (!href) return;
-      if (href.charAt(0) === '#') return;
-      if (href.toLowerCase().indexOf('javascript:') === 0) return;
-      var url;
-      try { url = new URL(href, location.href); } catch (_) { return; }
-      if (url.protocol !== 'workspace:' || url.host !== location.host) return;
-      var relPath = decodeURIComponent(url.pathname).replace(/^\\/+/, '');
-      if (!/\\.html?$/i.test(relPath)) return;
-      e.preventDefault();
-      try {
-        window.parent.postMessage(
-          { __codesign: true, type: 'OPEN_FILE_TAB', path: relPath },
-          '*',
-        );
-      } catch (_) {}
-    } catch (_) {}
-  }
-  document.addEventListener('click', onClick, true);
-})();
-</script>`;
-
 export type WorkspaceProtocolError =
   | 'bad_url'
   | 'unknown_design'
-  | 'no_workspace'
+  | 'bad_workspace'
   | 'traversal'
   | 'unsupported_mime';
 
@@ -100,20 +59,18 @@ export interface WorkspaceResolution {
   workspacePath: string;
 }
 
-export interface WorkspaceResolveResult {
-  ok: true;
-  value: WorkspaceResolution;
-}
+export type WorkspaceResolveResult =
+  | { ok: true; value: WorkspaceResolution }
+  | { ok: false; error: WorkspaceProtocolError };
 
-export interface WorkspaceResolveFailure {
-  ok: false;
-  error: WorkspaceProtocolError;
+function isInside(root: string, child: string): boolean {
+  return child === root || child.startsWith(`${root}${path.sep}`);
 }
 
 export function resolveWorkspaceUrl(
   rawUrl: string,
   resolveWorkspacePath: (designId: string) => string | null,
-): WorkspaceResolveResult | WorkspaceResolveFailure {
+): WorkspaceResolveResult {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -129,9 +86,16 @@ export function resolveWorkspaceUrl(
     return { ok: false, error: 'bad_url' };
   }
 
-  const workspacePath = resolveWorkspacePath(designId);
-  if (workspacePath === null) {
+  const storedWorkspacePath = resolveWorkspacePath(designId);
+  if (storedWorkspacePath === null) {
     return { ok: false, error: 'unknown_design' };
+  }
+
+  let workspacePath: string;
+  try {
+    workspacePath = normalizeWorkspacePath(storedWorkspacePath);
+  } catch {
+    return { ok: false, error: 'bad_workspace' };
   }
 
   let relPath: string;
@@ -140,62 +104,45 @@ export function resolveWorkspaceUrl(
   } catch {
     return { ok: false, error: 'bad_url' };
   }
-
   if (relPath === '' || relPath.endsWith('/')) {
     relPath = `${relPath}index.html`;
   }
-
   if (relPath.includes('\0')) {
     return { ok: false, error: 'bad_url' };
   }
 
-  const normalizedWorkspace = path_module.resolve(workspacePath);
-  const absPath = path_module.resolve(normalizedWorkspace, relPath);
-  const sep = path_module.sep;
-  const isInside =
-    absPath === normalizedWorkspace || absPath.startsWith(`${normalizedWorkspace}${sep}`);
-  if (!isInside) {
+  const absWorkspace = path.resolve(workspacePath);
+  const absPath = path.resolve(absWorkspace, relPath);
+  if (!isInside(absWorkspace, absPath)) {
     return { ok: false, error: 'traversal' };
   }
 
-  const ext = path_module.extname(absPath).toLowerCase();
-  const mime = ALLOWED_MIME_BY_EXT.get(ext);
+  const mime = ALLOWED_MIME_BY_EXT.get(path.extname(absPath).toLowerCase());
   if (mime === undefined) {
     return { ok: false, error: 'unsupported_mime' };
   }
 
   return {
     ok: true,
-    value: { absPath, mime, designId, relPath, workspacePath: normalizedWorkspace },
+    value: { absPath, mime, designId, relPath, workspacePath: absWorkspace },
   };
 }
 
-export async function resolveWorkspaceRealPath(
+export async function resolveWorkspaceSafePath(
   resolution: WorkspaceResolution,
-): Promise<WorkspaceResolveResult | WorkspaceResolveFailure> {
-  const realWorkspace = await realpath(resolution.workspacePath);
-  const realAbsPath = await realpath(resolution.absPath);
-  const sep = path_module.sep;
-  const isInside =
-    realAbsPath === realWorkspace || realAbsPath.startsWith(`${realWorkspace}${sep}`);
-  if (!isInside) {
+): Promise<WorkspaceResolveResult> {
+  try {
+    const absPath = await resolveSafeWorkspaceChildPath(
+      resolution.workspacePath,
+      resolution.relPath,
+    );
+    return { ok: true, value: { ...resolution, absPath } };
+  } catch {
     return { ok: false, error: 'traversal' };
   }
-  return {
-    ok: true,
-    value: {
-      ...resolution,
-      absPath: realAbsPath,
-      workspacePath: realWorkspace,
-    },
-  };
 }
 
 export function registerWorkspaceScheme(): void {
-  // Must be called BEFORE app.whenReady so Chromium treats workspace:// as a
-  // standard, secure scheme. Without standard:true, relative URL resolution
-  // (./styles.css from index.html) breaks. Without secure:true, the iframe
-  // is treated as mixed content and Chromium blocks subresource loads.
   protocol.registerSchemesAsPrivileged([
     {
       scheme: WORKSPACE_SCHEME,
@@ -211,8 +158,29 @@ export function registerWorkspaceScheme(): void {
 }
 
 export interface RegisterWorkspaceProtocolOptions {
-  db: Database.Database;
-  logger: Pick<CoreLogger, 'error' | 'warn' | 'info'>;
+  db: Database;
+  logger: Pick<CoreLogger, 'error' | 'warn'>;
+}
+
+function errorStatus(error: WorkspaceProtocolError): number {
+  switch (error) {
+    case 'bad_url':
+    case 'bad_workspace':
+      return 400;
+    case 'unknown_design':
+      return 404;
+    case 'traversal':
+      return 403;
+    case 'unsupported_mime':
+      return 415;
+  }
+}
+
+function textResponse(body: string, status: number): Response {
+  return new Response(body, {
+    status,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+  });
 }
 
 export function registerWorkspaceProtocolHandler(opts: RegisterWorkspaceProtocolOptions): void {
@@ -232,67 +200,38 @@ export function registerWorkspaceProtocolHandler(opts: RegisterWorkspaceProtocol
   };
 
   protocol.handle(WORKSPACE_SCHEME, async (request) => {
-    const result = resolveWorkspaceUrl(request.url, resolveWorkspacePath);
+    const resolved = resolveWorkspaceUrl(request.url, resolveWorkspacePath);
+    if (!resolved.ok) {
+      logger.warn('workspace.protocol.reject', { url: request.url, error: resolved.error });
+      return textResponse(resolved.error, errorStatus(resolved.error));
+    }
 
-    if (!result.ok) {
-      const status: Record<WorkspaceProtocolError, number> = {
-        bad_url: 400,
-        unknown_design: 404,
-        no_workspace: 404,
-        traversal: 403,
-        unsupported_mime: 415,
-      };
-      logger.warn('workspace.protocol.reject', { url: request.url, error: result.error });
-      return new Response(result.error, {
-        status: status[result.error],
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      });
+    const safe = await resolveWorkspaceSafePath(resolved.value);
+    if (!safe.ok) {
+      logger.warn('workspace.protocol.reject', { url: request.url, error: safe.error });
+      return textResponse(safe.error, errorStatus(safe.error));
     }
 
     try {
-      const realPathResult = await resolveWorkspaceRealPath(result.value);
-      if (!realPathResult.ok) {
-        logger.warn('workspace.protocol.reject', { url: request.url, error: realPathResult.error });
-        return new Response(realPathResult.error, {
-          status: 403,
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-        });
-      }
-
-      const data = await readFile(realPathResult.value.absPath);
-      const isHtml = realPathResult.value.mime.startsWith('text/html');
-      const body: string | Uint8Array = isHtml
-        ? `${data.toString('utf8')}${WORKSPACE_NAV_INTERCEPT_SCRIPT}`
-        : (data as unknown as Uint8Array);
-      return new Response(body, {
+      const data = await readFile(safe.value.absPath);
+      return new Response(new Uint8Array(data), {
         status: 200,
         headers: {
-          'Content-Type': realPathResult.value.mime,
-          // Iframe is sandboxed (opaque origin); permissive CORS keeps fetch()
-          // and dynamic <script> imports working when pages need them.
+          'Content-Type': safe.value.mime,
           'Access-Control-Allow-Origin': '*',
-          // Don't let Chromium cache aggressively -- workspaces change while
-          // the user is editing and we want fs_updated reloads to actually
-          // re-fetch from disk.
           'Cache-Control': 'no-store',
         },
       });
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === 'ENOENT' || code === 'ENOTDIR') {
-        return new Response('Not found', {
-          status: 404,
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-        });
+        return textResponse('Not found', 404);
       }
       logger.error('workspace.protocol.read.fail', {
-        path: result.value.absPath,
+        path: safe.value.absPath,
         message: err instanceof Error ? err.message : String(err),
       });
-      return new Response('Read failed', {
-        status: 500,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      });
+      return textResponse('Read failed', 500);
     }
   });
 }

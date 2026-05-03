@@ -1,3 +1,10 @@
+import {
+  collapseWhitespace,
+  extractHtmlElementInner,
+  removeHtmlComments,
+  removeHtmlElementBlocks,
+  stripHtmlTags,
+} from '@open-codesign/shared/html-utils';
 import type { ExportResult } from './index';
 
 export interface MarkdownMeta {
@@ -65,20 +72,19 @@ function escapeYaml(value: string): string {
 }
 
 function deriveTitle(html: string): string {
-  const t = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html ?? '');
-  if (t?.[1]) return decodeEntities(stripTags(t[1])).trim();
-  const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html ?? '');
-  if (h1?.[1]) return decodeEntities(stripTags(h1[1])).trim();
+  const title = extractHtmlElementInner(html ?? '', 'title');
+  if (title) return decodeEntities(stripTags(title)).trim();
+  const h1 = extractHtmlElementInner(html ?? '', 'h1');
+  if (h1) return decodeEntities(stripTags(h1)).trim();
   return 'open-codesign export';
 }
 
 function convertBody(html: string): string {
   let out = html;
-  const headRe = /<head[\s>][\s\S]*?<\/head>/gi;
-  out = out.replace(headRe, '');
-  out = out.replace(/<script[\s\S]*?<\/script>/gi, '');
-  out = out.replace(/<style[\s\S]*?<\/style>/gi, '');
-  out = out.replace(/<!--[\s\S]*?-->/g, '');
+  out = removeHtmlElementBlocks(out, 'head');
+  out = removeHtmlElementBlocks(out, 'script');
+  out = removeHtmlElementBlocks(out, 'style');
+  out = removeHtmlComments(out);
 
   out = out.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, (_m, inner: string) => {
     const text = decodeEntities(stripTags(inner));
@@ -144,7 +150,9 @@ function renderList(inner: string, ordered: boolean): string {
   while (m !== null) {
     const text = decodeEntities(stripTags(m[1] ?? ''))
       .trim()
-      .replace(/\s+/g, ' ');
+      .split('\n')
+      .map((line) => collapseWhitespace(line).trim())
+      .join(' ');
     const prefix = ordered ? `${i}.` : '-';
     items.push(`${prefix} ${text}`);
     i += 1;
@@ -154,7 +162,7 @@ function renderList(inner: string, ordered: boolean): string {
 }
 
 function stripTags(input: string): string {
-  return input.replace(/<[^>]+>/g, '');
+  return stripHtmlTags(input);
 }
 
 /**
@@ -166,31 +174,103 @@ export function sanitizeUrl(raw: string, kind: 'link' | 'image'): string | null 
   const output = stripControlChars(raw).trim();
   if (!output) return null;
 
-  let probe = output;
-  for (let i = 0; i < 3; i += 1) {
-    const next = decodeEntities(probe);
-    if (next === probe) break;
-    probe = next;
-  }
+  let probe = decodeUrlEntitiesForScheme(output);
+  let encodedScheme: string | null = null;
   const colonIdx = probe.indexOf(':');
   if (colonIdx > 0) {
     const schemePart = probe.slice(0, colonIdx);
-    if (/%[0-9a-fA-F]{2}/.test(schemePart)) {
+    if (hasPercentEncodedByte(schemePart)) {
       try {
-        probe = decodeURIComponent(schemePart) + probe.slice(colonIdx);
+        encodedScheme = urlScheme(`${decodeURIComponent(schemePart)}:`);
       } catch {
-        // Leave probe untouched — the regex below will catch obviously unsafe forms.
+        // Leave probe untouched; the scheme parser below catches unsafe forms.
       }
     }
   }
   probe = stripControlChars(probe).trim();
 
-  if (/^(https?:|mailto:)/i.test(probe)) return output;
-  if (kind === 'image' && /^data:image\/(png|jpe?g|gif|webp|svg\+xml|avif|bmp);/i.test(probe)) {
+  const scheme = urlScheme(probe) ?? encodedScheme;
+  if (scheme === 'http' || scheme === 'https' || scheme === 'mailto') return output;
+  if (kind === 'image' && isAllowedImageDataUrl(probe)) {
     return output;
   }
-  if (/^[a-z][a-z0-9+.-]*:/i.test(probe)) return null;
+  if (scheme !== null) return null;
   return output;
+}
+
+function hasPercentEncodedByte(value: string): boolean {
+  for (let i = 0; i + 2 < value.length; i += 1) {
+    if (value[i] !== '%') continue;
+    if (isHex(value[i + 1] ?? '') && isHex(value[i + 2] ?? '')) return true;
+  }
+  return false;
+}
+
+function isHex(ch: string): boolean {
+  const code = ch.charCodeAt(0);
+  return (code >= 48 && code <= 57) || (code >= 65 && code <= 70) || (code >= 97 && code <= 102);
+}
+
+function urlScheme(value: string): string | null {
+  const colon = value.indexOf(':');
+  if (colon <= 0) return null;
+  const first = value.charCodeAt(0);
+  const startsAlpha = (first >= 65 && first <= 90) || (first >= 97 && first <= 122);
+  if (!startsAlpha) return null;
+  for (let i = 1; i < colon; i += 1) {
+    const code = value.charCodeAt(i);
+    const ok =
+      (code >= 65 && code <= 90) ||
+      (code >= 97 && code <= 122) ||
+      (code >= 48 && code <= 57) ||
+      value[i] === '+' ||
+      value[i] === '.' ||
+      value[i] === '-';
+    if (!ok) return null;
+  }
+  return value.slice(0, colon).toLowerCase();
+}
+
+function isAllowedImageDataUrl(value: string): boolean {
+  const lower = value.toLowerCase();
+  if (!lower.startsWith('data:image/')) return false;
+  const semi = lower.indexOf(';');
+  if (semi < 0) return false;
+  const mime = lower.slice('data:image/'.length, semi);
+  return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg+xml', 'avif', 'bmp'].includes(mime);
+}
+
+function decodeUrlEntitiesForScheme(input: string): string {
+  let out = '';
+  for (let i = 0; i < input.length; i += 1) {
+    if (input[i] !== '&') {
+      out += input[i];
+      continue;
+    }
+    const semi = input.indexOf(';', i + 1);
+    if (semi < 0) {
+      out += input[i];
+      continue;
+    }
+    const entity = input.slice(i + 1, semi);
+    let decoded: string | null = null;
+    if (entity.startsWith('#x') || entity.startsWith('#X')) {
+      const code = Number.parseInt(entity.slice(2), 16);
+      decoded = safeFromCodePoint(code);
+    } else if (entity.startsWith('#')) {
+      const code = Number.parseInt(entity.slice(1), 10);
+      decoded = safeFromCodePoint(code);
+    } else if (entity.toLowerCase() === 'colon') {
+      decoded = ':';
+    }
+    if (decoded === null) {
+      out += input.slice(i, semi + 1);
+    } else {
+      out += decoded;
+    }
+    i = semi;
+  }
+  return out;
 }
 
 function decodeEntities(input: string): string {

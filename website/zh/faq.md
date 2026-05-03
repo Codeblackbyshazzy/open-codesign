@@ -152,7 +152,7 @@ v0.1.x 阶段安装包未签名。Apple Developer ID 公证和 Windows Authentic
 
 - **报 bug**——开 issue 并附复现步骤。
 - **提建议**——用 [GitHub Discussions → Ideas](https://github.com/OpenCoworkAI/open-codesign/discussions/categories/ideas)。
-- **提 PR**——读 [CONTRIBUTING.md](https://github.com/OpenCoworkAI/open-codesign/blob/main/CONTRIBUTING.md)，跑 `pnpm lint && pnpm typecheck && pnpm test`，用户可见改动加 changeset。
+- **提 PR**——读 [CONTRIBUTING.md](https://github.com/OpenCoworkAI/open-codesign/blob/main/CONTRIBUTING.md)。提交带 DCO 签名，跑 `pnpm lint && pnpm typecheck && pnpm test`，加 changeset。
 - **晒成果**——发到 [Show & Tell](https://github.com/OpenCoworkAI/open-codesign/discussions/categories/show-and-tell)。优秀作品会被收录到 release notes。
 
 ## 在哪里求助？

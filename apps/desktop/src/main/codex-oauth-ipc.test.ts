@@ -7,6 +7,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { ConfigV3Schema, toPersistedV3 } from '@open-codesign/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
@@ -44,7 +45,7 @@ vi.mock('./logger', () => ({
 }));
 
 // writeConfig is a spy so we can assert it was invoked.
-const writeConfigMock = vi.fn(async () => {});
+const writeConfigMock = vi.fn(async (_config: unknown) => {});
 vi.mock('./config', () => ({
   configDir: () => tmpConfigDir,
   writeConfig: writeConfigMock,
@@ -380,7 +381,10 @@ describe('codex-oauth:v1:logout', () => {
       accountId: null,
       expiresAt: null,
     });
-    expect(writeConfigMock).toHaveBeenCalledTimes(2);
+    expect(writeConfigMock).toHaveBeenCalledTimes(1);
+    expect(() =>
+      ConfigV3Schema.parse(toPersistedV3(writeConfigMock.mock.calls[0]?.[0] as never)),
+    ).not.toThrow();
     expect(fakeCachedConfig?.providers['chatgpt-codex']).toBeUndefined();
     expect(fakeCachedConfig?.activeProvider).toBe('');
     expect(fakeCachedConfig?.activeModel).toBe('');
@@ -390,7 +394,7 @@ describe('codex-oauth:v1:logout', () => {
 });
 
 describe('migrateStaleCodexEntryIfNeeded', () => {
-  it('rewrites Phase-1-shaped codex entry with current wire + baseUrl', async () => {
+  it('rewrites stale codex entry with current wire + baseUrl', async () => {
     fakeCachedConfig = {
       activeProvider: 'chatgpt-codex',
       activeModel: 'gpt-5.3-codex',
@@ -400,7 +404,7 @@ describe('migrateStaleCodexEntryIfNeeded', () => {
           id: 'chatgpt-codex',
           name: 'ChatGPT 订阅',
           builtin: false,
-          // Phase 1 stale shape
+          // Older stale shape from before the ChatGPT Codex wire moved.
           wire: 'openai-responses',
           baseUrl: 'https://chatgpt.com/backend-api/codex',
           defaultModel: 'gpt-5.3-codex',
