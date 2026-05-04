@@ -2,6 +2,8 @@ import { useT } from '@open-codesign/i18n';
 import { Tooltip } from '@open-codesign/ui';
 import { ArrowUp, Square } from 'lucide-react';
 import {
+  type ClipboardEvent,
+  type DragEvent,
   type FormEvent,
   forwardRef,
   type KeyboardEvent,
@@ -11,6 +13,15 @@ import {
   useRef,
   useState,
 } from 'react';
+import type {
+  WorkspaceImportBlobInput,
+  WorkspaceImportFileInput,
+  WorkspaceImportSource,
+} from '../../../../preload';
+import {
+  clipboardFilesToWorkspaceBlobs,
+  dataTransferFilesToWorkspaceFiles,
+} from '../../lib/file-ingest';
 import { useCodesignStore } from '../../store';
 
 const MAX_TEXTAREA_ROWS = 6;
@@ -43,6 +54,11 @@ export interface PromptInputProps {
   contextSummary?: ReactNode;
   /** Optional element rendered inside the textarea container, bottom-left. */
   leadingAction?: ReactNode;
+  onImportFiles?: (input: {
+    source: WorkspaceImportSource;
+    files?: WorkspaceImportFileInput[];
+    blobs?: WorkspaceImportBlobInput[];
+  }) => Promise<void>;
 }
 
 export interface PromptInputHandle {
@@ -59,7 +75,16 @@ export interface PromptInputHandle {
  *   Shift+Enter     — newline
  */
 export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(function PromptInput(
-  { prompt, setPrompt, onSubmit, onCancel, isGenerating, contextSummary, leadingAction },
+  {
+    prompt,
+    setPrompt,
+    onSubmit,
+    onCancel,
+    isGenerating,
+    contextSummary,
+    leadingAction,
+    onImportFiles,
+  },
   ref,
 ) {
   const t = useT();
@@ -132,13 +157,31 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
     }
   }
 
+  async function handleDrop(e: DragEvent<HTMLFormElement>): Promise<void> {
+    const files = dataTransferFilesToWorkspaceFiles(e.dataTransfer);
+    if (files.length === 0 || !onImportFiles || isGenerating) return;
+    e.preventDefault();
+    await onImportFiles({ source: 'composer', files });
+  }
+
+  async function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>): Promise<void> {
+    if (!onImportFiles || isGenerating || e.clipboardData.files.length === 0) return;
+    e.preventDefault();
+    const payload = await clipboardFilesToWorkspaceBlobs(e.clipboardData);
+    await onImportFiles({ source: 'clipboard', ...payload });
+  }
+
   const canSend = prompt.trim().length > 0 && !isGenerating;
   const sendDisabledReason = isGenerating
     ? t('disabledReason.generatingInProgress')
     : t('disabledReason.typePromptToSend');
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form
+      onSubmit={handleSubmit}
+      onDrop={(e) => void handleDrop(e)}
+      onDragOver={(e) => e.preventDefault()}
+    >
       <div className="relative rounded-[16px] bg-[var(--color-surface)] border-[1.5px] border-[var(--color-border-muted)] focus-within:border-[var(--color-accent)] transition-colors duration-150 ease-out">
         {contextSummary ? (
           <div className="border-b border-[var(--color-border-subtle)] px-[12px] py-[10px]">
@@ -153,6 +196,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
             resizeTextarea(e.currentTarget);
           }}
           onKeyDown={handleKeyDown}
+          onPaste={(e) => void handlePaste(e)}
           placeholder={t('chat.placeholderRich')}
           rows={1}
           className="codesign-prompt-textarea block w-full resize-none appearance-none border-0 bg-transparent px-[14px] pt-[12px] pb-[44px] text-[14px] leading-[1.55] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] shadow-none outline-none focus:outline-none focus:ring-0 min-h-[24px] overflow-y-auto"

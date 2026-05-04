@@ -79,6 +79,27 @@ export interface WorkspaceFileEntry {
 export interface WorkspaceFileReadResult extends WorkspaceFileEntry {
   content: string;
 }
+export type WorkspaceImportSource = 'composer' | 'workspace' | 'canvas' | 'clipboard';
+export type WorkspaceImportKind = 'reference' | 'asset';
+export interface WorkspaceImportFileInput {
+  path: string;
+  name?: string;
+  size?: number;
+}
+export interface WorkspaceImportBlobInput {
+  name?: string;
+  mediaType: string;
+  dataBase64: string;
+}
+export interface WorkspaceImportResult {
+  path: string;
+  absolutePath: string;
+  name: string;
+  size: number;
+  mediaType: string;
+  kind: WorkspaceImportKind;
+  source: WorkspaceImportSource;
+}
 
 export interface ExportInvokeResponse {
   status: 'saved' | 'cancelled';
@@ -509,6 +530,17 @@ const api = {
         path,
         content,
       }) as Promise<WorkspaceFileReadResult>,
+    importToWorkspace: (input: {
+      designId: string;
+      source: WorkspaceImportSource;
+      files?: WorkspaceImportFileInput[];
+      blobs?: WorkspaceImportBlobInput[];
+      timestamp?: string;
+    }) =>
+      ipcRenderer.invoke('codesign:files:v1:import-to-workspace', {
+        schemaVersion: 1,
+        ...input,
+      }) as Promise<WorkspaceImportResult[]>,
     subscribe: (designId: string) =>
       ipcRenderer.invoke('codesign:files:v1:subscribe', {
         schemaVersion: 1,

@@ -1,6 +1,19 @@
 import { useT } from '@open-codesign/i18n';
 import { buildPreviewDocument } from '@open-codesign/runtime';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type DragEvent,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  clipboardFilesToWorkspaceBlobs,
+  dataTransferFilesToWorkspaceFiles,
+} from '../lib/file-ingest';
 import { EmptyState } from '../preview/EmptyState';
 import { ErrorState } from '../preview/ErrorState';
 import {
@@ -197,6 +210,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   const activeCanvasTab = useCodesignStore((s) => s.activeCanvasTab);
   const errorMessage = useCodesignStore((s) => s.errorMessage);
   const retry = useCodesignStore((s) => s.retryLastPrompt);
+  const importFilesToWorkspace = useCodesignStore((s) => s.importFilesToWorkspace);
   const clearError = useCodesignStore((s) => s.clearError);
   const pushIframeError = useCodesignStore((s) => s.pushIframeError);
   const selectCanvasElement = useCodesignStore((s) => s.selectCanvasElement);
@@ -380,6 +394,22 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   const activeHasPreview =
     currentDesignId !== null && poolEntries.some((e) => e.id === currentDesignId);
 
+  async function handleDrop(e: DragEvent<HTMLDivElement>): Promise<void> {
+    const files = dataTransferFilesToWorkspaceFiles(e.dataTransfer);
+    const blobs = files.length === 0 ? await clipboardFilesToWorkspaceBlobs(e.dataTransfer) : null;
+    if (files.length === 0 && (!blobs || (blobs.files.length === 0 && blobs.blobs.length === 0)))
+      return;
+    e.preventDefault();
+    const input = {
+      source: 'canvas',
+      attach: true,
+      ...(files.length > 0 ? { files } : {}),
+      ...(files.length === 0 && blobs?.files.length ? { files: blobs.files } : {}),
+      ...(blobs?.blobs.length ? { blobs: blobs.blobs } : {}),
+    } as const;
+    await importFilesToWorkspace(input);
+  }
+
   // When a design already has persisted content (thumbnail from a prior save,
   // or chat history), the preview IS coming — we're just waiting on the IPC
   // round-trip for the snapshot. Show a skeleton instead of the new-design
@@ -460,7 +490,11 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
           </div>
         )}
         <CanvasErrorBar />
-        <div className="relative flex-1 overflow-hidden">
+        <div
+          className="relative flex-1 overflow-hidden"
+          onDrop={(e) => void handleDrop(e)}
+          onDragOver={(e) => e.preventDefault()}
+        >
           {body}
           {previewSource ? (
             <Suspense fallback={null}>

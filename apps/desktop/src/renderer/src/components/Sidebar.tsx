@@ -85,6 +85,7 @@ export function Sidebar({ prompt, setPrompt, onSubmit }: SidebarProps) {
   const referenceUrl = useCodesignStore((s) => s.referenceUrl);
   const setReferenceUrl = useCodesignStore((s) => s.setReferenceUrl);
   const pickInputFiles = useCodesignStore((s) => s.pickInputFiles);
+  const importFilesToWorkspace = useCodesignStore((s) => s.importFilesToWorkspace);
   const removeInputFile = useCodesignStore((s) => s.removeInputFile);
   const pickDesignSystemDirectory = useCodesignStore((s) => s.pickDesignSystemDirectory);
   const clearDesignSystem = useCodesignStore((s) => s.clearDesignSystem);
@@ -160,6 +161,9 @@ export function Sidebar({ prompt, setPrompt, onSubmit }: SidebarProps) {
           onSubmit={onSubmit}
           onCancel={cancelGeneration}
           isGenerating={isGenerating}
+          onImportFiles={async (input) => {
+            await importFilesToWorkspace({ ...input, attach: true });
+          }}
           contextSummary={
             contextItems.length > 0 ? (
               <div className="flex flex-wrap gap-[8px]">

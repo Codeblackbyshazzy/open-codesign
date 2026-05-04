@@ -16,7 +16,14 @@ import type {
   SelectedElement,
 } from '@open-codesign/shared';
 import { create } from 'zustand';
-import type { CodesignApi, ExportFormat } from '../../preload/index';
+import type {
+  CodesignApi,
+  ExportFormat,
+  WorkspaceImportBlobInput,
+  WorkspaceImportFileInput,
+  WorkspaceImportResult,
+  WorkspaceImportSource,
+} from '../../preload/index';
 import { recordAction } from './lib/action-timeline';
 import { tr, uniqueFiles } from './store/lib/locale';
 import { makeChatSlice } from './store/slices/chat';
@@ -255,6 +262,14 @@ export interface CodesignState {
   exportActive: (format: ExportFormat) => Promise<void>;
 
   pickInputFiles: () => Promise<void>;
+  importFilesToWorkspace: (input: {
+    source: WorkspaceImportSource;
+    files?: WorkspaceImportFileInput[];
+    blobs?: WorkspaceImportBlobInput[];
+    attach?: boolean;
+  }) => Promise<WorkspaceImportResult[]>;
+  attachImportedFiles: (files: WorkspaceImportResult[]) => void;
+  useImportedFileInPrompt: (path: string) => void;
   removeInputFile: (path: string) => void;
   clearInputFiles: () => void;
   setReferenceUrl: (value: string) => void;
@@ -501,7 +516,56 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     if (!window.codesign) return;
     const files = await window.codesign.pickInputFiles();
     if (files.length === 0) return;
-    set((s) => ({ inputFiles: uniqueFiles([...s.inputFiles, ...files]) }));
+    await get().importFilesToWorkspace({ source: 'composer', files, attach: true });
+  },
+
+  async importFilesToWorkspace(input) {
+    if (!window.codesign?.files?.importToWorkspace) return [];
+    const designId = get().currentDesignId;
+    if (!designId) return [];
+    const imported = await window.codesign.files.importToWorkspace({
+      designId,
+      source: input.source,
+      ...(input.files !== undefined ? { files: input.files } : {}),
+      ...(input.blobs !== undefined ? { blobs: input.blobs } : {}),
+      timestamp: new Date().toISOString(),
+    });
+    if (input.attach) get().attachImportedFiles(imported);
+    get().pushToast({
+      variant: 'success',
+      title: `Imported ${imported.length} file${imported.length === 1 ? '' : 's'} to workspace`,
+    });
+    return imported;
+  },
+
+  attachImportedFiles(files) {
+    const next = files.map((file) => ({
+      path: file.absolutePath,
+      name: file.name,
+      size: file.size,
+    }));
+    set((s) => ({ inputFiles: uniqueFiles([...s.inputFiles, ...next]) }));
+  },
+
+  useImportedFileInPrompt(path) {
+    const designId = get().currentDesignId;
+    const design = designId === null ? null : get().designs.find((item) => item.id === designId);
+    const workspacePath = design?.workspacePath;
+    if (!workspacePath) return;
+    const normalizedWorkspace = workspacePath.replace(/[\\/]+$/, '');
+    const normalizedPath = path.replace(/^[/\\]+/, '');
+    const absolutePath = `${normalizedWorkspace}/${normalizedPath}`;
+    get().attachImportedFiles([
+      {
+        path: normalizedPath,
+        absolutePath,
+        name: normalizedPath.split(/[\\/]/).pop() || normalizedPath,
+        size: 0,
+        mediaType: 'application/octet-stream',
+        kind: 'reference',
+        source: 'workspace',
+      },
+    ]);
   },
 
   removeInputFile(path) {

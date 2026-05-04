@@ -672,6 +672,74 @@ describe('useCodesignStore design management', () => {
     expect(updateWorkspace).not.toHaveBeenCalled();
   });
 
+  it('imports picked files into the workspace and attaches imported paths to the prompt', async () => {
+    const imported = [
+      {
+        path: 'references/brief.md',
+        absolutePath: '/workspace/references/brief.md',
+        name: 'brief.md',
+        size: 42,
+        mediaType: 'text/markdown',
+        kind: 'reference' as const,
+        source: 'composer' as const,
+      },
+    ];
+    const importToWorkspace = vi.fn(async () => imported);
+    vi.stubGlobal('window', {
+      codesign: {
+        pickInputFiles: vi.fn(async () => [
+          { path: '/external/brief.md', name: 'brief.md', size: 42 },
+        ]),
+        files: { importToWorkspace },
+      },
+      setTimeout,
+    });
+    setWorkspaceBackedDesign();
+
+    await useCodesignStore.getState().pickInputFiles();
+
+    expect(importToWorkspace).toHaveBeenCalledWith({
+      designId: DEFAULT_DESIGN.id,
+      source: 'composer',
+      files: [{ path: '/external/brief.md', name: 'brief.md', size: 42 }],
+      timestamp: expect.any(String),
+    });
+    expect(useCodesignStore.getState().inputFiles).toEqual([
+      { path: '/workspace/references/brief.md', name: 'brief.md', size: 42 },
+    ]);
+  });
+
+  it('can import workspace files without attaching them to the current prompt', async () => {
+    const imported = [
+      {
+        path: 'assets/logo.png',
+        absolutePath: '/workspace/assets/logo.png',
+        name: 'logo.png',
+        size: 4,
+        mediaType: 'image/png',
+        kind: 'asset' as const,
+        source: 'workspace' as const,
+      },
+    ];
+    const importToWorkspace = vi.fn(async () => imported);
+    vi.stubGlobal('window', {
+      codesign: {
+        files: { importToWorkspace },
+      },
+      setTimeout,
+    });
+    setWorkspaceBackedDesign();
+
+    const result = await useCodesignStore.getState().importFilesToWorkspace({
+      source: 'workspace',
+      files: [{ path: '/external/logo.png', name: 'logo.png', size: 4 }],
+      attach: false,
+    });
+
+    expect(result).toEqual(imported);
+    expect(useCodesignStore.getState().inputFiles).toEqual([]);
+  });
+
   it('allows switchDesign while another design is generating (generation stays bound to its origin)', async () => {
     vi.stubGlobal('window', {
       codesign: {

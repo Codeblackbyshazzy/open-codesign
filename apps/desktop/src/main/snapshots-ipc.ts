@@ -9,7 +9,7 @@
  * initSnapshotsDb().
  */
 
-import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type {
   ChatAppendInput,
@@ -226,6 +226,230 @@ function translateStoreError(err: unknown, context: string): CodesignError {
     stack: err instanceof Error ? err.stack : undefined,
   });
   return new CodesignError(`Design store error (${context})`, 'IPC_DB_ERROR', { cause: err });
+}
+
+type WorkspaceImportSource = 'composer' | 'workspace' | 'canvas' | 'clipboard';
+type WorkspaceImportKind = 'reference' | 'asset';
+
+interface WorkspaceImportFileInput {
+  path: string;
+  name?: string;
+  size?: number;
+}
+
+interface WorkspaceImportBlobInput {
+  name?: string;
+  mediaType: string;
+  dataBase64: string;
+}
+
+interface WorkspaceImportResult {
+  path: string;
+  absolutePath: string;
+  name: string;
+  size: number;
+  mediaType: string;
+  kind: WorkspaceImportKind;
+  source: WorkspaceImportSource;
+}
+
+const ASSET_EXTENSIONS = new Set([
+  '.avif',
+  '.bmp',
+  '.gif',
+  '.ico',
+  '.jpeg',
+  '.jpg',
+  '.mp3',
+  '.mp4',
+  '.ogg',
+  '.otf',
+  '.png',
+  '.svg',
+  '.ttf',
+  '.wav',
+  '.webm',
+  '.webp',
+  '.woff',
+  '.woff2',
+]);
+
+const MIME_BY_EXTENSION: Record<string, string> = {
+  '.avif': 'image/avif',
+  '.bmp': 'image/bmp',
+  '.css': 'text/css',
+  '.csv': 'text/csv',
+  '.gif': 'image/gif',
+  '.html': 'text/html',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.js': 'text/javascript',
+  '.json': 'application/json',
+  '.jsx': 'text/javascript',
+  '.md': 'text/markdown',
+  '.mp3': 'audio/mpeg',
+  '.mp4': 'video/mp4',
+  '.ogg': 'audio/ogg',
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.toml': 'application/toml',
+  '.ts': 'text/typescript',
+  '.tsx': 'text/typescript',
+  '.txt': 'text/plain',
+  '.webm': 'video/webm',
+  '.webp': 'image/webp',
+  '.xml': 'application/xml',
+  '.yaml': 'application/yaml',
+  '.yml': 'application/yaml',
+};
+
+function parseImportSource(value: unknown): WorkspaceImportSource {
+  if (
+    value === 'composer' ||
+    value === 'workspace' ||
+    value === 'canvas' ||
+    value === 'clipboard'
+  ) {
+    return value;
+  }
+  throw new CodesignError(
+    'source must be composer, workspace, canvas, or clipboard',
+    'IPC_BAD_INPUT',
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function sanitizeImportName(input: string, fallback: string): string {
+  const base = path
+    .basename(input.trim() || fallback)
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .split('')
+    .map((char) => (char.charCodeAt(0) < 32 ? '-' : char))
+    .join('');
+  return base.length > 0 ? base : fallback;
+}
+
+function extensionForMediaType(mediaType: string): string {
+  if (mediaType === 'image/png') return '.png';
+  if (mediaType === 'image/jpeg') return '.jpg';
+  if (mediaType === 'image/webp') return '.webp';
+  if (mediaType === 'image/gif') return '.gif';
+  if (mediaType === 'image/svg+xml') return '.svg';
+  if (mediaType === 'application/pdf') return '.pdf';
+  if (mediaType.startsWith('text/')) return '.txt';
+  return '.bin';
+}
+
+function mediaTypeForName(name: string, fallback = 'application/octet-stream'): string {
+  return MIME_BY_EXTENSION[path.extname(name).toLowerCase()] ?? fallback;
+}
+
+function pastedName(
+  name: string | undefined,
+  mediaType: string,
+  timestamp: string | undefined,
+): string {
+  const sanitized = sanitizeImportName(name ?? '', '');
+  if (sanitized.length > 0) return sanitized;
+  const stamp = (timestamp ? new Date(timestamp) : new Date())
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, '')
+    .replace('T', '-');
+  return `pasted-${stamp}${extensionForMediaType(mediaType)}`;
+}
+
+function importKindFor(
+  source: WorkspaceImportSource,
+  name: string,
+  mediaType: string,
+): WorkspaceImportKind {
+  if (source === 'composer' || source === 'canvas' || source === 'clipboard') return 'reference';
+  const ext = path.extname(name).toLowerCase();
+  if (ASSET_EXTENSIONS.has(ext)) return 'asset';
+  if (
+    mediaType.startsWith('image/') ||
+    mediaType.startsWith('video/') ||
+    mediaType.startsWith('audio/')
+  ) {
+    return 'asset';
+  }
+  return 'reference';
+}
+
+async function uniqueWorkspaceDestination(
+  workspacePath: string,
+  kind: WorkspaceImportKind,
+  name: string,
+): Promise<{ relativePath: string; absolutePath: string; name: string }> {
+  const dir = kind === 'asset' ? 'assets' : 'references';
+  const parsed = path.parse(sanitizeImportName(name, 'imported-file'));
+  const ext = parsed.ext;
+  const stem = parsed.name.length > 0 ? parsed.name : 'imported-file';
+  for (let index = 1; index < 10_000; index += 1) {
+    const candidateName = index === 1 ? `${stem}${ext}` : `${stem}-${index}${ext}`;
+    const relativePath = `${dir}/${candidateName}`;
+    const absolutePath = await resolveSafeWorkspaceChildPath(workspacePath, relativePath);
+    try {
+      await stat(absolutePath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { relativePath, absolutePath, name: candidateName };
+      }
+      throw err;
+    }
+  }
+  throw new CodesignError('Could not allocate a unique import filename', 'IPC_DB_ERROR');
+}
+
+function parseImportFiles(value: unknown): WorkspaceImportFileInput[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new CodesignError('files must be an array', 'IPC_BAD_INPUT');
+  return value.map((entry, index) => {
+    if (
+      !isRecord(entry) ||
+      typeof entry['path'] !== 'string' ||
+      entry['path'].trim().length === 0
+    ) {
+      throw new CodesignError(`files[${index}].path must be a non-empty string`, 'IPC_BAD_INPUT');
+    }
+    return {
+      path: entry['path'],
+      ...(typeof entry['name'] === 'string' ? { name: entry['name'] } : {}),
+      ...(typeof entry['size'] === 'number' ? { size: entry['size'] } : {}),
+    };
+  });
+}
+
+function parseImportBlobs(value: unknown): WorkspaceImportBlobInput[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new CodesignError('blobs must be an array', 'IPC_BAD_INPUT');
+  return value.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new CodesignError(`blobs[${index}] must be an object`, 'IPC_BAD_INPUT');
+    }
+    if (typeof entry['mediaType'] !== 'string' || entry['mediaType'].trim().length === 0) {
+      throw new CodesignError(
+        `blobs[${index}].mediaType must be a non-empty string`,
+        'IPC_BAD_INPUT',
+      );
+    }
+    if (typeof entry['dataBase64'] !== 'string' || entry['dataBase64'].trim().length === 0) {
+      throw new CodesignError(
+        `blobs[${index}].dataBase64 must be a non-empty string`,
+        'IPC_BAD_INPUT',
+      );
+    }
+    return {
+      ...(typeof entry['name'] === 'string' ? { name: entry['name'] } : {}),
+      mediaType: entry['mediaType'],
+      dataBase64: entry['dataBase64'],
+    };
+  });
 }
 
 function runDb<T>(context: string, fn: () => T): T {
@@ -1013,6 +1237,85 @@ export function registerWorkspaceIpc(db: Database, getWin: () => BrowserWindow |
     },
   );
 
+  ipcMain.handle(
+    'codesign:files:v1:import-to-workspace',
+    async (_e: unknown, raw: unknown): Promise<WorkspaceImportResult[]> => {
+      if (typeof raw !== 'object' || raw === null) {
+        throw new CodesignError(
+          'codesign:files:v1:import-to-workspace expects { designId, source, files?, blobs? }',
+          'IPC_BAD_INPUT',
+        );
+      }
+      const r = raw as Record<string, unknown>;
+      requireSchemaV1(r, 'codesign:files:v1:import-to-workspace');
+      if (typeof r['designId'] !== 'string' || r['designId'].trim().length === 0) {
+        throw new CodesignError('designId must be a non-empty string', 'IPC_BAD_INPUT');
+      }
+      const source = parseImportSource(r['source']);
+      const files = parseImportFiles(r['files']);
+      const blobs = parseImportBlobs(r['blobs']);
+      const timestamp = typeof r['timestamp'] === 'string' ? r['timestamp'] : undefined;
+      if (files.length === 0 && blobs.length === 0) return [];
+
+      const designId = r['designId'] as string;
+      const design = runDb('files:import.lookup-design', () => getDesign(db, designId));
+      if (design === null) {
+        throw new CodesignError('Design not found', 'IPC_NOT_FOUND');
+      }
+      if (design.workspacePath === null) {
+        throw new CodesignError('Design is not bound to a workspace', 'IPC_BAD_INPUT');
+      }
+      const workspacePath = requireBoundWorkspacePath(design, 'Design is not bound to a workspace');
+      const imported: WorkspaceImportResult[] = [];
+
+      for (const file of files) {
+        const sourcePath = path.resolve(file.path);
+        const sourceStat = await stat(sourcePath);
+        if (!sourceStat.isFile()) {
+          throw new CodesignError('Imported path must be a file', 'IPC_BAD_INPUT');
+        }
+        const inputName = sanitizeImportName(file.name ?? sourcePath, 'imported-file');
+        const mediaType = mediaTypeForName(inputName);
+        const kind = importKindFor(source, inputName, mediaType);
+        const destination = await uniqueWorkspaceDestination(workspacePath, kind, inputName);
+        await mkdir(path.dirname(destination.absolutePath), { recursive: true });
+        await copyFile(sourcePath, destination.absolutePath);
+        const written = await stat(destination.absolutePath);
+        imported.push({
+          path: destination.relativePath,
+          absolutePath: destination.absolutePath,
+          name: destination.name,
+          size: written.size,
+          mediaType,
+          kind,
+          source,
+        });
+      }
+
+      for (const blob of blobs) {
+        const inputName = pastedName(blob.name, blob.mediaType, timestamp);
+        const mediaType = blob.mediaType;
+        const kind = importKindFor(source, inputName, mediaType);
+        const destination = await uniqueWorkspaceDestination(workspacePath, kind, inputName);
+        await mkdir(path.dirname(destination.absolutePath), { recursive: true });
+        const bytes = Buffer.from(blob.dataBase64, 'base64');
+        await writeFile(destination.absolutePath, bytes);
+        const written = await stat(destination.absolutePath);
+        imported.push({
+          path: destination.relativePath,
+          absolutePath: destination.absolutePath,
+          name: destination.name,
+          size: written.size,
+          mediaType,
+          kind,
+          source,
+        });
+      }
+
+      return imported;
+    },
+  );
+
   registerFilesWatcherIpc(db, getWin);
 }
 
@@ -1056,6 +1359,7 @@ export const SNAPSHOTS_CHANNELS_V1 = [
   'codesign:files:v1:list',
   'codesign:files:v1:read',
   'codesign:files:v1:write',
+  'codesign:files:v1:import-to-workspace',
   'codesign:files:v1:subscribe',
   'codesign:files:v1:unsubscribe',
   'chat:v1:list',
