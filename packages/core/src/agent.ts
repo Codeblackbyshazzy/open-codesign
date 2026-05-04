@@ -89,6 +89,7 @@ import {
   type GenerateImageAssetFn,
   makeGenerateImageAssetTool,
 } from './tools/generate-image-asset.js';
+import { makeInspectWorkspaceTool } from './tools/inspect-workspace.js';
 import { makePreviewTool } from './tools/preview.js';
 import { makeScaffoldTool, type ScaffoldDetails } from './tools/scaffold.js';
 import { makeSetTitleTool } from './tools/set-title.js';
@@ -252,27 +253,37 @@ function buildPiModel(
 
 const MAX_DONE_ERROR_ROUNDS = 3;
 
-const AGENTIC_TOOL_GUIDANCE = [
-  '## Workspace output contract',
-  '',
-  `- Write the main design source to \`${DEFAULT_SOURCE_ENTRY}\` with \`str_replace_based_edit_tool\`; chat text is never the artifact.`,
-  '- Use `create` for new files; follow-up edits use `view`, `str_replace`, or `insert`.',
-  '- Do not emit `<artifact>` tags, fenced source blocks, raw HTML/JSX/CSS, or HTML wrappers in chat.',
-  '- Local workspace assets and scaffolded files are allowed. External scripts remain restricted by the base output rules.',
-  '',
-  '## Required tool loop',
-  '',
-  '1. Call `set_title`; call `set_todos` for multi-step work.',
-  '2. Load optional resources explicitly with `skill(name)` or `scaffold({kind, destPath})` before relying on them.',
-  `3. Write/edit the design source at \`${DEFAULT_SOURCE_ENTRY}\`, then call \`preview(path)\` when available.`,
-  '4. Call `tweaks()` for meaningful EDITMODE controls.',
-  `5. Call \`done(path)\` after the final mutation. If it reports errors, fix and retry, but stop after ${MAX_DONE_ERROR_ROUNDS} error rounds.`,
-  '',
-  '## File-edit discipline',
-  '',
-  '- Keep `old_str` small and unique. Large replacements waste context and are fragile.',
-  '- Never view just to check whether an edit succeeded; the tool reports failures.',
-].join('\n');
+function agenticToolGuidance(input: { inspectWorkspace: boolean }): string {
+  const requiredSteps = [
+    '1. Call `set_title`; call `set_todos` for multi-step work.',
+    '2. Load optional resources explicitly with `skill(name)` or `scaffold({kind, destPath})` before relying on them.',
+    ...(input.inspectWorkspace
+      ? [
+          '3. When the workspace brief says files or reference materials are present, call `inspect_workspace` before editing, then `view` the specific files you need.',
+        ]
+      : []),
+    `${input.inspectWorkspace ? '4' : '3'}. Write/edit the design source at \`${DEFAULT_SOURCE_ENTRY}\`, then call \`preview(path)\` when available.`,
+    `${input.inspectWorkspace ? '5' : '4'}. Call \`tweaks()\` for meaningful EDITMODE controls.`,
+    `${input.inspectWorkspace ? '6' : '5'}. Call \`done(path)\` after the final mutation. If it reports errors, fix and retry, but stop after ${MAX_DONE_ERROR_ROUNDS} error rounds.`,
+  ];
+  return [
+    '## Workspace output contract',
+    '',
+    `- Write the main design source to \`${DEFAULT_SOURCE_ENTRY}\` with \`str_replace_based_edit_tool\`; chat text is never the artifact.`,
+    '- Use `create` for new files; follow-up edits use `view`, `str_replace`, or `insert`.',
+    '- Do not emit `<artifact>` tags, fenced source blocks, raw HTML/JSX/CSS, or HTML wrappers in chat.',
+    '- Local workspace assets and scaffolded files are allowed. External scripts remain restricted by the base output rules.',
+    '',
+    '## Required tool loop',
+    '',
+    ...requiredSteps,
+    '',
+    '## File-edit discipline',
+    '',
+    '- Keep `old_str` small and unique. Large replacements waste context and are fragile.',
+    '- Never view just to check whether an edit succeeded; the tool reports failures.',
+  ].join('\n');
+}
 
 const IMAGE_ASSET_TOOL_GUIDANCE = [
   '## Bitmap asset generation',
@@ -514,30 +525,96 @@ function projectContextSections(context: GenerateInput['projectContext']): strin
   return sections;
 }
 
-function existingPrimarySourcePath(fs: TextEditorFsCallbacks | undefined): string | null {
-  if (!fs) return null;
-  const primary = fs.view(DEFAULT_SOURCE_ENTRY);
-  if (primary !== null && primary.content.trim().length > 0) return DEFAULT_SOURCE_ENTRY;
-  const legacy = fs.view(LEGACY_SOURCE_ENTRY);
-  if (legacy !== null && legacy.content.trim().length > 0) return LEGACY_SOURCE_ENTRY;
-  return null;
+function workspaceFiles(fs: TextEditorFsCallbacks | undefined): string[] {
+  if (!fs) return [];
+  return fs
+    .listDir('.')
+    .filter((file) => file.trim().length > 0)
+    .sort((a, b) => a.localeCompare(b));
 }
 
-function buildRevisionTurnBrief(sourcePath: string): string {
-  return [
-    `Existing ${sourcePath} is present. This is a revision turn.`,
-    'View the current file before editing.',
-    'Preserve the current design system and current structure unless the user explicitly asks for a rebuild.',
-    'Edit in place, then run preview/done before finalizing.',
-  ].join('\n');
+function sourceCandidates(
+  files: readonly string[],
+  fs: TextEditorFsCallbacks | undefined,
+): string[] {
+  if (!fs) return [];
+  const candidates = files.filter((file) => {
+    if (!/\.(?:jsx|tsx|html?)$/i.test(file)) return false;
+    const viewed = fs.view(file);
+    return viewed !== null && viewed.content.trim().length > 0;
+  });
+  return candidates
+    .sort((a, b) => {
+      const score = (file: string): number => {
+        const lower = file.toLowerCase();
+        if (lower === DEFAULT_SOURCE_ENTRY.toLowerCase()) return 0;
+        if (lower === LEGACY_SOURCE_ENTRY.toLowerCase()) return 1;
+        if (lower.endsWith('/app.jsx') || lower.endsWith('/app.tsx')) return 2;
+        if (lower.endsWith('/index.html')) return 3;
+        return 10;
+      };
+      return score(a) - score(b) || a.localeCompare(b);
+    })
+    .slice(0, 8);
+}
+
+function buildWorkspaceBrief(
+  input: GenerateInput,
+  fs: TextEditorFsCallbacks | undefined,
+): string | null {
+  if (!fs) return null;
+  const files = workspaceFiles(fs);
+  const sources = sourceCandidates(files, fs);
+  const hasDesignMd = fs.view('DESIGN.md') !== null;
+  const hasAgentsMd = fs.view('AGENTS.md') !== null;
+  const hasSettingsJson = fs.view('.codesign/settings.json') !== null;
+  const attachmentCount = input.attachments?.length ?? 0;
+  const imageCount = (input.attachments ?? []).filter((file) =>
+    file.mediaType?.startsWith('image/'),
+  ).length;
+  const hasReferenceUrl = input.referenceUrl !== null && input.referenceUrl !== undefined;
+  const hasReferenceMaterials =
+    attachmentCount > 0 ||
+    hasReferenceUrl ||
+    (input.designSystem !== null && input.designSystem !== undefined);
+  const lines = [
+    'Workspace context:',
+    sources.length > 0
+      ? `- Existing source candidates: ${sources.join(', ')}`
+      : `- No existing design source was found. Create ${DEFAULT_SOURCE_ENTRY} as the main design source.`,
+    `- DESIGN.md: ${hasDesignMd ? 'present; treat it as the design baton for this workspace.' : 'absent.'}`,
+    `- AGENTS.md: ${hasAgentsMd ? 'present' : 'absent'}`,
+    `- .codesign/settings.json: ${hasSettingsJson ? 'present' : 'absent'}`,
+    `- Reference materials: attached file(s): ${attachmentCount}; image file(s): ${imageCount}; reference URL: ${hasReferenceUrl ? 'yes' : 'no'}; linked design-system scan: ${input.designSystem ? 'yes' : 'no'}.`,
+  ];
+  lines.push(
+    sources.length > 0
+      ? 'Inspect the workspace before editing existing source files. Preserve and extend the current design unless the user explicitly asks for a rebuild.'
+      : 'Start from the user request and any references, then create the workspace source.',
+  );
+  if (hasDesignMd) {
+    lines.push(
+      'DESIGN.md is present; read and preserve it as the design baton before changing visual tokens.',
+    );
+  } else if (sources.length > 0) {
+    lines.push(
+      'If stable visual decisions emerge across screens, reference-driven work, componentization, or prototype work, create or update a minimal DESIGN.md.',
+    );
+  }
+  if (hasReferenceMaterials) {
+    lines.push(
+      'Reference materials are available; extract design cues before writing or editing source.',
+    );
+  }
+  return lines.join('\n');
 }
 
 function buildTurnPrompt(input: GenerateInput, fs: TextEditorFsCallbacks | undefined): string {
   const prompt = input.prompt.trim();
   if (input.systemPrompt) return prompt;
-  const sourcePath = existingPrimarySourcePath(fs);
-  if (sourcePath === null) return prompt;
-  return [buildRevisionTurnBrief(sourcePath), '', 'User request:', prompt].join('\n');
+  const brief = buildWorkspaceBrief(input, fs);
+  if (brief === null) return prompt;
+  return [brief, '', 'User request:', prompt].join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -662,6 +739,7 @@ export async function generateViaAgent(
     buildTurnPrompt(input, trackedFs),
     buildContextSections({
       ...(input.designSystem !== undefined ? { designSystem: input.designSystem } : {}),
+      ...(input.sessionContext !== undefined ? { sessionContext: input.sessionContext } : {}),
       ...(input.attachments !== undefined ? { attachments: input.attachments } : {}),
       ...(input.referenceUrl !== undefined ? { referenceUrl: input.referenceUrl } : {}),
       ...(input.memoryContext !== undefined ? { memoryContext: input.memoryContext } : {}),
@@ -735,6 +813,12 @@ export async function generateViaAgent(
       >,
     );
   }
+  if (input.inspectWorkspace) {
+    defaultToolsByName.set(
+      'inspect_workspace',
+      makeInspectWorkspaceTool(input.inspectWorkspace) as unknown as AgentTool<TSchema, unknown>,
+    );
+  }
   if (input.readWorkspaceFiles) {
     defaultToolsByName.set(
       'tweaks',
@@ -751,6 +835,7 @@ export async function generateViaAgent(
     fs: trackedFs !== undefined,
     preview: input.runPreview !== undefined,
     image: deps.generateImageAsset !== undefined,
+    workspaceInspector: input.inspectWorkspace !== undefined,
     workspaceReader: input.readWorkspaceFiles !== undefined,
     ask: input.askBridge !== undefined,
   })
@@ -758,9 +843,12 @@ export async function generateViaAgent(
     .filter((tool): tool is AgentTool<TSchema, unknown> => tool !== undefined);
   const tools = deps.tools ?? defaultTools;
   const encourageToolUse = deps.encourageToolUse ?? tools.length > 0;
+  const baseAgenticGuidance = agenticToolGuidance({
+    inspectWorkspace: input.inspectWorkspace !== undefined,
+  });
   const activeGuidance = deps.generateImageAsset
-    ? `${AGENTIC_TOOL_GUIDANCE}\n\n${IMAGE_ASSET_TOOL_GUIDANCE}`
-    : AGENTIC_TOOL_GUIDANCE;
+    ? `${baseAgenticGuidance}\n\n${IMAGE_ASSET_TOOL_GUIDANCE}`
+    : baseAgenticGuidance;
   const augmentedSystemPrompt = [
     encourageToolUse ? `${systemPrompt}\n\n${activeGuidance}` : systemPrompt,
     ...resourceResult.sections,
@@ -788,6 +876,7 @@ export async function generateViaAgent(
       settingsJson: Boolean(input.projectContext?.settingsJson?.trim()),
     },
     memoryContextCount: input.memoryContext?.length ?? 0,
+    sessionContextCount: input.sessionContext?.length ?? 0,
     resourceWarnings: resourceResult.warnings.length,
     resourceState: {
       mutationSeq: resourceState.mutationSeq,

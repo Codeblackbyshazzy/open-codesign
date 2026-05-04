@@ -96,6 +96,12 @@ describe('loadMemoryContext', () => {
     const result = await loadMemoryContext(undefined);
     expect(result).toBeUndefined();
   });
+
+  it('does not inject the global memory index by default', async () => {
+    await writeFile(path.join(tempDir, 'memory.md'), 'global|Other|Different project', 'utf-8');
+    const result = await loadMemoryContext(path.join(tempDir, 'workspace-without-memory'));
+    expect(result).toBeUndefined();
+  });
 });
 
 describe('triggerMemoryUpdate', () => {

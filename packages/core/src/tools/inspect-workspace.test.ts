@@ -1,0 +1,52 @@
+import { describe, expect, it } from 'vitest';
+import { inspectWorkspaceFiles, makeInspectWorkspaceTool } from './inspect-workspace.js';
+
+describe('inspect_workspace', () => {
+  it('classifies workspace files into design-oriented groups', async () => {
+    const inspection = inspectWorkspaceFiles([
+      { file: 'App.jsx', contents: 'function App() {}' },
+      { file: 'styles/tokens.css', contents: ':root { --color-brand: #111; }' },
+      { file: 'DESIGN.md', contents: '---\nversion: alpha\n---' },
+      { file: 'docs/brief.md', contents: '# Brief' },
+      { file: 'assets/logo.svg', contents: '<svg />' },
+    ]);
+
+    expect(inspection.entryCandidates).toEqual(['App.jsx']);
+    expect(inspection.sourceFiles).toContain('App.jsx');
+    expect(inspection.styleFiles).toContain('styles/tokens.css');
+    expect(inspection.designDocs).toContain('DESIGN.md');
+    expect(inspection.referenceDocs).toContain('docs/brief.md');
+    expect(inspection.assets).toContain('assets/logo.svg');
+    expect(inspection.totalFiles).toBe(5);
+    expect(inspection.truncated).toBe(false);
+  });
+
+  it('returns an empty inventory for an empty workspace', async () => {
+    const tool = makeInspectWorkspaceTool(async () => inspectWorkspaceFiles([]));
+    const result = await tool.execute('inspect-1', {});
+
+    expect(result.details).toMatchObject({
+      entryCandidates: [],
+      sourceFiles: [],
+      totalFiles: 0,
+      truncated: false,
+    });
+    expect(result.content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('0 file'),
+    });
+  });
+
+  it('bounds large groups and marks the inventory as truncated', () => {
+    const inspection = inspectWorkspaceFiles(
+      Array.from({ length: 80 }, (_, index) => ({
+        file: `screens/screen-${index}.jsx`,
+        contents: 'export default function Screen() {}',
+      })),
+    );
+
+    expect(inspection.sourceFiles.length).toBeLessThan(80);
+    expect(inspection.totalFiles).toBe(80);
+    expect(inspection.truncated).toBe(true);
+  });
+});

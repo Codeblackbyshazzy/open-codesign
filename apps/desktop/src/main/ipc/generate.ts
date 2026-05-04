@@ -2,15 +2,18 @@ import path_module from 'node:path';
 import {
   type AgentEvent,
   buildApplyCommentUserPrompt,
+  buildDesignContextPack,
   type CoreLogger,
   composeSystemPrompt,
+  type DesignSessionBriefV1,
   type GenerateImageAssetRequest,
   type GenerateImageAssetResult,
   generateTitle,
   generateViaAgent,
+  inspectWorkspaceFiles,
   loadDesignSkills,
   loadFrameTemplates,
-  type UpdateDesignMemoryInput,
+  updateDesignSessionBrief,
 } from '@open-codesign/core';
 import { detectProviderFromKey, generateImage } from '@open-codesign/providers';
 import {
@@ -19,7 +22,6 @@ import {
   CodesignError,
   deriveResourceStateFromChatRows,
   GeneratePayloadV1,
-  type ResourceStateV1,
 } from '@open-codesign/shared';
 import { computeFingerprint } from '@open-codesign/shared/fingerprint';
 import type { BrowserWindow as ElectronBrowserWindow } from 'electron';
@@ -37,7 +39,7 @@ import {
 import { resolveGenerationWorkspaceRoot } from '../generation-workspace';
 import { resolveImageGenerationConfig, toGenerateImageOptions } from '../image-generation-settings';
 import { getLogger } from '../logger';
-import { loadMemoryContext, triggerMemoryUpdate } from '../memory-ipc';
+import { loadMemoryContext } from '../memory-ipc';
 import { getApiKeyForProvider, getCachedConfig, hasApiKeyForProvider } from '../onboarding-ipc';
 import { readPersisted as readPreferences } from '../preferences-ipc';
 import { runPreview } from '../preview-runtime';
@@ -46,7 +48,12 @@ import { createProviderContextStore } from '../provider-context';
 import { resolveActiveModel } from '../provider-settings';
 import { resolveActiveApiKey, resolveCredentialForProvider } from '../resolve-api-key';
 import { withRun } from '../runContext';
-import { listSessionChatMessages, type SessionChatStoreOptions } from '../session-chat';
+import {
+  appendSessionDesignBrief,
+  listSessionChatMessages,
+  readSessionDesignBrief,
+  type SessionChatStoreOptions,
+} from '../session-chat';
 import { type Database, getDesign, recordDiagnosticEvent } from '../snapshots-db';
 import { readWorkspaceFilesAt } from '../workspace-reader';
 import { allocateAssetPath, createRuntimeTextEditorFs, resolveLocalAssetRefs } from './runtime-fs';
@@ -100,6 +107,10 @@ export interface RegisterGenerateIpcDeps {
   db: Database | null;
   getMainWindow: () => ElectronBrowserWindow | null;
 }
+
+type DesignBriefConversationMessages = Parameters<
+  typeof updateDesignSessionBrief
+>[0]['conversationMessages'];
 
 /**
  * Registers the agent-loop IPC handlers (generate / apply-comment / title /
@@ -196,11 +207,16 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
     };
   };
 
-  const resourceStateForDesign = (designId: string | null): ResourceStateV1 | undefined => {
-    if (designId === null) return undefined;
+  const chatRowsForDesign = (designId: string): ReturnType<typeof listSessionChatMessages> => {
     const opts = chatStoreOptions();
-    if (opts === null) return undefined;
-    return deriveResourceStateFromChatRows(listSessionChatMessages(opts, designId));
+    if (opts === null) return [];
+    return listSessionChatMessages(opts, designId);
+  };
+
+  const briefForDesign = (designId: string): DesignSessionBriefV1 | null => {
+    const opts = chatStoreOptions();
+    if (opts === null) return null;
+    return readSessionDesignBrief(opts, designId);
   };
 
   /**
@@ -216,7 +232,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
     workspaceRoot: string,
     memoryCallbacks?: {
       onAggressivePrune?: () => void;
-      onComplete?: (messages: UpdateDesignMemoryInput['conversationMessages']) => void;
+      onComplete?: (messages: DesignBriefConversationMessages) => void;
     },
   ): ReturnType<typeof generateViaAgent> => {
     const sendEvent = (event: AgentStreamEvent) => {
@@ -309,6 +325,8 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
         templatesRoot,
         askBridge: (askInput) => requestAsk(id, askInput, () => getMainWindow()),
         workspaceRoot,
+        inspectWorkspace: async () =>
+          inspectWorkspaceFiles(await readWorkspaceFilesAt(workspaceRoot)),
         readWorkspaceFiles: (patterns) => readWorkspaceFilesAt(workspaceRoot, patterns),
         runPreview: ({ path, vision }) => runPreview({ path, vision, workspaceRoot }),
       },
@@ -560,12 +578,31 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
         try {
           clearTimeoutGuard = await armTimeout(id, controller);
           const isCodex = active.model.provider === CHATGPT_CODEX_PROVIDER_ID;
-          let capturedMessages: UpdateDesignMemoryInput['conversationMessages'] | null = null;
+          let capturedMessages: DesignBriefConversationMessages | null = null;
           let aggressivePruneDetected = false;
+          const chatRows = chatRowsForDesign(designId);
+          const resourceState = deriveResourceStateFromChatRows(chatRows);
+          const existingBrief = briefForDesign(designId);
+          const contextPack = buildDesignContextPack({
+            chatRows,
+            brief: existingBrief,
+            resourceState,
+            workspaceState: {
+              sourcePath: payload.previousSource ? 'App.jsx' : null,
+              hasSource: Boolean(payload.previousSource?.trim()),
+              hasDesignMd: Boolean(promptContext.projectContext.designMd?.trim()),
+              hasAgentsMd: Boolean(promptContext.projectContext.agentsMd?.trim()),
+              hasSettingsJson: Boolean(promptContext.projectContext.settingsJson?.trim()),
+            },
+          });
+          logIpc.info('generate.context', {
+            generationId: id,
+            ...contextPack.trace,
+          });
           const result = await runGenerate(
             {
               prompt: payload.prompt,
-              history: payload.history,
+              history: contextPack.history,
               model: active.model,
               apiKey,
               ...(isCodex
@@ -574,9 +611,10 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
               attachments: promptContext.attachments,
               referenceUrl: promptContext.referenceUrl,
               designSystem: promptContext.designSystem ?? null,
+              sessionContext: contextPack.contextSections,
               ...(memoryContext !== undefined ? { memoryContext } : {}),
               projectContext: promptContext.projectContext,
-              initialResourceState: resourceStateForDesign(designId),
+              initialResourceState: resourceState,
               ...(baseUrl !== undefined ? { baseUrl } : {}),
               wire: active.wire,
               ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
@@ -608,14 +646,13 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
           });
           if (capturedMessages !== null) {
             const design = db !== null ? getDesign(db, designId) : null;
-            const memoryUpdate = triggerMemoryUpdate({
-              workspacePath: workspaceRoot,
+            const briefUpdate = updateDesignSessionBrief({
+              existingBrief,
+              conversationMessages: capturedMessages,
               designId,
               designName: design?.name ?? 'Untitled',
-              conversationMessages: capturedMessages,
               model: active.model,
               apiKey,
-              db,
               ...(baseUrl !== undefined ? { baseUrl } : {}),
               wire: active.wire,
               ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
@@ -623,15 +660,24 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 ? { reasoningLevel: active.reasoningLevel }
                 : {}),
               ...(allowKeyless ? { allowKeyless: true } : {}),
-            }).catch((err) => {
-              logIpc.warn('memory.update.fail', {
-                generationId: id,
-                message: err instanceof Error ? err.message : String(err),
+            })
+              .then((briefResult) => {
+                const opts = chatStoreOptions();
+                if (opts !== null) appendSessionDesignBrief(opts, designId, briefResult.brief);
+                logIpc.info('design-brief.update.ok', {
+                  generationId: id,
+                  outputLen: JSON.stringify(briefResult.brief).length,
+                });
+              })
+              .catch((err) => {
+                logIpc.warn('design-brief.update.fail', {
+                  generationId: id,
+                  message: err instanceof Error ? err.message : String(err),
+                });
               });
-            });
 
             if (aggressivePruneDetected) {
-              await memoryUpdate;
+              await briefUpdate;
             }
           }
           if (memoryLoadWarning !== undefined) {
@@ -766,7 +812,9 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
               referenceUrl: promptContext.referenceUrl,
               designSystem: promptContext.designSystem ?? null,
               projectContext: promptContext.projectContext,
-              initialResourceState: resourceStateForDesign(payload.designId),
+              initialResourceState: deriveResourceStateFromChatRows(
+                chatRowsForDesign(payload.designId),
+              ),
               ...(baseUrl !== undefined ? { baseUrl } : {}),
               wire: active.wire,
               ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),

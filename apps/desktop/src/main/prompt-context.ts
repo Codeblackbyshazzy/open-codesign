@@ -519,7 +519,7 @@ async function readAttachment(file: LocalInputFile): Promise<AttachmentContext> 
       return {
         name: file.name,
         path: file.path,
-        note: 'Attached as an image input. Use the visual content directly, not just the filename.',
+        note: 'Image attachment metadata is available; visual pixels may only be available on vision-capable provider paths. If image content is unavailable, use the filename and user prompt as hints.',
         mediaType: imageMimeType,
         imageDataUrl: `data:${imageMimeType};base64,${buffer.toString('base64')}`,
       };

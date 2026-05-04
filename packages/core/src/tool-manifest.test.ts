@@ -9,6 +9,7 @@ describe('tool-manifest', () => {
       'set_todos',
       'skill',
       'scaffold',
+      'inspect_workspace',
       'str_replace_based_edit_tool',
       'done',
       'preview',
@@ -27,6 +28,7 @@ describe('tool-manifest', () => {
       fs: false,
       preview: true,
       image: true,
+      workspaceInspector: true,
       workspaceReader: true,
       ask: true,
     });
@@ -36,11 +38,12 @@ describe('tool-manifest', () => {
     expect(tools).toContain('generate_image_asset');
   });
 
-  it('gates preview, image, tweaks, and ask on host capabilities', () => {
+  it('gates preview, image, inspect, tweaks, and ask on host capabilities', () => {
     const tools = availableToolNames({
       fs: true,
       preview: false,
       image: false,
+      workspaceInspector: false,
       workspaceReader: false,
       ask: false,
     });
@@ -52,5 +55,18 @@ describe('tool-manifest', () => {
       'str_replace_based_edit_tool',
       'done',
     ]);
+  });
+
+  it('exposes inspect_workspace when a workspace inspector is available', () => {
+    const tools = availableToolNames({
+      fs: true,
+      preview: false,
+      image: false,
+      workspaceInspector: true,
+      workspaceReader: false,
+      ask: false,
+    });
+
+    expect(tools).toContain('inspect_workspace');
   });
 });

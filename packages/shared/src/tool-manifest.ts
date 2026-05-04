@@ -19,7 +19,7 @@ export interface ToolManifestEntryV1 {
   label: string;
   iconKey: ToolManifestIconKeyV1;
   status: ToolManifestStatusV1;
-  requires: Array<'fs' | 'preview' | 'image' | 'workspaceReader' | 'ask'>;
+  requires: Array<'fs' | 'preview' | 'image' | 'workspaceInspector' | 'workspaceReader' | 'ask'>;
 }
 
 export interface ToolManifestV1 {
@@ -32,6 +32,7 @@ export const CURRENT_TOOL_ORDER = [
   'set_todos',
   'skill',
   'scaffold',
+  'inspect_workspace',
   'str_replace_based_edit_tool',
   'done',
   'preview',
@@ -55,6 +56,13 @@ export const TOOL_MANIFEST_V1: ToolManifestV1 = {
     },
     { name: 'skill', label: 'skill', iconKey: 'sparkles', status: 'current', requires: [] },
     { name: 'scaffold', label: 'scaffold', iconKey: 'file-plus', status: 'current', requires: [] },
+    {
+      name: 'inspect_workspace',
+      label: 'inspect_workspace',
+      iconKey: 'wrench',
+      status: 'current',
+      requires: ['workspaceInspector'],
+    },
     {
       name: 'str_replace_based_edit_tool',
       label: 'edit',

@@ -1197,7 +1197,7 @@ describe('generateViaAgent()', () => {
     }
   });
 
-  it('prepends a revision turn brief when an existing workspace source is present', async () => {
+  it('prepends a unified workspace brief when an existing workspace source is present', async () => {
     scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
     await generateViaAgent(
       {
@@ -1210,12 +1210,15 @@ describe('generateViaAgent()', () => {
     );
 
     const prompt = agentCalls[0]?.prompts[0]?.message as string;
-    expect(prompt).toContain('Existing App.jsx is present. This is a revision turn.');
-    expect(prompt).toContain('View the current file before editing.');
+    expect(prompt).toContain('Workspace context');
+    expect(prompt).toContain('Existing source candidates: App.jsx');
+    expect(prompt).toContain('Inspect the workspace before editing existing source files.');
+    expect(prompt).not.toContain('revision turn');
+    expect(prompt).not.toContain('takeover mode');
     expect(prompt).toContain('make the hero warmer');
   });
 
-  it('does not add a revision turn brief when no workspace source exists', async () => {
+  it('describes an empty workspace without implying an existing source file', async () => {
     scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
     await generateViaAgent(
       {
@@ -1228,11 +1231,13 @@ describe('generateViaAgent()', () => {
     );
 
     const prompt = agentCalls[0]?.prompts[0]?.message as string;
-    expect(prompt).not.toContain('This is a revision turn');
-    expect(prompt).toBe('design a fresh landing page');
+    expect(prompt).toContain('Workspace context');
+    expect(prompt).toContain('No existing design source was found. Create App.jsx');
+    expect(prompt).not.toContain('Existing source candidates');
+    expect(prompt).toContain('design a fresh landing page');
   });
 
-  it('does not add the generic revision turn brief to apply-comment prompts', async () => {
+  it('does not add the generic workspace brief to apply-comment prompts', async () => {
     scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
     await applyComment(
       {
@@ -1253,7 +1258,45 @@ describe('generateViaAgent()', () => {
 
     const prompt = agentCalls[0]?.prompts[0]?.message as string;
     expect(prompt).toContain('Revise the design source that is already in the workspace');
-    expect(prompt).not.toContain('Existing App.jsx is present. This is a revision turn.');
+    expect(prompt).not.toContain('Workspace context');
+    expect(prompt).not.toContain('revision turn');
+  });
+
+  it('marks DESIGN.md as the design baton in the workspace brief', async () => {
+    scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
+    await generateViaAgent(
+      {
+        prompt: 'continue this screen',
+        history: [],
+        model: MODEL,
+        apiKey: 'sk-test',
+      },
+      { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML, 'DESIGN.md': VALID_DESIGN_MD }) },
+    );
+
+    const prompt = agentCalls[0]?.prompts[0]?.message as string;
+    expect(prompt).toContain('DESIGN.md is present');
+    expect(prompt).toContain('design baton');
+  });
+
+  it('surfaces reference materials in the workspace brief', async () => {
+    scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
+    await generateViaAgent(
+      {
+        prompt: 'design from these notes',
+        history: [],
+        model: MODEL,
+        apiKey: 'sk-test',
+        attachments: [{ name: 'brief.md', path: '/tmp/brief.md', excerpt: 'Use editorial tone.' }],
+        referenceUrl: { url: 'https://example.com/ref', excerpt: 'Reference tone.' },
+      },
+      { fs: makeStubFs({}) },
+    );
+
+    const prompt = agentCalls[0]?.prompts[0]?.message as string;
+    expect(prompt).toContain('Reference materials are available');
+    expect(prompt).toContain('attached file(s): 1');
+    expect(prompt).toContain('reference URL: yes');
   });
 
   it('returns no artifacts when prose contains a fenced ```html block but no <artifact> wrapper and no fs is provided', async () => {
@@ -1310,6 +1353,16 @@ describe('generateViaAgent()', () => {
           assetErrors: [],
           metrics: { nodes: 1, height: 720, width: 1280, loadMs: 10 },
         }),
+        inspectWorkspace: async () => ({
+          entryCandidates: ['App.jsx'],
+          sourceFiles: ['App.jsx'],
+          styleFiles: [],
+          designDocs: [],
+          referenceDocs: [],
+          assets: [],
+          totalFiles: 1,
+          truncated: false,
+        }),
         readWorkspaceFiles: async () => [],
         askBridge: async () => ({ status: 'answered', answers: [] }),
       },
@@ -1331,6 +1384,7 @@ describe('generateViaAgent()', () => {
       'set_todos',
       'skill',
       'scaffold',
+      'inspect_workspace',
       'str_replace_based_edit_tool',
       'done',
       'preview',

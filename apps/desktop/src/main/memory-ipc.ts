@@ -65,11 +65,8 @@ async function writeGlobalMemoryFile(content: string): Promise<void> {
 export async function loadMemoryContext(
   workspacePath: string | undefined,
 ): Promise<string[] | undefined> {
-  const [designMemory, globalMemory] = await Promise.all([
-    workspacePath ? readDesignMemoryFile(workspacePath) : Promise.resolve(null),
-    readGlobalMemoryFile(),
-  ]);
-  const sections = formatMemoryForContext(designMemory, globalMemory);
+  const designMemory = workspacePath ? await readDesignMemoryFile(workspacePath) : null;
+  const sections = formatMemoryForContext(designMemory, null);
   return sections.length > 0 ? sections : undefined;
 }
 

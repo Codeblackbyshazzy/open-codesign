@@ -31,6 +31,19 @@ export {
   SessionManager,
 } from './agent-session.js';
 export {
+  type BuildDesignContextPackInput,
+  buildDesignContextPack,
+  type ContextBudgetTrace,
+  DESIGN_BRIEF_SYSTEM_PROMPT,
+  type DesignContextPackV1,
+  type DesignSessionBriefV1,
+  formatDesignSessionBriefForDebug,
+  normalizeDesignSessionBrief,
+  type UpdateDesignSessionBriefInput,
+  type UpdateDesignSessionBriefResult,
+  updateDesignSessionBrief,
+} from './design-context.js';
+export {
   DESIGN_SKILL_FILES,
   type DesignSkillName,
   loadDesignSkills,
@@ -85,6 +98,13 @@ export {
   type GenerateImageAssetResult,
   makeGenerateImageAssetTool,
 } from './tools/generate-image-asset.js';
+export {
+  type InspectWorkspaceFileInput,
+  type InspectWorkspaceFn,
+  inspectWorkspaceFiles,
+  makeInspectWorkspaceTool,
+  type WorkspaceInspection,
+} from './tools/inspect-workspace.js';
 export {
   makePreviewTool,
   type PreviewResult,
@@ -169,6 +189,10 @@ export interface GenerateInput {
   referenceUrl?: ReferenceUrlContext | null | undefined;
   /** Pre-formatted memory context sections loaded by the host before generation. */
   memoryContext?: string[] | undefined;
+  /** Host-computed design-session context sections for this turn. */
+  sessionContext?: string[] | undefined;
+  /** Optional host-injected workspace inspector for bounded design-oriented inventory. */
+  inspectWorkspace?: import('./tools/inspect-workspace.js').InspectWorkspaceFn | undefined;
   /** Absolute path to the current design's workspace on disk. When set, tools
    * that need to write files (e.g. `scaffold`) use this as the sandbox root. */
   workspaceRoot?: string | undefined;

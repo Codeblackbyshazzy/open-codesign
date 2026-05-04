@@ -99,12 +99,18 @@ export function formatReferenceUrl(
 }
 
 export function buildContextSections(input: {
+  sessionContext?: string[] | undefined;
   designSystem?: StoredDesignSystem | null | undefined;
   attachments?: AttachmentContext[] | undefined;
   referenceUrl?: ReferenceUrlContext | null | undefined;
   memoryContext?: string[] | undefined;
 }): string[] {
   const sections: string[] = [];
+  if (input.sessionContext) {
+    for (const section of input.sessionContext) {
+      if (section.length > 0) sections.push(section);
+    }
+  }
   if (input.memoryContext) {
     for (const section of input.memoryContext) {
       if (section.length > 0) sections.push(section);

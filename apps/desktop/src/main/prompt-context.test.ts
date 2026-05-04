@@ -103,6 +103,8 @@ describe('preparePromptContext', () => {
     expect(result.attachments[0]?.imageDataUrl).toBe(
       `data:image/png;base64,${pngBytes.toString('base64')}`,
     );
+    expect(result.attachments[0]?.note).toContain('visual pixels may only be available');
+    expect(result.attachments[0]?.note).not.toContain('Use the visual content directly');
     expect(result.attachments[0]?.excerpt).toBeUndefined();
   });
 

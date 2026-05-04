@@ -570,13 +570,10 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
         iframeErrors: [],
       }));
 
-      // Cap cross-generate history to the most recent turns. The agent re-reads
-      // the current design source via the edit tool's `view` command, so older prose in
-      // history offers diminishing value and pushes us toward the token ceiling.
-      const HISTORY_CAP = 12;
       const fullHistory = await buildHistoryFromChat(designIdAtStart);
-      const history =
-        fullHistory.length > HISTORY_CAP ? fullHistory.slice(-HISTORY_CAP) : fullHistory;
+      // Main-process context planning rebuilds DB-backed history from session
+      // JSONL. Keep a schema-bounded fallback for renderer tests / degraded hosts.
+      const history = fullHistory.length > 200 ? fullHistory.slice(-200) : fullHistory;
       const isFirstPrompt = fullHistory.length === 0;
 
       if (designIdAtStart && !input.silent) {

@@ -1,6 +1,10 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { SessionManager } from '@open-codesign/core';
+import {
+  type DesignSessionBriefV1,
+  normalizeDesignSessionBrief,
+  SessionManager,
+} from '@open-codesign/core';
 import type {
   ChatAppendInput,
   ChatMessageKind,
@@ -13,6 +17,7 @@ import { normalizeWorkspacePath } from './workspace-path';
 
 export const CHAT_MESSAGE_CUSTOM_TYPE = 'open-codesign.chat.message';
 export const CHAT_TOOL_STATUS_CUSTOM_TYPE = 'open-codesign.chat.tool_status';
+export const CONTEXT_BRIEF_CUSTOM_TYPE = 'open-codesign.context.brief.v1';
 
 export interface SessionChatStoreOptions {
   db: Database;
@@ -44,6 +49,11 @@ interface StoredToolStatusUpdate {
   result?: unknown;
   durationMs?: number;
   errorMessage?: string;
+}
+
+interface StoredDesignBrief {
+  schemaVersion: 1;
+  brief: DesignSessionBriefV1;
 }
 
 interface CustomEntryLike {
@@ -129,6 +139,23 @@ function parseStatusUpdate(value: unknown): StoredToolStatusUpdate | null {
     ...(typeof value['durationMs'] === 'number' ? { durationMs: value['durationMs'] } : {}),
     ...(typeof value['errorMessage'] === 'string' ? { errorMessage: value['errorMessage'] } : {}),
   };
+}
+
+function parseStoredBrief(value: unknown): StoredDesignBrief | null {
+  if (!isRecord(value)) return null;
+  if (value['schemaVersion'] !== 1) return null;
+  const rawBrief = value['brief'];
+  if (!isRecord(rawBrief)) return null;
+  const designId = typeof rawBrief['designId'] === 'string' ? rawBrief['designId'] : '';
+  const designName = typeof rawBrief['designName'] === 'string' ? rawBrief['designName'] : '';
+  if (designId.length === 0 || designName.length === 0) return null;
+  const now = typeof rawBrief['updatedAt'] === 'string' ? rawBrief['updatedAt'] : undefined;
+  const brief = normalizeDesignSessionBrief(rawBrief, {
+    designId,
+    designName,
+    ...(now !== undefined ? { now } : {}),
+  });
+  return brief === null ? null : { schemaVersion: 1, brief };
 }
 
 function applyStatusUpdate(row: ChatMessageRow, update: StoredToolStatusUpdate): ChatMessageRow {
@@ -241,6 +268,35 @@ export function appendSessionToolStatus(
     ...(input.errorMessage !== undefined ? { errorMessage: input.errorMessage } : {}),
   };
   manager.appendCustomEntry(CHAT_TOOL_STATUS_CUSTOM_TYPE, stored);
+  flushSession(manager);
+}
+
+export function readSessionDesignBrief(
+  opts: SessionChatStoreOptions,
+  designId: string,
+): DesignSessionBriefV1 | null {
+  const cwd = resolveSessionCwd(opts, designId);
+  const file = sessionFileForDesign(opts.sessionDir, designId);
+  if (!existsSync(file)) return null;
+  const manager = SessionManager.open(file, opts.sessionDir, cwd);
+  const entries = manager.getEntries();
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index] as CustomEntryLike | undefined;
+    if (entry?.type !== 'custom' || entry.customType !== CONTEXT_BRIEF_CUSTOM_TYPE) continue;
+    const stored = parseStoredBrief(entry.data);
+    if (stored !== null) return stored.brief;
+  }
+  return null;
+}
+
+export function appendSessionDesignBrief(
+  opts: SessionChatStoreOptions,
+  designId: string,
+  brief: DesignSessionBriefV1,
+): void {
+  const manager = openSession(opts, designId);
+  const stored: StoredDesignBrief = { schemaVersion: 1, brief };
+  manager.appendCustomEntry(CONTEXT_BRIEF_CUSTOM_TYPE, stored);
   flushSession(manager);
 }
 
