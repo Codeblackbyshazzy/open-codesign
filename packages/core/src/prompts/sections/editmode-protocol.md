@@ -1,6 +1,6 @@
 # EDITMODE protocol
 
-Declare user-tweakable visual parameters near the top of the artifact source:
+Declare user-tweakable visual parameters near the top of the design source:
 
 ```js
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
