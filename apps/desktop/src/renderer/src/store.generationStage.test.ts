@@ -65,7 +65,7 @@ function mockSnapshotsApi() {
 function resetStore() {
   useCodesignStore.setState({
     ...initialState,
-    previewHtml: null,
+    previewSource: null,
     isGenerating: false,
     activeGenerationId: null,
     generationStage: 'idle',
@@ -200,7 +200,7 @@ describe('generationStage transitions', () => {
   it('does not append artifact_delivered when generate returns assistant text only', async () => {
     useCodesignStore.setState({
       currentDesignId: 'design-1',
-      previewHtml: '<html><body>existing</body></html>',
+      previewSource: '<html><body>existing</body></html>',
     });
 
     const append = vi.fn(async (input: { designId: string; kind: string; payload: unknown }) => ({
@@ -234,7 +234,7 @@ describe('generationStage transitions', () => {
     expect(kinds).toContain('user');
     expect(kinds).toContain('assistant_text');
     expect(kinds).not.toContain('artifact_delivered');
-    expect(useCodesignStore.getState().previewHtml).toBe('<html><body>existing</body></html>');
+    expect(useCodesignStore.getState().previewSource).toBe('<html><body>existing</body></html>');
     expect(useCodesignStore.getState().generationStage).toBe('done');
   });
 });

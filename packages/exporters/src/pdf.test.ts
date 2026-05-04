@@ -61,13 +61,32 @@ describe('exportPdf', () => {
         }),
       );
       expect(setContentMock).toHaveBeenCalledWith(
-        '<h1>hi</h1>',
+        expect.stringContaining('<!doctype html>'),
         expect.objectContaining({ waitUntil: 'networkidle0' }),
       );
       expect(pdfMock).toHaveBeenCalled();
       expect(closeMock).toHaveBeenCalled();
       expect(result.path).toBe(dest);
       expect(result.bytes).toBe(fakePdfBytes.length);
+    },
+    CHROME_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'wraps JSX source before rendering to PDF',
+    async () => {
+      setContentMock.mockClear();
+      const { exportPdf } = await import('./pdf');
+      await exportPdf(
+        'function App() { return <main id="pdf-jsx">PDF</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+        join(tempDir, 'jsx.pdf'),
+        { chromePath: '/tmp/fake-chrome' },
+      );
+
+      expect(setContentMock).toHaveBeenCalledWith(
+        expect.stringContaining('CODESIGN_STANDALONE_RUNTIME'),
+        expect.objectContaining({ waitUntil: 'networkidle0' }),
+      );
     },
     CHROME_TEST_TIMEOUT_MS,
   );

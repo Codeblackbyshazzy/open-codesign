@@ -31,11 +31,12 @@ interface SlideContent {
 }
 
 /**
- * Render an HTML artifact to PPTX using pptxgenjs.
+ * Render a design source artifact to PPTX using pptxgenjs.
  *
  * Default strategy: render the artifact with system Chrome and embed screenshots
- * so visual layout, images, tables, and CSS survive the PPTX export. The
- * `editable` mode keeps the title/bullet extraction path. We do NOT use
+ * so visual layout, images, tables, CSS, and JSX-rendered output survive the
+ * PPTX export. The `editable` mode keeps the limited title/bullet extraction
+ * path for simple HTML. We do NOT use
  * dom-to-pptx in tier 1 — the package is unmaintained and only adds
  * editability for pure-text slides we already cover.
  *
@@ -44,7 +45,7 @@ interface SlideContent {
  * `fit: 'shrink'` (emits `normAutofit`). Verified with PowerPoint Mac.
  */
 export async function exportPptx(
-  htmlContent: string,
+  artifactSource: string,
   destinationPath: string,
   opts: ExportPptxOptions = {},
 ): Promise<ExportResult> {
@@ -57,7 +58,7 @@ export async function exportPptx(
     if (opts.deckTitle) pres.title = opts.deckTitle;
 
     if ((opts.renderMode ?? 'image') === 'image') {
-      const screenshots = await renderSlideScreenshots(htmlContent, opts);
+      const screenshots = await renderSlideScreenshots(artifactSource, opts);
       for (const screenshot of screenshots) {
         const slide = pres.addSlide();
         slide.background = { color: 'FFFFFF' };
@@ -70,7 +71,7 @@ export async function exportPptx(
         });
       }
     } else {
-      const slides = extractSlides(htmlContent);
+      const slides = extractSlides(artifactSource);
       for (const s of slides) {
         const slide = pres.addSlide();
         slide.background = { color: 'FFFFFF' };
@@ -122,7 +123,7 @@ export async function exportPptx(
 }
 
 async function renderSlideScreenshots(
-  htmlContent: string,
+  artifactSource: string,
   opts: ExportPptxOptions,
 ): Promise<Buffer[]> {
   const { findSystemChrome } = await import('./chrome-discovery');
@@ -130,7 +131,7 @@ async function renderSlideScreenshots(
 
   const viewport = opts.viewport ?? { width: 1280, height: 720 };
   const executablePath = opts.chromePath ?? (await findSystemChrome());
-  let html = buildHtmlDocument(htmlContent, { prettify: false });
+  let html = buildHtmlDocument(artifactSource, { prettify: false });
   html = await inlineLocalAssetsInHtml(html, opts);
 
   const browser = await puppeteer.launch({

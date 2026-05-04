@@ -1,7 +1,9 @@
 import {
+  classifyRenderableSource,
   findArtifactSourceReference,
   resolveArtifactSourceReferencePath,
 } from '@open-codesign/runtime';
+import { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from '@open-codesign/shared';
 
 export interface WorkspacePreviewReadResult {
   content: string;
@@ -13,8 +15,25 @@ export type WorkspacePreviewRead = (
   path: string,
 ) => Promise<WorkspacePreviewReadResult>;
 
-export function hasWorkspaceSourceReference(source: string, path = 'index.html'): boolean {
+export function hasWorkspaceSourceReference(
+  source: string,
+  path: string = LEGACY_SOURCE_ENTRY,
+): boolean {
   return resolveReferencedWorkspacePreviewPath(source, path) !== null;
+}
+
+function looksLikeLegacyHtmlFragment(source: string): boolean {
+  const trimmed = source.trimStart();
+  if (!trimmed.startsWith('<')) return false;
+  const next = trimmed[1];
+  return next === '!' || next === '/' || next === undefined || !/[A-Z]/u.test(next);
+}
+
+export function inferPreviewSourcePath(source: string): string {
+  const kind = classifyRenderableSource(source);
+  if (kind === 'html') return LEGACY_SOURCE_ENTRY;
+  if (kind === 'unknown' && looksLikeLegacyHtmlFragment(source)) return LEGACY_SOURCE_ENTRY;
+  return DEFAULT_SOURCE_ENTRY;
 }
 
 function looksLikeJsxModule(source: string): boolean {
@@ -54,7 +73,7 @@ export async function resolveWorkspacePreviewSource(input: {
   read?: WorkspacePreviewRead | undefined;
   requireReferencedSource?: boolean | undefined;
 }): Promise<WorkspacePreviewReadResult> {
-  const path = input.path ?? 'index.html';
+  const path = input.path ?? inferPreviewSourcePath(input.source);
   const referencedPath = resolveReferencedWorkspacePreviewPath(input.source, path);
   if (referencedPath === null) return { content: input.source, path };
   if (!input.read) {

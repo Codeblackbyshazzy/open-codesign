@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CodesignError, ERROR_CODES } from '@open-codesign/shared';
 import { inlineLocalAssetsInHtml, type LocalAssetOptions } from './assets';
+import { buildHtmlDocument } from './html';
 import type { ExportResult } from './index';
 
 export interface ExportPdfOptions extends LocalAssetOptions {
@@ -40,7 +41,8 @@ export interface ExportPdfOptions extends LocalAssetOptions {
 const DEFAULT_VIEWPORT = { width: 1280, height: 800 } as const;
 
 /**
- * Render an HTML string to PDF via the user's installed Chrome.
+ * Render a design source artifact to PDF via the user's installed Chrome.
+ * JSX sources are first wrapped into a standalone web document by the runtime.
  * Local workspace assets are inlined before rendering when the caller provides
  * asset paths; optional header/footer templates are passed through to Chrome.
  *
@@ -49,7 +51,7 @@ const DEFAULT_VIEWPORT = { width: 1280, height: 800 } as const;
  * connects to the system Chrome we discover at runtime. PRINCIPLES §1 + §10.
  */
 export async function exportPdf(
-  htmlContent: string,
+  artifactSource: string,
   destinationPath: string,
   opts: ExportPdfOptions = {},
 ): Promise<ExportResult> {
@@ -80,10 +82,11 @@ export async function exportPdf(
     });
     const page = await browser.newPage();
     await page.setViewport(DEFAULT_VIEWPORT);
-    const exportHtml =
+    let exportHtml = buildHtmlDocument(artifactSource, { prettify: false });
+    exportHtml =
       (opts.inlineLocalAssets ?? true)
-        ? await inlineLocalAssetsInHtml(htmlContent, opts)
-        : htmlContent;
+        ? await inlineLocalAssetsInHtml(exportHtml, opts)
+        : exportHtml;
     await page.setContent(exportHtml, {
       waitUntil: opts.waitUntil ?? 'networkidle0',
       timeout: opts.renderTimeoutMs ?? 45_000,

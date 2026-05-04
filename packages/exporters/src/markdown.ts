@@ -18,13 +18,13 @@ export interface ExportMarkdownOptions {
 }
 
 export async function exportMarkdown(
-  htmlContent: string,
+  artifactSource: string,
   destinationPath: string,
   opts: ExportMarkdownOptions = {},
 ): Promise<ExportResult> {
   const fs = await import('node:fs/promises');
-  const md = htmlToMarkdown(htmlContent, {
-    title: opts.meta?.title ?? deriveTitle(htmlContent),
+  const md = htmlToMarkdown(artifactSource, {
+    title: opts.meta?.title ?? deriveTitle(artifactSource),
     schemaVersion: 1,
   });
   await fs.writeFile(destinationPath, md, 'utf8');

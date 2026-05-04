@@ -103,7 +103,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-create-db-only',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -126,7 +126,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-seeded-workspace',
       logger,
-      previousHtml: '<main>stale preview</main>',
+      previousSource: '<main>stale preview</main>',
       initialFiles: [
         { file: 'index.html', contents: '<main>workspace source</main>' },
         { file: 'src/App.tsx', contents: 'export function App() { return <main />; }' },
@@ -141,6 +141,25 @@ describe('createRuntimeTextEditorFs', () => {
     expect(listFsUpdatedEvents(sendEvent)).toHaveLength(0);
   });
 
+  it('seeds previous source into App.jsx when no workspace source exists yet', () => {
+    const db = initInMemoryDb();
+    const design = createDesign(db, 'Seed Previous Source');
+    const sendEvent = vi.fn();
+    const logger = { error: vi.fn() };
+    const { fs } = createRuntimeTextEditorFs({
+      db,
+      designId: design.id,
+      generationId: 'gen-seed-previous-source',
+      logger,
+      previousSource: 'function App() { return <main />; }',
+      initialFiles: [],
+      sendEvent,
+    });
+
+    expect(fs.view('App.jsx')?.content).toContain('function App');
+    expect(fs.view('index.html')).toBeNull();
+  });
+
   it('persists fs.create to db and writes disk when workspace is bound', async () => {
     const db = initInMemoryDb();
     const design = createDesign(db, 'Workspace');
@@ -153,7 +172,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-create-workspace',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -183,7 +202,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-create-asset',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
     const dataUrl = `\n ${PNG_HEADER_DATA_URL} \n`;
@@ -218,7 +237,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-bad-asset',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -247,7 +266,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-wrong-signature-asset',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -278,7 +297,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-unsupported-mime-asset',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -311,7 +330,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-create-workspace-fail',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -340,7 +359,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-corrupt-workspace',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
     const probePath = `cwd-write-probe-${crypto.randomUUID()}.html`;
@@ -380,7 +399,7 @@ describe('createRuntimeTextEditorFs', () => {
         designId: design.id,
         generationId: 'gen-symlink-workspace',
         logger,
-        previousHtml: null,
+        previousSource: null,
         sendEvent,
       });
 
@@ -410,7 +429,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-replace-workspace',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -448,7 +467,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-replace-workspace-fail',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -483,7 +502,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-insert-workspace-fail',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -516,7 +535,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-insert-workspace',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -554,7 +573,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-insert-missing',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -583,7 +602,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: design.id,
       generationId: 'gen-null-workspace',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 
@@ -609,7 +628,7 @@ describe('createRuntimeTextEditorFs', () => {
       designId: null,
       generationId: 'gen-anon',
       logger,
-      previousHtml: null,
+      previousSource: null,
       sendEvent,
     });
 

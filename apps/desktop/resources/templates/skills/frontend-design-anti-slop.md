@@ -26,7 +26,7 @@ Commit fully to one coherent aesthetic. Use CSS custom properties for every colo
 Express colors in `oklch()` where possible — it gives perceptually uniform lightness steps and vivid gamut-P3 hues without the muddy mid-tones of hex-RGB.
 
 ### Motion
-CSS-only for HTML artifacts. One well-orchestrated page-load with staggered `animation-delay` reveals is better than scattered micro-interactions. Use `@media (prefers-reduced-motion: reduce)` to gate all animations.
+CSS-only for web artifacts. One well-orchestrated page-load with staggered `animation-delay` reveals is better than scattered micro-interactions. Use `@media (prefers-reduced-motion: reduce)` to gate all animations.
 
 ### Spatial Composition
 Asymmetry. Overlap. Diagonal rhythm. Grid-breaking hero elements. Resist the urge to center-align everything — left-aligned, offset, or deliberately edge-bleeding layouts feel more crafted.

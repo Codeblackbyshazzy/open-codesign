@@ -618,7 +618,7 @@
       },
       "pptx": {
         "label": "PPTX",
-        "hint": "Editable slides; one per <section>"
+        "hint": "High-fidelity slides; one per <section>"
       },
       "zip": {
         "label": "ZIP bundle",

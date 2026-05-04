@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path_module from 'node:path';
 import type { CoreLogger, GenerateImageAssetRequest } from '@open-codesign/core';
+import { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from '@open-codesign/shared';
 import type { AgentStreamEvent } from '../../preload/index';
 import {
   type Database,
@@ -59,7 +60,7 @@ interface CreateRuntimeTextEditorFsOptions {
   db: Database | null;
   generationId: string;
   designId: string | null;
-  previousHtml: string | null;
+  previousSource: string | null;
   initialFiles?: ReadonlyArray<{ file: string; contents: string }>;
   sendEvent: (event: AgentStreamEvent) => void;
   logger: Pick<CoreLogger, 'error'>;
@@ -71,7 +72,7 @@ export function createRuntimeTextEditorFs({
   db,
   generationId,
   designId,
-  previousHtml,
+  previousSource,
   initialFiles = [],
   sendEvent,
   logger,
@@ -80,9 +81,6 @@ export function createRuntimeTextEditorFs({
 }: CreateRuntimeTextEditorFsOptions) {
   const baseCtx = { designId: designId ?? '', generationId } as const;
   const fsMap = new Map<string, string>();
-  if (previousHtml && previousHtml.trim().length > 0) {
-    fsMap.set('index.html', previousHtml);
-  }
   for (const [name, content] of frames) {
     fsMap.set(`frames/${name}`, content);
   }
@@ -92,17 +90,29 @@ export function createRuntimeTextEditorFs({
   for (const file of initialFiles) {
     fsMap.set(normalizeDesignFilePath(file.file), file.contents);
   }
+  if (
+    previousSource &&
+    previousSource.trim().length > 0 &&
+    !fsMap.has(DEFAULT_SOURCE_ENTRY) &&
+    !fsMap.has(LEGACY_SOURCE_ENTRY)
+  ) {
+    fsMap.set(DEFAULT_SOURCE_ENTRY, previousSource);
+  }
 
   function emitFsUpdated(filePath: string, content: string): void {
     if (designId === null) return;
-    const resolved = filePath === 'index.html' ? resolveLocalAssetRefs(content, fsMap) : content;
+    const resolved =
+      filePath === DEFAULT_SOURCE_ENTRY || filePath === LEGACY_SOURCE_ENTRY
+        ? resolveLocalAssetRefs(content, fsMap)
+        : content;
     sendEvent({ ...baseCtx, type: 'fs_updated', path: filePath, content: resolved });
   }
 
-  function emitIndexIfAssetChanged(filePath: string): void {
+  function emitSourceIfAssetChanged(filePath: string): void {
     if (!filePath.startsWith('assets/')) return;
-    const index = fsMap.get('index.html');
-    if (index !== undefined) emitFsUpdated('index.html', index);
+    const sourcePath = fsMap.has(DEFAULT_SOURCE_ENTRY) ? DEFAULT_SOURCE_ENTRY : LEGACY_SOURCE_ENTRY;
+    const source = fsMap.get(sourcePath);
+    if (source !== undefined) emitFsUpdated(sourcePath, source);
   }
 
   async function persistMutation(filePath: string, content: string): Promise<string> {
@@ -150,7 +160,7 @@ export function createRuntimeTextEditorFs({
       const persisted = await persistMutation(path, content);
       fsMap.set(path, persisted);
       emitFsUpdated(path, persisted);
-      emitIndexIfAssetChanged(path);
+      emitSourceIfAssetChanged(path);
       return { path };
     },
     async strReplace(path: string, oldStr: string, newStr: string) {
@@ -165,7 +175,7 @@ export function createRuntimeTextEditorFs({
       const persisted = await persistMutation(path, next);
       fsMap.set(path, persisted);
       emitFsUpdated(path, persisted);
-      emitIndexIfAssetChanged(path);
+      emitSourceIfAssetChanged(path);
       return { path };
     },
     async insert(path: string, line: number, text: string) {
@@ -178,7 +188,7 @@ export function createRuntimeTextEditorFs({
       const persisted = await persistMutation(path, next);
       fsMap.set(path, persisted);
       emitFsUpdated(path, persisted);
-      emitIndexIfAssetChanged(path);
+      emitSourceIfAssetChanged(path);
       return { path };
     },
     listDir(dir: string) {

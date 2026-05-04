@@ -521,7 +521,7 @@ describe('generateViaAgent()', () => {
         baseUrl: 'https://openrouter.ai/api/v1',
         wire: 'openai-chat',
       },
-      { onRetry, fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+      { onRetry, fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
     );
 
     expect(result.artifacts).toHaveLength(1);
@@ -566,7 +566,7 @@ describe('generateViaAgent()', () => {
         baseUrl: 'https://openrouter.ai/api/v1',
         wire: 'openai-chat',
       },
-      { fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+      { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
     );
 
     expect(result.artifacts).toHaveLength(1);
@@ -763,17 +763,34 @@ describe('generateViaAgent()', () => {
         model: MODEL,
         apiKey: 'sk-test',
       },
-      { fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+      { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
     );
 
     expect(result.artifacts).toHaveLength(1);
     expect(result.artifacts[0]?.id).toBe('design-1');
     expect(result.artifacts[0]?.content.trim()).toBe(SAMPLE_HTML);
+    expect(result.artifacts[0]?.entryPath).toBe('App.jsx');
     expect(result.message).toContain('Here is your design.');
     expect(result.inputTokens).toBe(42);
     expect(result.outputTokens).toBe(84);
     expect(result.costUsd).toBeCloseTo(0.0012);
     expect(result.resourceState?.mutationSeq).toBe(0);
+  });
+
+  it('falls back to legacy index.html when App.jsx is absent', async () => {
+    scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
+    const result = await generateViaAgent(
+      {
+        prompt: 'revise legacy design',
+        history: [],
+        model: MODEL,
+        apiKey: 'sk-test',
+      },
+      { fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+    );
+
+    expect(result.artifacts).toHaveLength(1);
+    expect(result.artifacts[0]?.entryPath).toBe('index.html');
   });
 
   it('throws GENERATION_INCOMPLETE when workspace changed without done ok', async () => {
@@ -787,7 +804,7 @@ describe('generateViaAgent()', () => {
           apiKey: 'sk-test',
           initialResourceState: resourceState({ mutationSeq: 1 }),
         },
-        { fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+        { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
       ),
     ).rejects.toMatchObject({ code: ERROR_CODES.GENERATION_INCOMPLETE });
   });
@@ -804,14 +821,14 @@ describe('generateViaAgent()', () => {
           mutationSeq: 1,
           lastDone: {
             status: 'has_errors',
-            path: 'index.html',
+            path: 'App.jsx',
             mutationSeq: 1,
             errorCount: 1,
             checkedAt: '2026-04-28T00:00:00.000Z',
           },
         }),
       },
-      { fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+      { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
     );
     expect(result.artifacts).toHaveLength(1);
     expect(result.warnings).toEqual([expect.stringContaining('done() reported unresolved errors')]);
@@ -826,16 +843,16 @@ describe('generateViaAgent()', () => {
         model: MODEL,
         apiKey: 'sk-test',
       },
-      { fs: makeStubFs({ 'index.html': HTML_WITH_MISSING_ALT }) },
+      { fs: makeStubFs({ 'App.jsx': HTML_WITH_MISSING_ALT }) },
     );
     const doneTool = agentCalls[0]?.options.initialState?.tools?.find(
       (tool) => tool.name === 'done',
     );
     if (!doneTool) throw new Error('expected done tool');
 
-    const first = await doneTool.execute('done-1', { path: 'index.html' });
-    const second = await doneTool.execute('done-2', { path: 'index.html' });
-    const third = await doneTool.execute('done-3', { path: 'index.html' });
+    const first = await doneTool.execute('done-1', { path: 'App.jsx' });
+    const second = await doneTool.execute('done-2', { path: 'App.jsx' });
+    const third = await doneTool.execute('done-3', { path: 'App.jsx' });
 
     expect(first.terminate).toBeUndefined();
     expect(second.terminate).toBeUndefined();
@@ -853,7 +870,7 @@ describe('generateViaAgent()', () => {
     scriptedAgent = {
       assistantText: '',
       stopReason: 'toolUse',
-      executeTool: { name: 'done', times: 3, params: { path: 'index.html' } },
+      executeTool: { name: 'done', times: 3, params: { path: 'App.jsx' } },
     };
     const result = await generateViaAgent(
       {
@@ -863,7 +880,7 @@ describe('generateViaAgent()', () => {
         apiKey: 'sk-test',
         initialResourceState: resourceState({ mutationSeq: 1 }),
       },
-      { fs: makeStubFs({ 'index.html': HTML_WITH_MISSING_ALT }) },
+      { fs: makeStubFs({ 'App.jsx': HTML_WITH_MISSING_ALT }) },
     );
 
     expect(result.artifacts).toHaveLength(1);
@@ -884,14 +901,14 @@ describe('generateViaAgent()', () => {
           mutationSeq: 1,
           lastDone: {
             status: 'ok',
-            path: 'index.html',
+            path: 'App.jsx',
             mutationSeq: 1,
             errorCount: 0,
             checkedAt: '2026-04-28T00:00:00.000Z',
           },
         }),
       },
-      { fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+      { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
     );
     expect(result.artifacts).toHaveLength(1);
   });
@@ -909,14 +926,14 @@ describe('generateViaAgent()', () => {
             mutationSeq: 2,
             lastDone: {
               status: 'ok',
-              path: 'index.html',
+              path: 'App.jsx',
               mutationSeq: 1,
               errorCount: 0,
               checkedAt: '2026-04-28T00:00:00.000Z',
             },
           }),
         },
-        { fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+        { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
       ),
     ).rejects.toMatchObject({ code: ERROR_CODES.GENERATION_INCOMPLETE });
   });
@@ -1025,7 +1042,7 @@ describe('generateViaAgent()', () => {
           logger,
           templatesRoot,
         },
-        { fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+        { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
       );
       expect(result.artifacts).toHaveLength(1);
       expect(result.warnings).toEqual([
@@ -1091,7 +1108,7 @@ describe('generateViaAgent()', () => {
           apiKey: 'sk-test',
           templatesRoot,
         },
-        { fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+        { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
       );
       const sys = agentCalls[0]?.options.initialState?.systemPrompt as string;
       expect(sys).toContain('# Available Resources');
@@ -1182,7 +1199,7 @@ describe('generateViaAgent()', () => {
     expect(sys).toContain('Use `create` for new files');
     expect(sys).toContain('`str_replace`, or `insert`');
     expect(sys).toContain('Do not emit `<artifact>`');
-    expect(sys).toContain('workspace file `index.html`');
+    expect(sys).toContain('design source to `App.jsx`');
     expect(sys).toContain('Local workspace assets and scaffolded files are allowed');
     expect(sys).toContain('Call `done(path)` after the final mutation');
     expect(sys).toContain('stop after 3 error rounds');
@@ -1209,7 +1226,7 @@ describe('generateViaAgent()', () => {
         askBridge: async () => ({ status: 'answered', answers: [] }),
       },
       {
-        fs: makeStubFs({ 'index.html': SAMPLE_HTML }),
+        fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }),
         generateImageAsset: async () => ({
           path: 'assets/hero.png',
           dataUrl: 'data:image/png;base64,aW1n',
@@ -1243,7 +1260,7 @@ describe('generateViaAgent()', () => {
   it('injects apply-comment supporting context only once through the agent boundary', async () => {
     scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
     await applyComment({
-      html: SAMPLE_HTML,
+      artifactSource: SAMPLE_HTML,
       comment: 'Tighten the hero.',
       selection: {
         selector: '#hero',
@@ -1346,7 +1363,7 @@ describe('generateViaAgent() — first-turn retry', () => {
           model: MODEL,
           apiKey: 'sk-test',
         },
-        { onRetry, fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+        { onRetry, fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
       );
       await vi.runAllTimersAsync();
       const result = await promise;
@@ -1467,7 +1484,7 @@ describe('generateViaAgent() — transport-level retry', () => {
         model: MODEL,
         apiKey: 'sk-test',
       },
-      { onRetry, fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+      { onRetry, fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
     );
     expect(result.artifacts).toHaveLength(1);
     expect(agentCalls.length).toBe(2);
@@ -1494,7 +1511,7 @@ describe('generateViaAgent() — transport-level retry', () => {
         model: MODEL,
         apiKey: 'sk-test',
       },
-      { onRetry, fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+      { onRetry, fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
     );
     expect(result.artifacts).toHaveLength(1);
     expect(agentCalls.length).toBe(2);
@@ -1520,7 +1537,7 @@ describe('generateViaAgent() — transport-level retry', () => {
         model: MODEL,
         apiKey: 'sk-test',
       },
-      { onRetry, fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+      { onRetry, fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
     );
     expect(result.artifacts).toHaveLength(1);
     expect(agentCalls.length).toBe(2);
@@ -1628,7 +1645,7 @@ describe('generateViaAgent() — transport-level retry', () => {
         model: MODEL,
         apiKey: 'sk-test',
       },
-      { fs: makeStubFs({ 'index.html': SAMPLE_HTML }) },
+      { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
     );
     // Second agent should be seeded with only the successful history
     // (original 2 messages), not the failed turn (which would be 4 messages:

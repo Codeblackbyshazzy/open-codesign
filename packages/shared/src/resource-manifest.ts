@@ -1,4 +1,5 @@
 import type { ChatMessageRow, ChatToolCallPayload } from './snapshot';
+import { DEFAULT_SOURCE_ENTRY } from './source-entries';
 
 export const RESOURCE_MANIFEST_SCHEMA_VERSION = 1 as const;
 export const RESOURCE_STATE_SCHEMA_VERSION = 1 as const;
@@ -173,7 +174,7 @@ export function applyToolCallToResourceState(
     const errors = Array.isArray(details['errors']) ? details['errors'] : [];
     state.lastDone = {
       status,
-      path: typeof details['path'] === 'string' ? details['path'] : 'index.html',
+      path: typeof details['path'] === 'string' ? details['path'] : DEFAULT_SOURCE_ENTRY,
       mutationSeq: state.mutationSeq,
       errorCount: errors.length,
       checkedAt: new Date().toISOString(),

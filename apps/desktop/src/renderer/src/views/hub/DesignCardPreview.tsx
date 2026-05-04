@@ -1,9 +1,11 @@
 import { buildPreviewDocument, requiresPreviewScripts } from '@open-codesign/runtime';
 import type { Design } from '@open-codesign/shared';
+import { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from '@open-codesign/shared';
 import { Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   hasWorkspaceSourceReference,
+  inferPreviewSourcePath,
   resolveWorkspacePreviewSource,
 } from '../../preview/workspace-source';
 
@@ -33,8 +35,8 @@ function injectThumbnailStyle(srcDoc: string): string {
   return THUMBNAIL_STYLE + srcDoc;
 }
 
-export function needsJsxRuntime(source: string): boolean {
-  return requiresPreviewScripts(source);
+export function needsJsxRuntime(source: string, path?: string): boolean {
+  return requiresPreviewScripts(source, path);
 }
 
 export interface DesignCardPreviewProps {
@@ -47,7 +49,7 @@ export interface DesignCardPreviewProps {
 const memCache = new Map<string, string>();
 const CACHE_VERSION = 'v2';
 const LS_PREFIX = `designCardPreview:${CACHE_VERSION}:`;
-const LS_MAX_CHARS = 300_000; // ~ 300 KB per entry ceiling; skip caching huge HTML
+const LS_MAX_CHARS = 300_000; // ~ 300 KB per entry ceiling; skip caching huge sources
 const LS_MAX_ENTRIES = 40;
 const MEM_MAX_ENTRIES = 40;
 
@@ -83,15 +85,15 @@ function readCache(key: string): string | null {
   }
 }
 
-function writeCache(key: string, html: string): void {
-  memCacheTouch(key, html);
+function writeCache(key: string, source: string): void {
+  memCacheTouch(key, source);
   if (typeof localStorage === 'undefined') return;
-  if (html.length > LS_MAX_CHARS) return;
+  if (source.length > LS_MAX_CHARS) return;
   try {
     // Best-effort eviction: if localStorage is near its quota, pruning the
     // oldest preview keys lets the new one fit. We cap total entries, too.
     pruneOldestCacheEntriesIfNeeded();
-    localStorage.setItem(LS_PREFIX + key, html);
+    localStorage.setItem(LS_PREFIX + key, source);
   } catch {
     // Quota exceeded or storage disabled — ignore, we still have in-memory.
   }
@@ -119,7 +121,7 @@ function pruneOldestCacheEntriesIfNeeded(): void {
 }
 
 export function DesignCardPreview({ design }: DesignCardPreviewProps) {
-  const [html, setHtml] = useState<string | null>(() =>
+  const [previewSource, setPreviewSource] = useState<string | null>(() =>
     readCache(cacheKey(design.id, design.updatedAt)),
   );
   const [failed, setFailed] = useState(false);
@@ -186,7 +188,7 @@ export function DesignCardPreview({ design }: DesignCardPreviewProps) {
     const key = cacheKey(design.id, design.updatedAt);
     const cached = readCache(key);
     if (cached !== null && !hasWorkspaceSourceReference(cached)) {
-      setHtml(cached);
+      setPreviewSource(cached);
       setFailed(false);
       return;
     }
@@ -203,18 +205,19 @@ export function DesignCardPreview({ design }: DesignCardPreviewProps) {
           setFailed(true);
           return;
         }
+        const referencesWorkspaceSource = hasWorkspaceSourceReference(source, LEGACY_SOURCE_ENTRY);
         return resolveWorkspacePreviewSource({
           designId: design.id,
           source,
-          path: 'index.html',
+          path: referencesWorkspaceSource ? LEGACY_SOURCE_ENTRY : inferPreviewSourcePath(source),
           read: window.codesign?.files?.read,
-          requireReferencedSource: hasWorkspaceSourceReference(source),
+          requireReferencedSource: referencesWorkspaceSource,
         });
       })
       .then((result) => {
         if (cancelled || !mounted.current || !result) return;
         writeCache(key, result.content);
-        setHtml(result.content);
+        setPreviewSource(result.content);
         setFailed(false);
       })
       .catch(() => {
@@ -225,13 +228,20 @@ export function DesignCardPreview({ design }: DesignCardPreviewProps) {
     };
   }, [visible, design.id, design.updatedAt]);
 
-  // JSX artifacts need the React+Babel runtime wrapper; HTML artifacts render directly.
-  const isJsx = useMemo(() => (html ? needsJsxRuntime(html) : false), [html]);
+  // JSX sources need the React+Babel runtime wrapper; HTML documents render directly.
+  const previewSourcePath = useMemo(
+    () => (previewSource ? inferPreviewSourcePath(previewSource) : DEFAULT_SOURCE_ENTRY),
+    [previewSource],
+  );
+  const isJsx = useMemo(
+    () => (previewSource ? needsJsxRuntime(previewSource, previewSourcePath) : false),
+    [previewSource, previewSourcePath],
+  );
   const srcDoc = useMemo(() => {
-    if (!html) return null;
-    const base = isJsx ? buildPreviewDocument(html) : html;
+    if (!previewSource) return null;
+    const base = buildPreviewDocument(previewSource, { path: previewSourcePath });
     return injectThumbnailStyle(base);
-  }, [html, isJsx]);
+  }, [previewSource, previewSourcePath]);
 
   return (
     <div ref={rootRef} className="absolute inset-0 overflow-hidden bg-white">

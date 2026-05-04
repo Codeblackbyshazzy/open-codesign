@@ -60,6 +60,23 @@ describe('exportZip', () => {
     expect(result.bytes).toBeGreaterThan(50);
   });
 
+  it('writes JSX source as browser-openable index.html', async () => {
+    const dest = join(tempDir, 'jsx-bundle.zip');
+    await exportZip(
+      'function App() { return <main id="zip-jsx">ZIP</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+      dest,
+    );
+
+    const { Unzip } = await import('zip-lib');
+    const extractDir = join(tempDir, 'jsx-extracted');
+    const unzip = new Unzip();
+    await unzip.extract(dest, extractDir);
+
+    const out = readFileSync(join(extractDir, 'index.html'), 'utf8');
+    expect(out).toContain('CODESIGN_STANDALONE_RUNTIME');
+    expect(out).toContain('zip-jsx');
+  });
+
   it('auto-collects local asset references and rewrites root-relative paths', async () => {
     const dest = join(tempDir, 'auto-assets.zip');
     await exportZip('<img src="/assets/logo.svg">', dest, {

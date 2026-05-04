@@ -87,4 +87,21 @@ describe('GeneratePayloadV1', () => {
       }),
     ).toThrow();
   });
+
+  it('accepts previousSource for incremental source edits', () => {
+    const result = GeneratePayloadV1.parse({
+      ...BASE_VALID,
+      previousSource: 'function App() { return <main />; }',
+    });
+    expect(result.previousSource).toContain('function App');
+  });
+
+  it('rejects legacy previousHtml instead of treating it as a source alias', () => {
+    expect(() =>
+      GeneratePayloadV1.parse({
+        ...BASE_VALID,
+        previousHtml: '<main />',
+      }),
+    ).toThrow();
+  });
 });

@@ -74,7 +74,7 @@ export interface ExportInvokeResponse {
 }
 export interface ExportInvokePayload {
   format: ExportFormat;
-  htmlContent: string;
+  artifactSource: string;
   defaultFilename?: string;
   workspacePath?: string;
   sourcePath?: string;
@@ -121,6 +121,9 @@ export interface GenerateArtifact {
   title: string;
   content: string;
   designParams: unknown[];
+  sourceFormat?: 'jsx' | 'html' | 'svg' | 'markdown';
+  renderRuntime?: 'react' | 'static-html' | 'svg' | 'none';
+  entryPath?: string;
   createdAt: string;
 }
 
@@ -269,7 +272,7 @@ const api = {
     attachments: LocalInputFile[];
     generationId: string;
     designId: string;
-    previousHtml?: string;
+    previousSource?: string;
   }) =>
     ipcRenderer.invoke('codesign:v1:generate', {
       schemaVersion: 1,
@@ -285,7 +288,7 @@ const api = {
   applyComment: (payload: {
     designId: string;
     generationId: string;
-    html: string;
+    artifactSource: string;
     comment: string;
     selection: SelectedElement;
     model?: ModelRef;

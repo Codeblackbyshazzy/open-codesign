@@ -41,7 +41,7 @@ function deferred<T>() {
 function resetStore() {
   useCodesignStore.setState({
     ...initialState,
-    previewHtml: null,
+    previewSource: null,
     isGenerating: false,
     activeGenerationId: null,
     errorMessage: null,
@@ -241,7 +241,7 @@ describe('useCodesignStore generation cancellation', () => {
 
     expect(useCodesignStore.getState().activeGenerationId).toBe(secondId);
     expect(useCodesignStore.getState().isGenerating).toBe(true);
-    expect(useCodesignStore.getState().previewHtml).toBeNull();
+    expect(useCodesignStore.getState().previewSource).toBeNull();
 
     pendingById.get(secondId)?.resolve({
       artifacts: [{ content: '<html>fresh</html>' }],
@@ -250,7 +250,7 @@ describe('useCodesignStore generation cancellation', () => {
     await secondRun;
 
     expect(cancelGeneration).toHaveBeenCalledWith(firstId);
-    expect(useCodesignStore.getState().previewHtml).toBe('<html>fresh</html>');
+    expect(useCodesignStore.getState().previewSource).toBe('<html>fresh</html>');
     expect(useCodesignStore.getState().isGenerating).toBe(false);
   });
 
@@ -627,7 +627,7 @@ describe('useCodesignStore design management', () => {
     });
 
     useCodesignStore.setState({
-      previewHtml: '<html>old</html>',
+      previewSource: '<html>old</html>',
       currentDesignId: 'old-id',
     });
 
@@ -635,7 +635,7 @@ describe('useCodesignStore design management', () => {
     expect(result?.id).toBe('fresh');
     const state = useCodesignStore.getState();
     expect(state.currentDesignId).toBe('fresh');
-    expect(state.previewHtml).toBeNull();
+    expect(state.previewSource).toBeNull();
   });
 
   it('passes the selected workspace path into createDesign instead of rebinding afterward', async () => {
@@ -739,8 +739,8 @@ describe('useCodesignStore design management', () => {
 
     useCodesignStore.setState({
       currentDesignId: designId,
-      previewHtml: placeholder,
-      previewHtmlByDesign: { [designId]: placeholder },
+      previewSource: placeholder,
+      previewSourceByDesign: { [designId]: placeholder },
       recentDesignIds: [designId],
       designsViewOpen: true,
     });
@@ -748,8 +748,8 @@ describe('useCodesignStore design management', () => {
     await useCodesignStore.getState().switchDesign(designId);
 
     expect(useCodesignStore.getState().designsViewOpen).toBe(false);
-    await vi.waitFor(() => expect(useCodesignStore.getState().previewHtml).toBe(jsxSource));
-    expect(useCodesignStore.getState().previewHtmlByDesign[designId]).toBe(jsxSource);
+    await vi.waitFor(() => expect(useCodesignStore.getState().previewSource).toBe(jsxSource));
+    expect(useCodesignStore.getState().previewSourceByDesign[designId]).toBe(jsxSource);
   });
 
   it('blocks softDeleteDesign while a generation is running so applyGenerateSuccess cannot leak into a stale design', async () => {
@@ -885,14 +885,14 @@ describe('useCodesignStore artifact persistence', () => {
     // Simulate a fresh app load: blow away in-memory state then switchDesign.
     useCodesignStore.setState({
       currentDesignId: null,
-      previewHtml: null,
+      previewSource: null,
     });
 
     await useCodesignStore.getState().switchDesign(designId);
 
     const restored = useCodesignStore.getState();
     expect(restored.currentDesignId).toBe(designId);
-    expect(restored.previewHtml).toBe('<html><body>persisted</body></html>');
+    expect(restored.previewSource).toBe('<html><body>persisted</body></html>');
   });
 
   it('persists referenced JSX source instead of the placeholder index.html', async () => {
@@ -933,7 +933,7 @@ describe('useCodesignStore artifact persistence', () => {
     useCodesignStore.setState({
       currentDesignId: designId,
       designs: [designRow],
-      previewHtml: placeholder,
+      previewSource: placeholder,
       chatMessages: [
         {
           schemaVersion: 1,
@@ -955,7 +955,7 @@ describe('useCodesignStore artifact persistence', () => {
       artifactSource: jsxSource,
       prompt: 'make a messaging screen',
     });
-    expect(useCodesignStore.getState().previewHtml).toBe(jsxSource);
+    expect(useCodesignStore.getState().previewSource).toBe(jsxSource);
   });
 
   it('skips snapshot persistence when a referenced workspace source cannot be read', async () => {
@@ -982,7 +982,7 @@ describe('useCodesignStore artifact persistence', () => {
 
     useCodesignStore.setState({
       currentDesignId: designId,
-      previewHtml: placeholder,
+      previewSource: placeholder,
       chatMessages: [
         {
           schemaVersion: 1,
@@ -1000,7 +1000,7 @@ describe('useCodesignStore artifact persistence', () => {
     await useCodesignStore.getState().persistAgentRunSnapshot({ designId });
 
     expect(create).not.toHaveBeenCalled();
-    expect(useCodesignStore.getState().previewHtml).toBe(placeholder);
+    expect(useCodesignStore.getState().previewSource).toBe(placeholder);
     expect(useCodesignStore.getState().toasts.at(-1)).toMatchObject({
       variant: 'error',
       description: 'index.jsx is missing',
@@ -1032,8 +1032,8 @@ describe('useCodesignStore artifact persistence', () => {
 
     useCodesignStore.setState({
       currentDesignId: designId,
-      previewHtml: placeholder,
-      previewHtmlByDesign: { [designId]: placeholder },
+      previewSource: placeholder,
+      previewSourceByDesign: { [designId]: placeholder },
       recentDesignIds: [designId],
     });
 
@@ -1042,9 +1042,9 @@ describe('useCodesignStore artifact persistence', () => {
     expect(exportFile).toHaveBeenCalledOnce();
     expect(exportFile.mock.calls[0]?.[0]).toMatchObject({
       format: 'html',
-      htmlContent: jsxSource,
+      artifactSource: jsxSource,
     });
-    expect(useCodesignStore.getState().previewHtml).toBe(jsxSource);
+    expect(useCodesignStore.getState().previewSource).toBe(jsxSource);
   });
 });
 

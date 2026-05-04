@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   hasWorkspaceSourceReference,
+  inferPreviewSourcePath,
   readWorkspacePreviewSource,
   resolveReferencedWorkspacePreviewPath,
   resolveWorkspacePreviewSource,
@@ -8,7 +9,24 @@ import {
 } from './workspace-source';
 
 describe('workspace preview source resolution', () => {
+  it('infers App.jsx for JSX modules and index.html for legacy HTML fragments', () => {
+    expect(
+      inferPreviewSourcePath(
+        'function App() { return <main />; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+      ),
+    ).toBe('App.jsx');
+    expect(inferPreviewSourcePath('<main id="legacy">Legacy</main>')).toBe('index.html');
+    expect(inferPreviewSourcePath('<!doctype html><html><body>Legacy</body></html>')).toBe(
+      'index.html',
+    );
+  });
+
   it('resolves HTML source references to sibling JSX files', () => {
+    expect(
+      hasWorkspaceSourceReference(
+        '<!doctype html><body><!-- artifact source lives in index.jsx --></body>',
+      ),
+    ).toBe(true);
     expect(
       resolveReferencedWorkspacePreviewPath(
         '<!doctype html><body><!-- artifact source lives in index.jsx --></body>',
@@ -65,6 +83,7 @@ describe('workspace preview source resolution', () => {
       resolveWorkspacePreviewSource({
         designId: 'd1',
         source: '<!doctype html><body><!-- artifact source lives in index.jsx --></body>',
+        path: 'index.html',
       }),
     ).resolves.toEqual({
       path: 'index.html',
@@ -75,11 +94,12 @@ describe('workspace preview source resolution', () => {
   it('can require referenced source resolution for persistence/export paths', async () => {
     const source = '<!doctype html><body><!-- artifact source lives in index.jsx --></body>';
 
-    expect(hasWorkspaceSourceReference(source)).toBe(true);
+    expect(hasWorkspaceSourceReference(source, 'index.html')).toBe(true);
     await expect(
       resolveWorkspacePreviewSource({
         designId: 'd1',
         source,
+        path: 'index.html',
         requireReferencedSource: true,
       }),
     ).rejects.toThrow(/Cannot resolve referenced preview source/);
@@ -96,6 +116,7 @@ describe('workspace preview source resolution', () => {
       resolveWorkspacePreviewSource({
         designId: 'd1',
         source,
+        path: 'index.html',
         read,
         requireReferencedSource: true,
       }),
@@ -112,6 +133,7 @@ describe('workspace preview source resolution', () => {
       resolveWorkspacePreviewSource({
         designId: 'd1',
         source,
+        path: 'index.html',
         read,
         requireReferencedSource: false,
       }),

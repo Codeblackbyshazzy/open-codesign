@@ -12,6 +12,8 @@ The v0.2 direction is no longer a single-prompt generator. Each design is a long
 
 The original inspiration was Claude Design. The product boundary is now clearer: Open CoDesign borrows proven coding-agent mechanics, then adds design-specific tools and a local-first workspace model.
 
+Product model: a `Design` owns a workspace. The agent edits design source files in that workspace; the preview runtime turns those sources into a rendered web document; exporters turn the rendered/source document into standard outputs such as HTML, PDF, PPTX, ZIP, or Markdown. In v0.2 the default source entry is `App.jsx`; `index.html` is reserved for standalone exports or legacy workspace files.
+
 `docs/` is gitignored. Maintainers may have internal plans, handoffs, and research locally; public contributors may not. Do not cite `docs/**` in public PR review comments unless the file exists in the public checkout.
 
 ## Hard Constraints
@@ -55,7 +57,7 @@ When building or updating any website, project homepage, product page, personal 
 
 - Design equals pi session.
 - Session history lives under app user data as pi JSONL.
-- Design files, generated HTML/JSX/CSS, assets, exports, `AGENTS.md`, and `DESIGN.md` live in the user workspace.
+- Design source files, generated JSX/HTML/CSS, assets, exports, `AGENTS.md`, and `DESIGN.md` live in the user workspace.
 - Workspace settings live in `.codesign/settings.json` with `schemaVersion`.
 - `settings.local.json` is personal and should stay gitignored.
 - v0.1 SQLite is legacy data to migrate, not the v0.2 storage model.
@@ -103,8 +105,8 @@ Do not reintroduce a verifier subagent, snip tool, custom bash tool, custom list
 - Icons use `lucide-react`.
 - Forms use native `<form>` and `FormData`.
 - Animations use Tailwind transitions. Do not introduce framer-motion or motion.
-- App chrome must use `packages/ui` tokens. Artifact output may define its own visual system.
-- Sandbox preview remains Electron iframe `srcdoc` plus runtime tooling.
+- App chrome must use `packages/ui` tokens. Generated design sources and exports may define their own visual system.
+- Sandbox preview remains Electron iframe `srcdoc` plus runtime tooling. `App.jsx` JSX source is wrapped by the runtime for preview/export; exported `index.html` is the standalone deliverable.
 
 ## Repository Layout
 

@@ -4,6 +4,7 @@ import {
   type LocalAssetOptions,
   rewriteHtmlLocalAssetReferences,
 } from './assets';
+import { buildHtmlDocument } from './html';
 import type { ExportResult } from './index';
 
 export interface ZipAsset {
@@ -43,7 +44,8 @@ This bundle was exported from [open-codesign](https://github.com/OpenCoworkAI/op
 `;
 
 /**
- * Bundle an HTML artifact + assets into a portable ZIP using `zip-lib`.
+ * Bundle a design source artifact + assets into a portable ZIP using `zip-lib`.
+ * JSX sources are first exported as browser-openable `index.html`.
  *
  * Tier 1: deterministic layout (`index.html` at root, assets under `assets/`,
  * README at root). We pick zip-lib over yauzl/jszip because it ships ~80 KB,
@@ -51,7 +53,7 @@ This bundle was exported from [open-codesign](https://github.com/OpenCoworkAI/op
  * archive in memory (PRINCIPLES §1).
  */
 export async function exportZip(
-  htmlContent: string,
+  artifactSource: string,
   destinationPath: string,
   opts: ExportZipOptions = {},
 ): Promise<ExportResult> {
@@ -62,12 +64,13 @@ export async function exportZip(
 
   const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'codesign-zip-'));
   try {
+    const htmlDocument = buildHtmlDocument(artifactSource, { prettify: false });
     const collectedAssets =
-      (opts.collectLocalAssets ?? true) ? await collectLocalAssetsFromHtml(htmlContent, opts) : [];
+      (opts.collectLocalAssets ?? true) ? await collectLocalAssetsFromHtml(htmlDocument, opts) : [];
     const exportHtml =
       (opts.collectLocalAssets ?? true)
-        ? rewriteHtmlLocalAssetReferences(htmlContent, opts)
-        : htmlContent;
+        ? rewriteHtmlLocalAssetReferences(htmlDocument, opts)
+        : htmlDocument;
 
     const indexPath = path.join(stagingDir, 'index.html');
     await fs.writeFile(indexPath, exportHtml, 'utf8');

@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { DesignFileEntry } from './useDesignFiles';
-import { previewHtmlFallbackFile, withPreviewHtmlFallback } from './useDesignFiles';
+import { previewSourceFallbackFile, withPreviewSourceFallback } from './useDesignFiles';
 
 describe('useDesignFiles helpers', () => {
-  it('creates a virtual index.html entry from previewHtml', () => {
-    expect(previewHtmlFallbackFile('<html>ok</html>', '2026-05-03T00:00:00.000Z')).toEqual({
-      path: 'index.html',
-      kind: 'html',
+  it('creates a virtual App.jsx entry from previewSource', () => {
+    expect(previewSourceFallbackFile('<html>ok</html>', '2026-05-03T00:00:00.000Z')).toEqual({
+      path: 'App.jsx',
+      kind: 'jsx',
       size: 15,
       updatedAt: '2026-05-03T00:00:00.000Z',
       source: 'preview-html',
     });
   });
 
-  it('keeps real workspace files ahead of previewHtml fallback', () => {
+  it('keeps real workspace files ahead of previewSource fallback', () => {
     const rows: DesignFileEntry[] = [
       {
         path: 'src/App.tsx',
@@ -24,16 +24,16 @@ describe('useDesignFiles helpers', () => {
       },
     ];
 
-    expect(withPreviewHtmlFallback(rows, '<html>fallback</html>')).toBe(rows);
+    expect(withPreviewSourceFallback(rows, '<html>fallback</html>')).toBe(rows);
   });
 
-  it('uses previewHtml when the workspace list is empty', () => {
+  it('uses previewSource when the workspace list is empty', () => {
     expect(
-      withPreviewHtmlFallback([], '<html>fallback</html>', '2026-05-03T00:00:00.000Z'),
+      withPreviewSourceFallback([], '<html>fallback</html>', '2026-05-03T00:00:00.000Z'),
     ).toEqual([
       {
-        path: 'index.html',
-        kind: 'html',
+        path: 'App.jsx',
+        kind: 'jsx',
         size: 21,
         updatedAt: '2026-05-03T00:00:00.000Z',
         source: 'preview-html',
@@ -41,8 +41,8 @@ describe('useDesignFiles helpers', () => {
     ]);
   });
 
-  it('returns no files when neither workspace rows nor previewHtml exist', () => {
-    expect(withPreviewHtmlFallback([], null)).toEqual([]);
-    expect(withPreviewHtmlFallback([], '')).toEqual([]);
+  it('returns no files when neither workspace rows nor previewSource exist', () => {
+    expect(withPreviewSourceFallback([], null)).toEqual([]);
+    expect(withPreviewSourceFallback([], '')).toEqual([]);
   });
 });

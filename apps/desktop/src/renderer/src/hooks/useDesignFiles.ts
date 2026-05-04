@@ -1,3 +1,4 @@
+import { DEFAULT_SOURCE_ENTRY } from '@open-codesign/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceFileKind } from '../../../preload/index';
 import { useCodesignStore } from '../store';
@@ -20,27 +21,27 @@ export interface UseDesignFilesResult {
   backend: 'workspace' | 'snapshots';
 }
 
-export function previewHtmlFallbackFile(
-  previewHtml: string | null,
+export function previewSourceFallbackFile(
+  previewSource: string | null,
   updatedAt = new Date().toISOString(),
 ): DesignFileEntry | null {
-  if (!previewHtml) return null;
+  if (!previewSource) return null;
   return {
-    path: 'index.html',
-    kind: 'html',
-    size: previewHtml.length,
+    path: DEFAULT_SOURCE_ENTRY,
+    kind: 'jsx',
+    size: previewSource.length,
     updatedAt,
     source: 'preview-html',
   };
 }
 
-export function withPreviewHtmlFallback(
+export function withPreviewSourceFallback(
   rows: DesignFileEntry[],
-  previewHtml: string | null,
+  previewSource: string | null,
   updatedAt?: string,
 ): DesignFileEntry[] {
   if (rows.length > 0) return rows;
-  const fallback = previewHtmlFallbackFile(previewHtml, updatedAt);
+  const fallback = previewSourceFallbackFile(previewSource, updatedAt);
   return fallback === null ? [] : [fallback];
 }
 
@@ -58,7 +59,7 @@ export function withPreviewHtmlFallback(
  *      idle. Throttled in main to one IPC emit per 250ms.
  */
 export function useDesignFiles(designId: string | null): UseDesignFilesResult {
-  const previewHtml = useCodesignStore((s) => s.previewHtml);
+  const previewSource = useCodesignStore((s) => s.previewSource);
   const workspacePath = useCodesignStore((s) =>
     designId === null ? null : (s.designs.find((d) => d.id === designId)?.workspacePath ?? null),
   );
@@ -82,7 +83,7 @@ export function useDesignFiles(designId: string | null): UseDesignFilesResult {
     if (backend === 'workspace') {
       if (workspacePath === null) {
         lastListErrorRef.current = null;
-        setFiles(withPreviewHtmlFallback([], previewHtml, designUpdatedAt));
+        setFiles(withPreviewSourceFallback([], previewSource, designUpdatedAt));
         return;
       }
       try {
@@ -105,11 +106,11 @@ export function useDesignFiles(designId: string | null): UseDesignFilesResult {
           updatedAt: r.updatedAt,
           source: 'workspace' as const,
         }));
-        setFiles(withPreviewHtmlFallback(workspaceRows, previewHtml, designUpdatedAt));
+        setFiles(withPreviewSourceFallback(workspaceRows, previewSource, designUpdatedAt));
         lastListErrorRef.current = null;
       } catch (err) {
         const message = err instanceof Error ? err.message : tr('errors.unknown');
-        setFiles(withPreviewHtmlFallback([], previewHtml, designUpdatedAt));
+        setFiles(withPreviewSourceFallback([], previewSource, designUpdatedAt));
         const errorKey = `${designId}:${workspacePath}:${message}`;
         if (lastListErrorRef.current !== errorKey) {
           lastListErrorRef.current = errorKey;
@@ -124,11 +125,11 @@ export function useDesignFiles(designId: string | null): UseDesignFilesResult {
       }
       return;
     }
-    // Legacy fallback: no files IPC → derive a single index.html entry from
+    // Legacy fallback: no files IPC → derive a single source entry from
     // the last preview if we have one. Kept so downstream tests that mock a
     // codesign-without-files preload keep passing.
-    setFiles(withPreviewHtmlFallback([], previewHtml, designUpdatedAt));
-  }, [designId, backend, designUpdatedAt, previewHtml, pushToast, workspacePath]);
+    setFiles(withPreviewSourceFallback([], previewSource, designUpdatedAt));
+  }, [designId, backend, designUpdatedAt, previewSource, pushToast, workspacePath]);
 
   // Initial fetch + refetch when the design changes.
   useEffect(() => {

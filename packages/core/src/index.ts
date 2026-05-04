@@ -221,13 +221,13 @@ export interface GenerateInput {
 }
 
 export interface ApplyCommentInput {
-  html: string;
+  artifactSource: string;
   comment: string;
   selection: SelectedElement;
   model: ModelRef;
   apiKey: string;
   /** Absolute path to the design's workspace root. The agent edits
-   *  `<workspaceRoot>/index.html` through `str_replace_based_edit_tool`. */
+   *  `<workspaceRoot>/App.jsx` through `str_replace_based_edit_tool`. */
   workspaceRoot: string;
   /** @see GenerateInput.templatesRoot */
   templatesRoot?: string | undefined;
@@ -277,7 +277,7 @@ export function buildApplyCommentUserPrompt(input: BuildApplyCommentPromptInput)
     ].join('\n'),
   );
   const parts = [
-    'Revise the HTML that is already in the workspace at `index.html`.',
+    'Revise the design source that is already in the workspace at `App.jsx`.',
     'Keep the overall structure, copy, and layout intact unless the user request requires a broader change.',
     'Prioritize the selected element first and avoid unrelated edits.',
     `User request: ${input.comment.trim()}`,
@@ -355,7 +355,7 @@ function _reasoningMismatch(
 /**
  * Output-token budget for every generation. Tripled from pi-ai's default
  * (~1/3 of context window, ~10k for Opus 4) to give Claude room for both
- * extended-thinking traces and a full HTML artifact.
+ * extended-thinking traces and a full design source artifact.
  */
 const _MAX_OUTPUT_TOKENS = 32000;
 
@@ -431,8 +431,8 @@ export async function applyComment(
   if (!input.comment.trim()) {
     throw new CodesignError('Comment cannot be empty', ERROR_CODES.INPUT_EMPTY_COMMENT);
   }
-  if (!input.html.trim()) {
-    throw new CodesignError('Existing HTML cannot be empty', ERROR_CODES.INPUT_EMPTY_HTML);
+  if (!input.artifactSource.trim()) {
+    throw new CodesignError('Existing design source cannot be empty', ERROR_CODES.INPUT_EMPTY_HTML);
   }
 
   log.info('[apply_comment] step=build_request', ctx);

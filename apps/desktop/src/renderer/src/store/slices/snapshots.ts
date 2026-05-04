@@ -53,7 +53,7 @@ export function artifactFromResult(
 // headroom and only costs a few MB of iframe documents.
 export const PREVIEW_POOL_LIMIT = 5;
 
-export function recordPreviewInPool(
+export function recordPreviewSourceInPool(
   prevCache: Record<string, string>,
   prevRecent: string[],
   designId: string,
@@ -147,7 +147,7 @@ export async function buildHistoryFromChat(designId: string | null): Promise<Cha
 export async function persistDesignState(
   get: GetState,
   designId: string,
-  previewHtml: string | null,
+  previewSource: string | null,
   artifact: PersistArtifact | null,
 ): Promise<string | null> {
   if (!window.codesign) return null;
@@ -156,7 +156,7 @@ export async function persistDesignState(
     if (artifact !== null) {
       newSnapshotId = await persistArtifactSnapshot(designId, artifact);
     }
-    if (previewHtml !== null) {
+    if (previewSource !== null) {
       // Thumbnail text = first user prompt ever on this design, sourced from
       // session chat rows (canonical) instead of the removed store.messages mirror.
       let thumbText: string | null = null;

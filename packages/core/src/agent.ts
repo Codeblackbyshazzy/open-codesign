@@ -44,7 +44,9 @@ import {
   type ChatMessage,
   CodesignError,
   canonicalBaseUrl,
+  DEFAULT_SOURCE_ENTRY,
   ERROR_CODES,
+  LEGACY_SOURCE_ENTRY,
   type ModelRef,
   type ResourceStateV1,
   type WireApi,
@@ -54,7 +56,11 @@ import { buildTransformContext } from './context-prune.js';
 import { remapProviderError } from './errors.js';
 import type { GenerateInput, GenerateOutput } from './index.js';
 import { reasoningForModel } from './index.js';
-import { type Collected, createHtmlArtifact, stripEmptyFences } from './lib/artifact-collect.js';
+import {
+  type Collected,
+  createDesignSourceArtifact,
+  stripEmptyFences,
+} from './lib/artifact-collect.js';
 import { buildContextSections, buildUserPromptWithContext } from './lib/context-format.js';
 import { NOOP_LOGGER } from './logger.js';
 import { composeSystemPrompt } from './prompts/index.js';
@@ -240,7 +246,7 @@ const MAX_DONE_ERROR_ROUNDS = 3;
 const AGENTIC_TOOL_GUIDANCE = [
   '## Workspace output contract',
   '',
-  '- Write the deliverable to workspace file `index.html` with `str_replace_based_edit_tool`; chat text is never the artifact.',
+  `- Write the main design source to \`${DEFAULT_SOURCE_ENTRY}\` with \`str_replace_based_edit_tool\`; chat text is never the artifact.`,
   '- Use `create` for new files; follow-up edits use `view`, `str_replace`, or `insert`.',
   '- Do not emit `<artifact>` tags, fenced source blocks, raw HTML/JSX/CSS, or HTML wrappers in chat.',
   '- Local workspace assets and scaffolded files are allowed. External scripts remain restricted by the base output rules.',
@@ -249,7 +255,7 @@ const AGENTIC_TOOL_GUIDANCE = [
   '',
   '1. Call `set_title`; call `set_todos` for multi-step work.',
   '2. Load optional resources explicitly with `skill(name)` or `scaffold({kind, destPath})` before relying on them.',
-  '3. Write/edit `index.html`, then call `preview(path)` when available.',
+  `3. Write/edit the design source at \`${DEFAULT_SOURCE_ENTRY}\`, then call \`preview(path)\` when available.`,
   '4. Call `tweaks()` for meaningful EDITMODE controls.',
   `5. Call \`done(path)\` after the final mutation. If it reports errors, fix and retry, but stop after ${MAX_DONE_ERROR_ROUNDS} error rounds.`,
   '',
@@ -263,10 +269,10 @@ const IMAGE_ASSET_TOOL_GUIDANCE = [
   '## Bitmap asset generation',
   '',
   'Use `generate_image_asset` only for named or clearly beneficial bitmap slots: hero, product, poster, background, illustration, or rendered logo.',
-  'Before writing `index.html`, inventory required assets and request all bitmap assets in one batch. One named bitmap slot equals one tool call.',
+  'Before writing the design source, inventory required assets and request all bitmap assets in one batch. One named bitmap slot equals one tool call.',
   'Use inline SVG/CSS for charts, simple icons, flat geometric marks, gradients, and UI chrome.',
   'Each call needs a production prompt, accurate `purpose`, matching `aspectRatio`, meaningful `alt`, and optional `filenameHint`.',
-  'Reference the returned local `assets/...` path from `index.html`.',
+  'Reference the returned local `assets/...` path from the design source.',
 ].join('\n');
 
 // ---------------------------------------------------------------------------
@@ -1033,13 +1039,17 @@ export async function generateViaAgent(
 
   const collected: Collected = { text: fullText, artifacts: [] };
 
-  // The agent writes artifacts through str_replace_based_edit_tool — final
-  // assistant text is prose, not an `<artifact>` blob. Pull index.html out of
-  // the virtual FS to populate the artifact list.
+  // The agent writes design source through str_replace_based_edit_tool — final
+  // assistant text is prose, not an `<artifact>` blob. Pull the primary source
+  // out of the virtual FS to populate the artifact list while preserving source
+  // metadata separately from the export/render artifact type.
   if (deps.fs) {
-    const file = deps.fs.view('index.html');
+    const primary = deps.fs.view(DEFAULT_SOURCE_ENTRY);
+    const legacy = primary === null ? deps.fs.view(LEGACY_SOURCE_ENTRY) : null;
+    const entryPath = primary !== null ? DEFAULT_SOURCE_ENTRY : LEGACY_SOURCE_ENTRY;
+    const file = primary ?? legacy;
     if (file !== null && file.content.trim().length > 0) {
-      collected.artifacts.push(createHtmlArtifact(file.content, 0));
+      collected.artifacts.push(createDesignSourceArtifact(file.content, 0, entryPath));
     }
   }
   const finalizationWarnings =

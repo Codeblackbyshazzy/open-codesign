@@ -22,9 +22,9 @@ describe('makePreviewTool', () => {
     const runPreview = vi.fn().mockResolvedValue(cannedResult());
     const tool = makePreviewTool(runPreview);
 
-    const res = await tool.execute('call-1', { path: 'index.html' });
+    const res = await tool.execute('call-1', { path: 'App.jsx' });
 
-    expect(runPreview).toHaveBeenCalledWith({ path: 'index.html', vision: false });
+    expect(runPreview).toHaveBeenCalledWith({ path: 'App.jsx', vision: false });
     expect(res.details.ok).toBe(true);
     expect(res.details.metrics.nodes).toBe(42);
     expect(res.content[0]).toEqual({
@@ -37,9 +37,9 @@ describe('makePreviewTool', () => {
     const runPreview = vi.fn().mockResolvedValue(cannedResult());
     const tool = makePreviewTool(runPreview, { vision: true });
 
-    await tool.execute('call-1', { path: 'index.html' });
+    await tool.execute('call-1', { path: 'App.jsx' });
 
-    expect(runPreview).toHaveBeenCalledWith({ path: 'index.html', vision: true });
+    expect(runPreview).toHaveBeenCalledWith({ path: 'App.jsx', vision: true });
   });
 
   it('caps console and asset arrays to the documented budgets', async () => {

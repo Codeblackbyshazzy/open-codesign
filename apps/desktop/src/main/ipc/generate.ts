@@ -212,7 +212,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
     input: Parameters<typeof generateViaAgent>[0],
     id: string,
     designId: string,
-    previousHtml: string | null,
+    previousSource: string | null,
     workspaceRoot: string,
     memoryCallbacks?: {
       onAggressivePrune?: () => void;
@@ -236,7 +236,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
       designId,
       generationId: id,
       logger: logIpc,
-      previousHtml,
+      previousSource,
       initialFiles: initialWorkspaceFiles,
       sendEvent,
       frames,
@@ -589,7 +589,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
             },
             id,
             designId,
-            payload.previousHtml ?? null,
+            payload.previousSource ?? null,
             workspaceRoot,
             {
               onAggressivePrune: () => {
@@ -779,7 +779,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
             },
             id,
             payload.designId,
-            payload.html,
+            payload.artifactSource,
             workspaceRoot,
           );
           logIpc.info('applyComment.ok', {

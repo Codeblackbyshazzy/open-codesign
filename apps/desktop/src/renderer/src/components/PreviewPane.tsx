@@ -1,5 +1,5 @@
 import { useT } from '@open-codesign/i18n';
-import { buildSrcdoc } from '@open-codesign/runtime';
+import { buildPreviewDocument } from '@open-codesign/runtime';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EmptyState } from '../preview/EmptyState';
 import { ErrorState } from '../preview/ErrorState';
@@ -11,6 +11,7 @@ import {
   scaleRectForZoom,
   stablePreviewSourceKey,
 } from '../preview/helpers';
+import { inferPreviewSourcePath } from '../preview/workspace-source';
 import { useCodesignStore } from '../store';
 import { CanvasErrorBar } from './CanvasErrorBar';
 import { CanvasTabBar } from './CanvasTabBar';
@@ -20,7 +21,7 @@ import { FilesTabView, WorkspaceFilePreview } from './FilesTabView';
 import { PhoneFrame } from './PhoneFrame';
 import { PreviewToolbar } from './PreviewToolbar';
 
-// TweakPanel only mounts once there is rendered preview HTML — defer its
+// TweakPanel only mounts once there is preview source to render — defer its
 // ~4kb gzipped chunk (plus its input primitives) out of first paint.
 const TweakPanel = lazy(() => import('./TweakPanel').then((m) => ({ default: m.TweakPanel })));
 
@@ -48,7 +49,7 @@ const COMMENT_HINT_CLASS =
 
 interface PreviewSlotProps {
   designId: string;
-  html: string;
+  source: string;
   active: boolean;
   viewport: 'mobile' | 'tablet' | 'desktop';
   zoom: number;
@@ -68,7 +69,7 @@ interface PreviewSlotProps {
 // don't rebuild the document (~300-500ms blank on JSX cards).
 function PreviewSlot({
   designId,
-  html,
+  source,
   active,
   viewport,
   zoom,
@@ -80,10 +81,13 @@ function PreviewSlot({
   onIframeError,
   onIframeLoaded,
 }: PreviewSlotProps) {
-  const srcDocStableKey = useMemo(() => stablePreviewSourceKey(html), [html]);
+  const srcDocStableKey = useMemo(() => stablePreviewSourceKey(source), [source]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: srcDocStableKey is the intentional dependency. html flows through naturally because the factory closes over it and re-runs whenever the stable key flips, which is exactly when structural changes (anything outside EDITMODE / TWEAK_SCHEMA markers) are present.
-  const srcDoc = useMemo(() => buildSrcdoc(html), [srcDocStableKey]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: srcDocStableKey is the intentional dependency. source flows through naturally because the factory closes over it and re-runs whenever the stable key flips, which is exactly when structural changes (anything outside EDITMODE / TWEAK_SCHEMA markers) are present.
+  const srcDoc = useMemo(
+    () => buildPreviewDocument(source, { path: inferPreviewSourcePath(source) }),
+    [srcDocStableKey],
+  );
 
   const setRef = useCallback(
     (el: HTMLIFrameElement | null) => registerIframe(designId, el),
@@ -183,8 +187,8 @@ function PreviewSlot({
 
 export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   const t = useT();
-  const previewHtml = useCodesignStore((s) => s.previewHtml);
-  const previewHtmlByDesign = useCodesignStore((s) => s.previewHtmlByDesign);
+  const previewSource = useCodesignStore((s) => s.previewSource);
+  const previewSourceByDesign = useCodesignStore((s) => s.previewSourceByDesign);
   const recentDesignIds = useCodesignStore((s) => s.recentDesignIds);
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
   const designs = useCodesignStore((s) => s.designs);
@@ -325,29 +329,29 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   }, [pushIframeError, selectCanvasElement, openCommentBubble, previewZoom, applyLiveRects]);
 
   // Pool entries: active design first (using the freshest in-memory
-  // previewHtml), then any other recently-visited designs that still have a
+  // previewSource), then any other recently-visited designs that still have a
   // cached preview. Store-side LRU bounds the size; we just render what's
   // handed to us.
   const poolEntries = useMemo(() => {
     const seen = new Set<string>();
-    const out: Array<{ id: string; html: string }> = [];
+    const out: Array<{ id: string; source: string }> = [];
     if (currentDesignId !== null) {
-      const html = previewHtml ?? previewHtmlByDesign[currentDesignId];
-      if (typeof html === 'string' && html.length > 0) {
-        out.push({ id: currentDesignId, html });
+      const source = previewSource ?? previewSourceByDesign[currentDesignId];
+      if (typeof source === 'string' && source.length > 0) {
+        out.push({ id: currentDesignId, source });
         seen.add(currentDesignId);
       }
     }
     for (const id of recentDesignIds) {
       if (seen.has(id)) continue;
-      const html = previewHtmlByDesign[id];
-      if (typeof html === 'string' && html.length > 0) {
-        out.push({ id, html });
+      const source = previewSourceByDesign[id];
+      if (typeof source === 'string' && source.length > 0) {
+        out.push({ id, source });
         seen.add(id);
       }
     }
     return out;
-  }, [currentDesignId, previewHtml, previewHtmlByDesign, recentDesignIds]);
+  }, [currentDesignId, previewSource, previewSourceByDesign, recentDesignIds]);
 
   const activeTab = canvasTabs[activeCanvasTab];
   const showCommentUi = interactionMode === 'comment';
@@ -373,7 +377,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
     />
   );
 
-  const activeHasHtml =
+  const activeHasPreview =
     currentDesignId !== null && poolEntries.some((e) => e.id === currentDesignId);
 
   // When a design already has persisted content (thumbnail from a prior save,
@@ -392,7 +396,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   // step (common with token-overflow / validation errors), keep the preview
   // visible — the user can still inspect and tweak what did generate.
   // A small dismissible error banner surfaces via CanvasErrorBar / toast.
-  if (errorMessage && !previewHtml) {
+  if (errorMessage && !previewSource) {
     body = (
       <ErrorState
         message={errorMessage}
@@ -417,7 +421,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
           <PreviewSlot
             key={entry.id}
             designId={entry.id}
-            html={entry.html}
+            source={entry.source}
             active={entry.id === currentDesignId}
             viewport={previewViewport}
             zoom={previewZoom}
@@ -430,7 +434,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
             onIframeLoaded={handleIframeLoaded}
           />
         ))}
-        {!activeHasHtml ? (
+        {!activeHasPreview ? (
           designHasContent ? (
             <div className="absolute inset-0 flex items-center justify-center bg-[var(--color-background)]">
               <div className="w-[60%] max-w-[720px] aspect-[4/3] rounded-[var(--radius-lg)] bg-[linear-gradient(110deg,var(--color-background-secondary)_0%,rgba(0,0,0,0.03)_40%,var(--color-background-secondary)_80%)] animate-pulse" />
@@ -444,7 +448,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   }
 
   const hasTabs = canvasTabs.length > 0;
-  const isWelcome = !errorMessage && !previewHtml && !designHasContent;
+  const isWelcome = !errorMessage && !previewSource && !designHasContent;
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -458,7 +462,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
         <CanvasErrorBar />
         <div className="relative flex-1 overflow-hidden">
           {body}
-          {previewHtml ? (
+          {previewSource ? (
             <Suspense fallback={null}>
               <TweakPanel iframeRef={iframeRef} />
             </Suspense>

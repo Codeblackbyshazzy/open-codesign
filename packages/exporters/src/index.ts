@@ -8,16 +8,12 @@
  */
 
 import { CodesignError, ERROR_CODES } from '@open-codesign/shared';
+import type { LocalAssetOptions } from './assets';
 
 export const EXPORTER_FORMATS = ['html', 'pdf', 'pptx', 'zip', 'markdown'] as const;
 export type ExporterFormat = (typeof EXPORTER_FORMATS)[number];
 
-export interface ExportOptions {
-  /** Directory used to resolve relative HTML asset references during export. */
-  assetBasePath?: string | undefined;
-  /** Workspace/root directory used for root-relative references and containment. */
-  assetRootPath?: string | undefined;
-}
+export type ExportOptions = LocalAssetOptions;
 
 export interface ExportResult {
   bytes: number;
@@ -38,38 +34,38 @@ export type { ExportPptxOptions } from './pptx';
 export type { ExportZipOptions, ZipAsset } from './zip';
 
 export async function exportHtml(
-  htmlContent: string,
+  artifactSource: string,
   destinationPath: string,
   opts?: import('./html').ExportHtmlOptions,
 ): Promise<ExportResult> {
   const mod = await import('./html');
-  return mod.exportHtml(htmlContent, destinationPath, opts);
+  return mod.exportHtml(artifactSource, destinationPath, opts);
 }
 
 export async function exportArtifact(
   format: ExporterFormat,
-  htmlContent: string,
+  artifactSource: string,
   destinationPath: string,
   opts: ExportOptions = {},
 ): Promise<ExportResult> {
   if (format === 'html') {
-    return exportHtml(htmlContent, destinationPath, opts);
+    return exportHtml(artifactSource, destinationPath, opts);
   }
   if (format === 'pdf') {
     const mod = await import('./pdf');
-    return mod.exportPdf(htmlContent, destinationPath, opts);
+    return mod.exportPdf(artifactSource, destinationPath, opts);
   }
   if (format === 'pptx') {
     const mod = await import('./pptx');
-    return mod.exportPptx(htmlContent, destinationPath, opts);
+    return mod.exportPptx(artifactSource, destinationPath, opts);
   }
   if (format === 'zip') {
     const mod = await import('./zip');
-    return mod.exportZip(htmlContent, destinationPath, opts);
+    return mod.exportZip(artifactSource, destinationPath, opts);
   }
   if (format === 'markdown') {
     const mod = await import('./markdown');
-    return mod.exportMarkdown(htmlContent, destinationPath);
+    return mod.exportMarkdown(artifactSource, destinationPath);
   }
   throw new CodesignError(
     `Unknown exporter format: ${format as string}`,

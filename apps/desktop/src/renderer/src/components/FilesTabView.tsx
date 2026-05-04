@@ -1,5 +1,6 @@
 import { useT } from '@open-codesign/i18n';
 import { buildPreviewDocument, isRenderablePath } from '@open-codesign/runtime';
+import { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from '@open-codesign/shared';
 import { FileCode2, Folder, FolderOpen } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type DesignFileEntry, type DesignFileKind, useDesignFiles } from '../hooks/useDesignFiles';
@@ -184,7 +185,8 @@ export function isRenderableDesignFileKind(kind: DesignFileKind | undefined): bo
 
 export function defaultWorkspacePreviewPath(files: DesignFileEntry[]): string | null {
   return (
-    files.find((f) => f.path === 'index.html')?.path ??
+    files.find((f) => f.path === DEFAULT_SOURCE_ENTRY)?.path ??
+    files.find((f) => f.path === LEGACY_SOURCE_ENTRY)?.path ??
     files.find((f) => f.path === 'index.jsx')?.path ??
     files.find((f) => f.path === 'index.tsx')?.path ??
     files.find((f) => isRenderableDesignFileKind(f.kind))?.path ??
@@ -210,19 +212,27 @@ export function workspaceBaseHrefForFile(input: {
   return `workspace://${input.designId}/${encodedDir}${encodedDir.length > 0 ? '/' : ''}`;
 }
 
-export type WorkspacePreviewSourceMode = 'read-workspace' | 'preview-html-fallback' | 'unavailable';
+export type WorkspacePreviewSourceMode =
+  | 'read-workspace'
+  | 'preview-source-fallback'
+  | 'unavailable';
 
 export function chooseWorkspacePreviewSourceMode(input: {
   path: string;
   hasReadApi: boolean;
-  hasPreviewHtml: boolean;
-  preferPreviewHtml?: boolean;
+  hasPreviewSource: boolean;
+  preferPreviewSource?: boolean;
 }): WorkspacePreviewSourceMode {
-  if (input.preferPreviewHtml === true && input.path === 'index.html' && input.hasPreviewHtml) {
-    return 'preview-html-fallback';
+  if (
+    input.preferPreviewSource === true &&
+    input.path === DEFAULT_SOURCE_ENTRY &&
+    input.hasPreviewSource
+  ) {
+    return 'preview-source-fallback';
   }
   if (input.hasReadApi) return 'read-workspace';
-  if (input.path === 'index.html' && input.hasPreviewHtml) return 'preview-html-fallback';
+  if (input.path === DEFAULT_SOURCE_ENTRY && input.hasPreviewSource)
+    return 'preview-source-fallback';
   return 'unavailable';
 }
 
@@ -259,14 +269,14 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
   const t = useT();
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
   const designs = useCodesignStore((s) => s.designs);
-  const previewHtml = useCodesignStore((s) => s.previewHtml);
+  const currentPreviewSource = useCodesignStore((s) => s.previewSource);
   const interactionMode = useCodesignStore((s) => s.interactionMode);
   const pushIframeError = useCodesignStore((s) => s.pushIframeError);
   const { files: observedFiles } = useDesignFiles(files ? null : currentDesignId);
   const workspaceFiles = files ?? observedFiles;
   const currentDesign = designs.find((d) => d.id === currentDesignId);
   const effectiveFile = file ?? workspaceFiles.find((f) => f.path === path) ?? null;
-  const prefersPreviewHtml = effectiveFile?.source === 'preview-html';
+  const prefersPreviewSource = effectiveFile?.source === 'preview-html';
   const renderable = effectiveFile
     ? isRenderableDesignFileKind(effectiveFile.kind)
     : isRenderablePath(path);
@@ -307,11 +317,11 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
     const sourceMode = chooseWorkspacePreviewSourceMode({
       path,
       hasReadApi: typeof read === 'function',
-      hasPreviewHtml: Boolean(previewHtml),
-      preferPreviewHtml: prefersPreviewHtml,
+      hasPreviewSource: Boolean(currentPreviewSource),
+      preferPreviewSource: prefersPreviewSource,
     });
-    if (sourceMode === 'preview-html-fallback' && previewHtml) {
-      setPreviewSource({ content: previewHtml, path });
+    if (sourceMode === 'preview-source-fallback' && currentPreviewSource) {
+      setPreviewSource({ content: currentPreviewSource, path });
       setReadError(null);
       return;
     }
@@ -335,7 +345,15 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
     return () => {
       cancelled = true;
     };
-  }, [currentDesignId, previewDependencyKey, path, previewHtml, renderable, t, prefersPreviewHtml]);
+  }, [
+    currentDesignId,
+    previewDependencyKey,
+    path,
+    currentPreviewSource,
+    renderable,
+    t,
+    prefersPreviewSource,
+  ]);
 
   const srcDoc = useMemo(() => {
     if (!previewSource || !renderable) return null;

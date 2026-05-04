@@ -26,6 +26,8 @@ export const ModelRef = z
   .strict();
 export type ModelRef = z.infer<typeof ModelRef>;
 
+export { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from './source-entries';
+
 export const DesignParam = z.discriminatedUnion('type', [
   z.object({
     id: z.string(),
@@ -66,12 +68,21 @@ export type DesignParam = z.infer<typeof DesignParam>;
 export const ArtifactType = z.enum(['html', 'svg', 'slides', 'bundle']);
 export type ArtifactType = z.infer<typeof ArtifactType>;
 
+export const ArtifactSourceFormat = z.enum(['jsx', 'html', 'svg', 'markdown']);
+export type ArtifactSourceFormat = z.infer<typeof ArtifactSourceFormat>;
+
+export const ArtifactRenderRuntime = z.enum(['react', 'static-html', 'svg', 'none']);
+export type ArtifactRenderRuntime = z.infer<typeof ArtifactRenderRuntime>;
+
 export const Artifact = z.object({
   id: z.string(),
   type: ArtifactType,
   title: z.string(),
   content: z.string(),
   designParams: z.array(DesignParam).default([]),
+  sourceFormat: ArtifactSourceFormat.optional(),
+  renderRuntime: ArtifactRenderRuntime.optional(),
+  entryPath: z.string().min(1).optional(),
   createdAt: z.string(),
 });
 export type Artifact = z.infer<typeof Artifact>;
@@ -138,10 +149,10 @@ export const GeneratePayloadV1 = z
     generationId: GenerationId,
     /** Required in v0.2: every generation belongs to a workspace-backed design. */
     designId: z.string().min(1),
-    /** Current HTML for this design (if any). Seeded into the agent's
-     *  virtual FS as `index.html` so the edit tool can view/edit
-     *  incrementally instead of always rewriting from scratch. */
-    previousHtml: z.string().optional(),
+    /** Current design source for this design (if any). Seeded into the
+     *  virtual FS at `App.jsx` so the edit tool can view/edit incrementally
+     *  instead of always rewriting from scratch. */
+    previousSource: z.string().optional(),
   })
   .strict();
 export type GeneratePayloadV1 = z.infer<typeof GeneratePayloadV1>;
@@ -149,7 +160,7 @@ export type GeneratePayloadV1 = z.infer<typeof GeneratePayloadV1>;
 export const ApplyCommentPayload = z
   .object({
     designId: z.string().min(1),
-    html: z.string().min(1).max(500_000),
+    artifactSource: z.string().min(1).max(500_000),
     comment: z.string().min(1).max(4_000),
     selection: SelectedElement,
     generationId: GenerationId,

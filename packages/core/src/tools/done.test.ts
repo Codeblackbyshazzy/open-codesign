@@ -34,16 +34,27 @@ describe('done tool', () => {
     expect(tool.description).toContain('surface warnings to the user');
   });
 
-  it('returns ok when index.html parses cleanly', async () => {
+  it('returns ok when App.jsx parses cleanly by default', async () => {
     const fs = makeFs({
-      'index.html':
-        '<!doctype html><html><head><title>t</title></head><body><main><h1>Hi</h1></main></body></html>',
+      'App.jsx': `function App() { return <main><h1>Hi</h1></main>; }
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);`,
     });
     const tool = makeDoneTool(fs);
     const res = await tool.execute('id1', { summary: 'shipped' });
     expect(res.details.status).toBe('ok');
     expect(res.details.errors).toHaveLength(0);
     expect(res.details.summary).toBe('shipped');
+  });
+
+  it('falls back to legacy index.html when App.jsx is absent', async () => {
+    const fs = makeFs({
+      'index.html':
+        '<!doctype html><html><head><title>t</title></head><body><main><h1>Hi</h1></main></body></html>',
+    });
+    const tool = makeDoneTool(fs);
+    const res = await tool.execute('id-legacy', {});
+    expect(res.details.status).toBe('ok');
+    expect(res.details.path).toBe('index.html');
   });
 
   it('reports has_errors with line numbers when tags are unbalanced', async () => {

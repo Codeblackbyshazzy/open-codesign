@@ -46,7 +46,7 @@ const _RESPONSE = `Here is your design.
 ${SAMPLE_HTML}
 </artifact>`;
 
-const _FENCED_RESPONSE = `Here is the revised HTML artifact.
+const _FENCED_RESPONSE = `Here is the revised web artifact.
 
 \`\`\`html
 ${SAMPLE_HTML}
@@ -75,7 +75,7 @@ describe('applyComment()', () => {
   it('throws on empty comment', async () => {
     await expect(
       applyComment({
-        html: SAMPLE_HTML,
+        artifactSource: SAMPLE_HTML,
         comment: '   ',
         selection: {
           selector: '#hero',
@@ -90,10 +90,10 @@ describe('applyComment()', () => {
     ).rejects.toBeInstanceOf(CodesignError);
   });
 
-  it('throws on empty html', async () => {
+  it('throws on empty design source', async () => {
     await expect(
       applyComment({
-        html: '',
+        artifactSource: '',
         comment: 'Tighten the hero.',
         selection: {
           selector: '#hero',
@@ -294,6 +294,13 @@ describe('composeSystemPrompt()', () => {
     const p = composeSystemPrompt({ mode: 'create' });
     expect(p).not.toContain('exactly one artifact tag');
     expect(p).not.toContain('<artifact identifier=');
+  });
+
+  it('describes App.jsx as the default design source, not standalone HTML', () => {
+    const p = composeSystemPrompt({ mode: 'create' });
+    expect(p).toContain('main design source');
+    expect(p).toContain('`App.jsx`');
+    expect(p).toContain('not a standalone HTML export');
   });
 });
 

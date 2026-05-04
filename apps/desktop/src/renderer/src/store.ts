@@ -96,11 +96,11 @@ export interface CommentBubbleAnchor {
 }
 
 export interface CodesignState {
-  previewHtml: string | null;
-  /** LRU cache of `previewHtml` per design id, capped to PREVIEW_POOL_LIMIT.
+  previewSource: string | null;
+  /** LRU cache of `previewSource` per design id, capped to PREVIEW_POOL_LIMIT.
    *  PreviewPane renders one (display:none) iframe per entry so switching back
    *  to a recently visited design is instant — no IPC, no srcDoc reparse. */
-  previewHtmlByDesign: Record<string, string>;
+  previewSourceByDesign: Record<string, string>;
   /** Most-recent-first list of design ids in the preview pool. */
   recentDesignIds: string[];
   isGenerating: boolean;
@@ -334,15 +334,15 @@ export interface CodesignState {
   /** Live preview update from the agent's virtual fs edit tool.
    *  Gated by designId match against the active or generating design so a
    *  background run cannot stomp the preview the user is currently viewing. */
-  setPreviewHtmlFromAgent: (input: { designId: string; content: string }) => void;
-  /** Persist the current in-memory `previewHtml` for a finished agentic run as
+  setPreviewSourceFromAgent: (input: { designId: string; content: string }) => void;
+  /** Persist the current in-memory design source for a finished agentic run as
    *  a snapshot row. Without this, agentic runs never write to disk
    *  and reload boots back into the empty welcome state even when the agent
-   *  produced a valid index.html. Fires-and-forgets — failures are toasted. */
+   *  produced a valid App.jsx. Fires-and-forgets — failures are toasted. */
   persistAgentRunSnapshot: (input: { designId: string; finalText?: string }) => Promise<void>;
   /** Replace the current preview source verbatim. Used by the host's tweak
    *  panel to write a re-serialized EDITMODE block back into the artifact. */
-  setPreviewHtml: (content: string) => void;
+  setPreviewSource: (content: string) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
 
   // Workstream D — comments
@@ -393,8 +393,8 @@ export interface CodesignState {
 
 export const useCodesignStore = create<CodesignState>((set, get) => ({
   // ---- initial state ----
-  previewHtml: null,
-  previewHtmlByDesign: {},
+  previewSource: null,
+  previewSourceByDesign: {},
   recentDesignIds: [],
   isGenerating: false,
   activeGenerationId: null,

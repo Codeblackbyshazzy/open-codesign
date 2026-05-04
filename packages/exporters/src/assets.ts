@@ -1,6 +1,8 @@
 import path from 'node:path';
 
 export interface LocalAssetOptions {
+  /** Workspace-relative source path used to classify source and anchor relative assets. */
+  sourcePath?: string | undefined;
   /** Directory used to resolve relative HTML references. */
   assetBasePath?: string | undefined;
   /** Workspace/root directory used for root-relative references and containment. */

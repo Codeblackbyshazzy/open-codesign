@@ -1,19 +1,30 @@
-import type { Artifact } from '@open-codesign/shared';
+import { type Artifact, DEFAULT_SOURCE_ENTRY } from '@open-codesign/shared';
 
 export interface Collected {
   text: string;
   artifacts: Artifact[];
 }
 
-export function createHtmlArtifact(content: string, index: number): Artifact {
+export function createDesignSourceArtifact(
+  content: string,
+  index: number,
+  entryPath: string = DEFAULT_SOURCE_ENTRY,
+): Artifact {
   return {
     id: `design-${index + 1}`,
     type: 'html',
     title: 'Design',
     content,
     designParams: [],
+    sourceFormat: 'jsx',
+    renderRuntime: 'react',
+    entryPath,
     createdAt: new Date().toISOString(),
   };
+}
+
+export function createHtmlArtifact(content: string, index: number): Artifact {
+  return createDesignSourceArtifact(content, index);
 }
 
 export function stripEmptyFences(text: string): string {

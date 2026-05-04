@@ -12,6 +12,7 @@
  * marks any still-pending row as 'done' so the WorkingCard never sticks.
  */
 
+import { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from '@open-codesign/shared';
 import { useEffect, useRef } from 'react';
 import type { AgentStreamEvent } from '../../../preload/index';
 import { resolveReferencedWorkspacePreviewPath } from '../preview/workspace-source';
@@ -45,7 +46,7 @@ interface InFlightTurn {
 export function useAgentStream(): void {
   const appendChatMessage = useCodesignStore((s) => s.appendChatMessage);
   const setStreamingAssistantText = useCodesignStore((s) => s.setStreamingAssistantText);
-  const setPreviewHtmlFromAgent = useCodesignStore((s) => s.setPreviewHtmlFromAgent);
+  const setPreviewSourceFromAgent = useCodesignStore((s) => s.setPreviewSourceFromAgent);
   const updateChatToolStatus = useCodesignStore((s) => s.updateChatToolStatus);
   const persistAgentRunSnapshot = useCodesignStore((s) => s.persistAgentRunSnapshot);
   const renameDesign = useCodesignStore((s) => s.renameDesign);
@@ -71,7 +72,7 @@ export function useAgentStream(): void {
       slot.pending = null;
       if (!pending) return;
       slot.lastFlushAt = Date.now();
-      setPreviewHtmlFromAgent(pending);
+      setPreviewSourceFromAgent(pending);
     };
     const scheduleFs = (next: { designId: string; content: string }) => {
       const slot = fsThrottle.current;
@@ -237,19 +238,24 @@ export function useAgentStream(): void {
 
     const handleFsUpdated = (event: AgentStreamEvent) => {
       // Live mirror of the agent edit tool's mutations into the iframe.
-      // `index.html` is the default artifact file, but some workspaces keep a
-      // small HTML placeholder that points at a sibling JSX/TSX source.
+      // App.jsx is the default source file. Legacy workspaces may still use
+      // index.html directly or as a small placeholder pointing at JSX/TSX.
       if (typeof event.path !== 'string' || typeof event.content !== 'string') return;
-      if (event.path === 'index.html') {
+      if (event.path === DEFAULT_SOURCE_ENTRY || event.path === LEGACY_SOURCE_ENTRY) {
         scheduleFs({ designId: event.designId, content: event.content });
         return;
       }
       const state = useCodesignStore.getState();
       const visible =
         state.currentDesignId === event.designId || state.generatingDesignId === event.designId;
-      const currentSource = visible ? state.previewHtml : state.previewHtmlByDesign[event.designId];
+      const currentSource = visible
+        ? state.previewSource
+        : state.previewSourceByDesign[event.designId];
       if (!currentSource) return;
-      const referencedPath = resolveReferencedWorkspacePreviewPath(currentSource, 'index.html');
+      const referencedPath = resolveReferencedWorkspacePreviewPath(
+        currentSource,
+        LEGACY_SOURCE_ENTRY,
+      );
       if (referencedPath === event.path) {
         scheduleFs({ designId: event.designId, content: event.content });
       }
@@ -300,7 +306,7 @@ export function useAgentStream(): void {
       slot.pending = null;
       if (pending) {
         slot.lastFlushAt = Date.now();
-        setPreviewHtmlFromAgent(pending);
+        setPreviewSourceFromAgent(pending);
       }
       const finalText = inFlight.current?.lastPersistedText ?? undefined;
       void persistAgentRunSnapshot({
@@ -380,7 +386,7 @@ export function useAgentStream(): void {
   }, [
     appendChatMessage,
     setStreamingAssistantText,
-    setPreviewHtmlFromAgent,
+    setPreviewSourceFromAgent,
     updateChatToolStatus,
     persistAgentRunSnapshot,
     renameDesign,

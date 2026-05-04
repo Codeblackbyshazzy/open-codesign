@@ -618,7 +618,7 @@
       },
       "pptx": {
         "label": "PPTX",
-        "hint": "可编辑幻灯片；每个 <section> 一页"
+        "hint": "高保真幻灯片；每个 <section> 一页"
       },
       "zip": {
         "label": "ZIP 包",

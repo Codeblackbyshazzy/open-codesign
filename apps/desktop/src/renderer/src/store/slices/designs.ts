@@ -1,10 +1,12 @@
+import { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from '@open-codesign/shared';
 import {
   hasWorkspaceSourceReference,
+  inferPreviewSourcePath,
   resolveWorkspacePreviewSource,
 } from '../../preview/workspace-source.js';
 import type { CodesignState } from '../../store.js';
 import { tr } from '../lib/locale.js';
-import { recordPreviewInPool } from './snapshots.js';
+import { recordPreviewSourceInPool } from './snapshots.js';
 import { FILES_TAB } from './tabs.js';
 
 type SetState = (
@@ -17,11 +19,11 @@ async function resolveDesignPreviewSource(
   source: string | null,
 ): Promise<string | null> {
   if (source === null || !window.codesign) return source;
-  const referencesWorkspaceSource = hasWorkspaceSourceReference(source);
+  const referencesWorkspaceSource = hasWorkspaceSourceReference(source, LEGACY_SOURCE_ENTRY);
   const resolved = await resolveWorkspacePreviewSource({
     designId,
     source,
-    path: 'index.html',
+    path: referencesWorkspaceSource ? LEGACY_SOURCE_ENTRY : inferPreviewSourcePath(source),
     read: window.codesign.files?.read,
     requireReferencedSource: referencesWorkspaceSource,
   });
@@ -111,7 +113,7 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
         const design = await window.codesign.snapshots.createDesign(name, workspacePath);
         set({
           currentDesignId: design.id,
-          previewHtml: null,
+          previewSource: null,
           errorMessage: null,
           iframeErrors: [],
           selectedElement: null,
@@ -156,16 +158,16 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
               id,
               latest ? latest.artifactSource : null,
             );
-            if (fresh !== null && fresh !== get().previewHtml) {
-              const refreshed = recordPreviewInPool(
-                get().previewHtmlByDesign,
+            if (fresh !== null && fresh !== get().previewSource) {
+              const refreshed = recordPreviewSourceInPool(
+                get().previewSourceByDesign,
                 get().recentDesignIds,
                 id,
                 fresh,
               );
               set({
-                previewHtml: fresh,
-                previewHtmlByDesign: refreshed.cache,
+                previewSource: fresh,
+                previewSourceByDesign: refreshed.cache,
                 recentDesignIds: refreshed.recent,
               });
             }
@@ -185,29 +187,29 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
       // back is instant. The cache key is the design id; PreviewPane keeps a
       // hidden iframe per pool entry.
       const outgoingPool =
-        state.currentDesignId !== null && state.previewHtml !== null
-          ? recordPreviewInPool(
-              state.previewHtmlByDesign,
+        state.currentDesignId !== null && state.previewSource !== null
+          ? recordPreviewSourceInPool(
+              state.previewSourceByDesign,
               state.recentDesignIds,
               state.currentDesignId,
-              state.previewHtml,
+              state.previewSource,
             )
-          : { cache: state.previewHtmlByDesign, recent: state.recentDesignIds };
+          : { cache: state.previewSourceByDesign, recent: state.recentDesignIds };
 
       // Cache hit on the incoming design — render instantly, refresh in the
       // background so any external edits eventually land.
-      const cachedHtml = outgoingPool.cache[id];
-      if (cachedHtml !== undefined) {
-        const incomingPool = recordPreviewInPool(
+      const cachedSource = outgoingPool.cache[id];
+      if (cachedSource !== undefined) {
+        const incomingPool = recordPreviewSourceInPool(
           outgoingPool.cache,
           outgoingPool.recent,
           id,
-          cachedHtml,
+          cachedSource,
         );
         set({
           currentDesignId: id,
-          previewHtml: cachedHtml,
-          previewHtmlByDesign: incomingPool.cache,
+          previewSource: cachedSource,
+          previewSourceByDesign: incomingPool.cache,
           recentDesignIds: incomingPool.recent,
           errorMessage: null,
           iframeErrors: [],
@@ -221,7 +223,7 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
           commentsLoaded: false,
           commentBubble: null,
           currentSnapshotId: null,
-          canvasTabs: [FILES_TAB, { kind: 'file', path: 'index.html' }],
+          canvasTabs: [FILES_TAB, { kind: 'file', path: DEFAULT_SOURCE_ENTRY }],
           activeCanvasTab: 1,
         });
         void get().loadChatForCurrentDesign();
@@ -235,16 +237,16 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
               id,
               latest ? latest.artifactSource : null,
             );
-            if (fresh !== null && fresh !== get().previewHtml) {
-              const refreshed = recordPreviewInPool(
-                get().previewHtmlByDesign,
+            if (fresh !== null && fresh !== get().previewSource) {
+              const refreshed = recordPreviewSourceInPool(
+                get().previewSourceByDesign,
                 get().recentDesignIds,
                 id,
                 fresh,
               );
               set({
-                previewHtml: fresh,
-                previewHtmlByDesign: refreshed.cache,
+                previewSource: fresh,
+                previewSourceByDesign: refreshed.cache,
                 recentDesignIds: refreshed.recent,
               });
             }
@@ -259,12 +261,17 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
       try {
         const snapshots = await window.codesign.snapshots.list(id);
         const latest = snapshots[0] ?? null;
-        const html = await resolveDesignPreviewSource(id, latest ? latest.artifactSource : null);
-        const incomingPool = recordPreviewInPool(outgoingPool.cache, outgoingPool.recent, id, html);
+        const source = await resolveDesignPreviewSource(id, latest ? latest.artifactSource : null);
+        const incomingPool = recordPreviewSourceInPool(
+          outgoingPool.cache,
+          outgoingPool.recent,
+          id,
+          source,
+        );
         set({
           currentDesignId: id,
-          previewHtml: html,
-          previewHtmlByDesign: incomingPool.cache,
+          previewSource: source,
+          previewSourceByDesign: incomingPool.cache,
           recentDesignIds: incomingPool.recent,
           errorMessage: null,
           iframeErrors: [],
@@ -278,7 +285,9 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
           commentsLoaded: false,
           commentBubble: null,
           currentSnapshotId: null,
-          canvasTabs: latest ? [FILES_TAB, { kind: 'file', path: 'index.html' }] : [FILES_TAB],
+          canvasTabs: latest
+            ? [FILES_TAB, { kind: 'file', path: DEFAULT_SOURCE_ENTRY }]
+            : [FILES_TAB],
           activeCanvasTab: latest ? 1 : 0,
         });
         void get().loadChatForCurrentDesign();
@@ -376,7 +385,7 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
           const remaining = get().designs;
           set({
             currentDesignId: null,
-            previewHtml: null,
+            previewSource: null,
             canvasTabs: [FILES_TAB],
             activeCanvasTab: 0,
           });

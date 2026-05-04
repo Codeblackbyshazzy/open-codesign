@@ -1,7 +1,9 @@
 import {
   CodesignError,
+  DEFAULT_SOURCE_ENTRY,
   ERROR_CODES,
   type LastDoneStateV1,
+  LEGACY_SOURCE_ENTRY,
   normalizeResourceState,
   type ResourceStateV1,
 } from '@open-codesign/shared';
@@ -70,27 +72,39 @@ function hasCraftPolishSignals(source: string): boolean {
   return hasFocus && hasHover && hasState;
 }
 
-function validationFailures(state: ResourceStateV1, source: string): string[] {
+function validationFailures(state: ResourceStateV1, source: string, path: string): string[] {
   const failures: string[] = [];
   if (state.loadedSkills.includes('chart-rendering') && !hasRealChartMarkup(source)) {
     failures.push(
-      'Loaded skill chart-rendering, but index.html does not contain real SVG, canvas, or chart-component marks.',
+      `Loaded skill chart-rendering, but ${path} does not contain real SVG, canvas, or chart-component marks.`,
     );
   }
   if (state.loadedSkills.includes('craft-polish') && !hasCraftPolishSignals(source)) {
     failures.push(
-      'Loaded skill craft-polish, but index.html is missing basic focus, hover, or non-happy-path state signals.',
+      `Loaded skill craft-polish, but ${path} is missing basic focus, hover, or non-happy-path state signals.`,
     );
   }
   return failures;
 }
 
+function readMainSource(fs: TextEditorFsCallbacks): { path: string; content: string } | null {
+  const primary = fs.view(DEFAULT_SOURCE_ENTRY);
+  if (primary !== null && primary.content.trim().length > 0) {
+    return { path: DEFAULT_SOURCE_ENTRY, content: primary.content };
+  }
+  const legacy = fs.view(LEGACY_SOURCE_ENTRY);
+  if (legacy !== null && legacy.content.trim().length > 0) {
+    return { path: LEGACY_SOURCE_ENTRY, content: legacy.content };
+  }
+  return null;
+}
+
 export function assertFinalizationGate(input: FinalizationGateInput): string[] {
   if (!input.enforce) return [];
-  const file = input.fs.view('index.html');
-  if (file === null || file.content.trim().length === 0) {
+  const file = readMainSource(input.fs);
+  if (file === null) {
     throw new CodesignError(
-      'Generation incomplete: workspace index.html is missing or empty.',
+      `Generation incomplete: workspace ${DEFAULT_SOURCE_ENTRY} is missing or empty.`,
       ERROR_CODES.GENERATION_INCOMPLETE,
     );
   }
@@ -116,7 +130,7 @@ export function assertFinalizationGate(input: FinalizationGateInput): string[] {
       ERROR_CODES.GENERATION_INCOMPLETE,
     );
   }
-  const failures = validationFailures(input.state, file.content);
+  const failures = validationFailures(input.state, file.content, file.path);
   if (failures.length > 0) {
     throw new CodesignError(
       `Generation incomplete: ${failures.join(' ')}`,

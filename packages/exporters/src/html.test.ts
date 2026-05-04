@@ -29,6 +29,24 @@ describe('buildHtmlDocument', () => {
     expect(out).not.toContain('CODESIGN_OVERLAY_SCRIPT');
   });
 
+  it('uses sourcePath to preserve TSX transform options during export', () => {
+    const out = buildHtmlDocument(
+      'type Props = { title: string };\nfunction App({ title }: Props) { return <main>{title}</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App title="hi" />);',
+      { prettify: false, sourcePath: 'screens/App.tsx' },
+    );
+
+    expect(out).toContain('"typescript"');
+    expect(out).toContain('"isTSX":true');
+    expect(out).toContain('artifact.tsx');
+  });
+
+  it('keeps legacy HTML fragments as HTML when no sourcePath is provided', () => {
+    const out = buildHtmlDocument('<main id="legacy-html">hi</main>', { prettify: false });
+
+    expect(out).toContain('<main id="legacy-html">hi</main>');
+    expect(out).not.toContain('CODESIGN_STANDALONE_RUNTIME');
+  });
+
   it('writes a self-contained HTML file with local assets inlined', async () => {
     const dest = join(tempDir, 'out.html');
     await exportHtml('<img src="assets/logo.svg">', dest, {

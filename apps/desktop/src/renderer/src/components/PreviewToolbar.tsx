@@ -15,7 +15,7 @@ const ZOOM_OPTIONS = [50, 75, 90, 100, 110, 125, 150, 175, 200] as const;
 
 export function PreviewToolbar(): ReactElement {
   const t = useT();
-  const previewHtml = useCodesignStore((s) => s.previewHtml);
+  const previewSource = useCodesignStore((s) => s.previewSource);
   const exportActive = useCodesignStore((s) => s.exportActive);
   const toastMessage = useCodesignStore((s) => s.toastMessage);
   const dismissToast = useCodesignStore((s) => s.dismissToast);
@@ -53,7 +53,7 @@ export function PreviewToolbar(): ReactElement {
     return () => clearTimeout(timeout);
   }, [toastMessage, dismissToast]);
 
-  const disabled = !previewHtml;
+  const disabled = !previewSource;
   const commentActive = interactionMode === 'comment';
   const exportItems: ExportItem[] = [
     {

@@ -583,7 +583,7 @@
       },
       "pptx": {
         "label": "PPTX",
-        "hint": "Slides editáveis; um por <section>"
+        "hint": "Slides de alta fidelidade; um por <section>"
       },
       "zip": {
         "label": "Pacote ZIP",

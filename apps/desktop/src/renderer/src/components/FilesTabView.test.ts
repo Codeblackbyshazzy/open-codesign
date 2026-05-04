@@ -62,6 +62,12 @@ describe('FilesTabView preview helpers', () => {
   it('chooses renderable entry files before non-renderable assets by default', () => {
     expect(
       defaultWorkspacePreviewPath([
+        { path: 'index.html', kind: 'html', updatedAt: '2026-04-26T00:00:00Z', size: 100 },
+        { path: 'App.jsx', kind: 'jsx', updatedAt: '2026-04-26T00:00:01Z', size: 100 },
+      ]),
+    ).toBe('App.jsx');
+    expect(
+      defaultWorkspacePreviewPath([
         { path: '.DS_Store', kind: 'asset', updatedAt: '2026-04-26T00:00:00Z', size: 1 },
         { path: 'index.jsx', kind: 'jsx', updatedAt: '2026-04-26T00:00:00Z', size: 100 },
       ]),
@@ -74,47 +80,47 @@ describe('FilesTabView preview helpers', () => {
     ).toBe('App.tsx');
   });
 
-  it('prefers actual workspace reads over previewHtml when the files API is available', () => {
+  it('prefers actual workspace reads over previewSource when the files API is available', () => {
     expect(
       chooseWorkspacePreviewSourceMode({
         path: 'index.html',
         hasReadApi: true,
-        hasPreviewHtml: true,
+        hasPreviewSource: true,
       }),
     ).toBe('read-workspace');
     expect(
       chooseWorkspacePreviewSourceMode({
         path: 'src/App.tsx',
         hasReadApi: true,
-        hasPreviewHtml: true,
+        hasPreviewSource: true,
       }),
     ).toBe('read-workspace');
   });
 
-  it('uses previewHtml for virtual fallback entries even when files.read exists', () => {
+  it('uses previewSource for virtual App.jsx fallback entries even when files.read exists', () => {
     expect(
       chooseWorkspacePreviewSourceMode({
-        path: 'index.html',
+        path: 'App.jsx',
         hasReadApi: true,
-        hasPreviewHtml: true,
-        preferPreviewHtml: true,
+        hasPreviewSource: true,
+        preferPreviewSource: true,
       }),
-    ).toBe('preview-html-fallback');
+    ).toBe('preview-source-fallback');
   });
 
-  it('falls back to previewHtml only for legacy index.html previews without files.read', () => {
+  it('falls back to previewSource only for App.jsx previews without files.read', () => {
+    expect(
+      chooseWorkspacePreviewSourceMode({
+        path: 'App.jsx',
+        hasReadApi: false,
+        hasPreviewSource: true,
+      }),
+    ).toBe('preview-source-fallback');
     expect(
       chooseWorkspacePreviewSourceMode({
         path: 'index.html',
         hasReadApi: false,
-        hasPreviewHtml: true,
-      }),
-    ).toBe('preview-html-fallback');
-    expect(
-      chooseWorkspacePreviewSourceMode({
-        path: 'src/App.jsx',
-        hasReadApi: false,
-        hasPreviewHtml: true,
+        hasPreviewSource: true,
       }),
     ).toBe('unavailable');
   });

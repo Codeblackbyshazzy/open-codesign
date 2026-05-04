@@ -1,4 +1,5 @@
 import type { AgentTool, AgentToolResult } from '@mariozechner/pi-agent-core';
+import { DEFAULT_SOURCE_ENTRY } from '@open-codesign/shared';
 import { Type } from '@sinclair/typebox';
 import { type CoreLogger, NOOP_LOGGER } from '../logger.js';
 import type { TextEditorFsCallbacks } from './text-editor';
@@ -125,7 +126,7 @@ export function makeGenerateImageAssetTool(
       'Use this only when a generated bitmap would materially improve the artifact. ' +
       'Do not use it for simple icons, charts, gradients, or UI chrome that can be ' +
       'drawn with HTML/CSS/SVG. The call is synchronous and takes ~20-60s per image, ' +
-      'so prefer batching all needed assets in one assistant turn before writing index.html. ' +
+      `so prefer batching all needed assets in one assistant turn before writing ${DEFAULT_SOURCE_ENTRY}. ` +
       'The tool returns a local assets/... path to reference.',
     parameters: GenerateImageAssetParams,
     async execute(
@@ -192,7 +193,7 @@ export function makeGenerateImageAssetTool(
             type: 'text',
             text:
               `Generated local bitmap asset at ${asset.path} (${asset.mimeType}). ` +
-              `Reference this path in index.html, for example src="${asset.path}" ` +
+              `Reference this path in ${DEFAULT_SOURCE_ENTRY}, for example src="${asset.path}" ` +
               `or backgroundImage: "url('${asset.path}')". Alt text: ${alt}.${revised}`,
           },
         ],

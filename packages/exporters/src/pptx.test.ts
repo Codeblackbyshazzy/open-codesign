@@ -130,4 +130,18 @@ describe('exportPptx', () => {
       expect.objectContaining({ type: 'png', clip: expect.any(Object) }),
     );
   });
+
+  it('wraps JSX source before screenshotting PPTX slides', async () => {
+    setContentMock.mockClear();
+    const dest = join(tempDir, 'jsx-visual.pptx');
+    await exportPptx(
+      'function App() { return <section><h1>Visual JSX</h1></section>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+      dest,
+    );
+
+    expect(setContentMock).toHaveBeenCalledWith(
+      expect.stringContaining('CODESIGN_STANDALONE_RUNTIME'),
+      expect.objectContaining({ waitUntil: 'networkidle0' }),
+    );
+  });
 });

@@ -5,11 +5,13 @@ import type {
   ReasoningLevel,
   WireApi,
 } from '@open-codesign/shared';
+import { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from '@open-codesign/shared';
 import type { CodesignApi, ExportFormat } from '../../../../preload/index.js';
 import { recordAction } from '../../lib/action-timeline.js';
 import { redactUrls } from '../../lib/redact.js';
 import {
   hasWorkspaceSourceReference,
+  inferPreviewSourcePath,
   resolveWorkspacePreviewSource,
 } from '../../preview/workspace-source.js';
 import type { CodesignState } from '../../store.js';
@@ -28,7 +30,7 @@ import {
   artifactFromResult,
   buildHistoryFromChat,
   persistDesignState,
-  recordPreviewInPool,
+  recordPreviewSourceInPool,
   triggerAutoRenameIfFirst,
 } from './snapshots.js';
 import { coerceUsageSnapshot } from './usage.js';
@@ -131,7 +133,7 @@ export function buildEnrichedPrompt(
   const truncate = (s: string) => (s.length > MAX_HTML ? `${s.slice(0, MAX_HTML)}…` : s);
 
   const lines: string[] = [
-    '## REQUIRED EDITS — you MUST apply every edit below to index.html',
+    `## REQUIRED EDITS — you MUST apply every edit below to ${DEFAULT_SOURCE_ENTRY}`,
     '',
     'Each edit targets a specific element identified by its selector and outerHTML.',
     'Use `str_replace_based_edit_tool` with `command: "view"` and `command: "str_replace"` to find and modify the element. Do NOT skip any edit.',
@@ -170,7 +172,7 @@ function applyGenerateSuccess(
   generationId: string,
   prompt: string,
   result: {
-    artifacts: Array<{ type?: string; content: string }>;
+    artifacts: Array<{ type?: string; content: string; entryPath?: string }>;
     message: string;
     inputTokens?: number;
     outputTokens?: number;
@@ -184,19 +186,19 @@ function applyGenerateSuccess(
   let didApply = false;
   finishIfCurrent<CodesignState>(set, generationId, (_state) => {
     didApply = true;
-    const nextHtml = firstArtifact?.content ?? _state.previewHtml;
+    const nextSource = firstArtifact?.content ?? _state.previewSource;
     const pool =
-      _state.currentDesignId !== null && nextHtml !== null
-        ? recordPreviewInPool(
-            _state.previewHtmlByDesign,
+      _state.currentDesignId !== null && nextSource !== null
+        ? recordPreviewSourceInPool(
+            _state.previewSourceByDesign,
             _state.recentDesignIds,
             _state.currentDesignId,
-            nextHtml,
+            nextSource,
           )
-        : { cache: _state.previewHtmlByDesign, recent: _state.recentDesignIds };
+        : { cache: _state.previewSourceByDesign, recent: _state.recentDesignIds };
     return {
-      previewHtml: nextHtml,
-      previewHtmlByDesign: pool.cache,
+      previewSource: nextSource,
+      previewSourceByDesign: pool.cache,
       recentDesignIds: pool.recent,
       isGenerating: false,
       activeGenerationId: null,
@@ -210,19 +212,19 @@ function applyGenerateSuccess(
   // for shows the new content the next time they switch back to it.
   if (!didApply && firstArtifact?.content && designIdAtStart !== null) {
     const state = get();
-    const pool = recordPreviewInPool(
-      state.previewHtmlByDesign,
+    const pool = recordPreviewSourceInPool(
+      state.previewSourceByDesign,
       state.recentDesignIds,
       designIdAtStart,
       firstArtifact.content,
     );
-    set({ previewHtmlByDesign: pool.cache, recentDesignIds: pool.recent });
+    set({ previewSourceByDesign: pool.cache, recentDesignIds: pool.recent });
   }
   if (didApply) {
     // Auto-open the generated file as a tab so the user sees the preview
-    // immediately. The v0.2 workspace contract writes `index.html` first.
+    // immediately. The v0.2 workspace contract writes `App.jsx` first.
     if (firstArtifact) {
-      get().openCanvasFileTab('index.html');
+      get().openCanvasFileTab(firstArtifact.entryPath ?? DEFAULT_SOURCE_ENTRY);
     }
     // Prefer the designId captured when the prompt was sent — if the user
     // switched designs mid-generation, get().currentDesignId would now point
@@ -233,13 +235,13 @@ function applyGenerateSuccess(
     if (designId) {
       const artifact = artifactFromResult(firstArtifact, prompt, assistantMessage);
       if (artifact !== null) {
-        void persistDesignState(get, designId, get().previewHtml, artifact);
+        void persistDesignState(get, designId, get().previewSource, artifact);
       }
       // Sidebar v2: append chat rows for artifact delivery.
       // When agent runtime is active (tool_call rows exist), useAgentStream
       // already persists assistant_text on turn_end with artifact stripping.
       // Skip the legacy assistant_text append entirely to avoid duplicates
-      // and raw HTML leaking into chat.
+      // and raw design source leaking into chat.
       const agentRuntimeActive = get().chatMessages.some((m) => m.kind === 'tool_call');
       if (!agentRuntimeActive && assistantMessage.trim().length > 0) {
         void get().appendChatMessage({
@@ -472,7 +474,7 @@ async function runGenerate(
     generationId,
     payload.prompt,
     result as {
-      artifacts: Array<{ type?: string; content: string }>;
+      artifacts: Array<{ type?: string; content: string; entryPath?: string }>;
       message: string;
       inputTokens?: number;
       outputTokens?: number;
@@ -569,7 +571,7 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
       }));
 
       // Cap cross-generate history to the most recent turns. The agent re-reads
-      // the current HTML via the edit tool's `view` command, so older prose in
+      // the current design source via the edit tool's `view` command, so older prose in
       // history offers diminishing value and pushes us toward the token ceiling.
       const HISTORY_CAP = 12;
       const fullHistory = await buildHistoryFromChat(designIdAtStart);
@@ -609,7 +611,7 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
             attachments: request.attachments,
             generationId,
             designId: designIdAtStart,
-            ...(get().previewHtml ? { previousHtml: get().previewHtml as string } : {}),
+            ...(get().previewSource ? { previousSource: get().previewSource as string } : {}),
           },
           designIdAtStart,
         );
@@ -711,13 +713,13 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
       if (!trimmed || get().isGenerating) return;
       if (!window.codesign) return;
       const cfg = get().config;
-      const html = get().previewHtml;
+      const source = get().previewSource;
       const selection = get().selectedElement;
       const designIdAtStart = get().currentDesignId;
       if (
         cfg === null ||
         !cfg.hasKey ||
-        html === null ||
+        source === null ||
         selection === null ||
         designIdAtStart === null
       )
@@ -746,7 +748,7 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
         const result = await window.codesign.applyComment({
           designId: designIdAtStart,
           generationId,
-          html,
+          artifactSource: source,
           comment: trimmed,
           selection,
           ...(referenceUrl ? { referenceUrl } : {}),
@@ -756,19 +758,19 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
         const assistantText = result.message || tr('common.applied');
         const { usage, rejected: rejectedUsageFields } = coerceUsageSnapshot(result);
         set((s) => {
-          const nextHtml = firstArtifact?.content ?? s.previewHtml;
+          const nextSource = firstArtifact?.content ?? s.previewSource;
           const pool =
-            s.currentDesignId !== null && nextHtml !== null
-              ? recordPreviewInPool(
-                  s.previewHtmlByDesign,
+            s.currentDesignId !== null && nextSource !== null
+              ? recordPreviewSourceInPool(
+                  s.previewSourceByDesign,
                   s.recentDesignIds,
                   s.currentDesignId,
-                  nextHtml,
+                  nextSource,
                 )
-              : { cache: s.previewHtmlByDesign, recent: s.recentDesignIds };
+              : { cache: s.previewSourceByDesign, recent: s.recentDesignIds };
           return {
-            previewHtml: nextHtml,
-            previewHtmlByDesign: pool.cache,
+            previewSource: nextSource,
+            previewSourceByDesign: pool.cache,
             recentDesignIds: pool.recent,
             isGenerating: false,
             generatingDesignId: null,
@@ -783,7 +785,7 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
             payload: { text: assistantText },
           });
           const artifact = artifactFromResult(firstArtifact, userMessageText, assistantText);
-          void persistDesignState(get, designIdAtStart, get().previewHtml, artifact);
+          void persistDesignState(get, designIdAtStart, get().previewSource, artifact);
         }
         if (rejectedUsageFields.length > 0) {
           const detail = rejectedUsageFields.join(', ');
@@ -841,8 +843,8 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
 
     async exportActive(format: ExportFormat) {
       recordAction({ type: 'design.export', data: { format } });
-      const html = get().previewHtml;
-      if (!html) {
+      const source = get().previewSource;
+      if (!source) {
         set({ toastMessage: tr('notifications.noDesignToExport') });
         return;
       }
@@ -852,28 +854,31 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
       }
       try {
         const designId = get().currentDesignId;
-        const referencesWorkspaceSource = hasWorkspaceSourceReference(html);
+        const referencesWorkspaceSource = hasWorkspaceSourceReference(source, LEGACY_SOURCE_ENTRY);
+        const sourcePathHint = referencesWorkspaceSource
+          ? LEGACY_SOURCE_ENTRY
+          : inferPreviewSourcePath(source);
         const resolved =
           designId !== null
             ? await resolveWorkspacePreviewSource({
                 designId,
-                source: html,
-                path: 'index.html',
+                source,
+                path: sourcePathHint,
                 read: window.codesign.files?.read,
                 requireReferencedSource: referencesWorkspaceSource,
               })
-            : { content: html, path: 'index.html' };
-        const htmlContent = resolved.content;
-        if (designId !== null && htmlContent !== html) {
-          const pool = recordPreviewInPool(
-            get().previewHtmlByDesign,
+            : { content: source, path: sourcePathHint };
+        const artifactSource = resolved.content;
+        if (designId !== null && artifactSource !== source) {
+          const pool = recordPreviewSourceInPool(
+            get().previewSourceByDesign,
             get().recentDesignIds,
             designId,
-            htmlContent,
+            artifactSource,
           );
           set({
-            previewHtml: htmlContent,
-            previewHtmlByDesign: pool.cache,
+            previewSource: artifactSource,
+            previewSourceByDesign: pool.cache,
             recentDesignIds: pool.recent,
           });
         }
@@ -885,7 +890,7 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
             : (get().designs.find((design) => design.id === designId) ?? null);
         const res = await window.codesign.export({
           format,
-          htmlContent,
+          artifactSource,
           defaultFilename: `codesign-${stamp}.${ext}`,
           ...(activeDesign?.workspacePath ? { workspacePath: activeDesign.workspacePath } : {}),
           sourcePath: resolved.path,

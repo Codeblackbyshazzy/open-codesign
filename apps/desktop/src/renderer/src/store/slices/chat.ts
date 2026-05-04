@@ -1,12 +1,21 @@
-import type { ChatAppendInput, ChatToolCallPayload } from '@open-codesign/shared';
+import {
+  type ChatAppendInput,
+  type ChatToolCallPayload,
+  LEGACY_SOURCE_ENTRY,
+} from '@open-codesign/shared';
 import {
   hasWorkspaceSourceReference,
+  inferPreviewSourcePath,
   resolveWorkspacePreviewSource,
 } from '../../preview/workspace-source.js';
 import type { CodesignState } from '../../store.js';
 import { looksRunnableArtifact } from '../lib/artifact.js';
 import { tr } from '../lib/locale.js';
-import { type PersistArtifact, persistArtifactSnapshot, recordPreviewInPool } from './snapshots.js';
+import {
+  type PersistArtifact,
+  persistArtifactSnapshot,
+  recordPreviewSourceInPool,
+} from './snapshots.js';
 
 type SetState = (
   updater: ((state: CodesignState) => Partial<CodesignState> | object) | Partial<CodesignState>,
@@ -21,8 +30,8 @@ interface ChatSliceActions {
   pushPendingToolCall: CodesignState['pushPendingToolCall'];
   resolvePendingToolCall: CodesignState['resolvePendingToolCall'];
   updateChatToolStatus: CodesignState['updateChatToolStatus'];
-  setPreviewHtmlFromAgent: CodesignState['setPreviewHtmlFromAgent'];
-  setPreviewHtml: CodesignState['setPreviewHtml'];
+  setPreviewSourceFromAgent: CodesignState['setPreviewSourceFromAgent'];
+  setPreviewSource: CodesignState['setPreviewSource'];
   persistAgentRunSnapshot: CodesignState['persistAgentRunSnapshot'];
 }
 
@@ -143,52 +152,52 @@ export function makeChatSlice(set: SetState, get: GetState): ChatSliceActions {
       }));
     },
 
-    setPreviewHtmlFromAgent({ designId, content }) {
+    setPreviewSourceFromAgent({ designId, content }) {
       const state = get();
-      // Only adopt the live html when the event's design matches what the user
+      // Only adopt the live source when the event's design matches what the user
       // is looking at OR what is actively generating. This prevents a background
       // run on design A from blowing away the preview while the user has switched
       // to design B.
       if (state.currentDesignId !== designId && state.generatingDesignId !== designId) {
         // The event's design isn't visible — still update its pool entry so
-        // switching back later reflects the streamed-in HTML.
-        const pool = recordPreviewInPool(
-          state.previewHtmlByDesign,
+        // switching back later reflects the streamed-in source.
+        const pool = recordPreviewSourceInPool(
+          state.previewSourceByDesign,
           state.recentDesignIds,
           designId,
           content,
         );
-        set({ previewHtmlByDesign: pool.cache, recentDesignIds: pool.recent });
+        set({ previewSourceByDesign: pool.cache, recentDesignIds: pool.recent });
         return;
       }
-      const pool = recordPreviewInPool(
-        state.previewHtmlByDesign,
+      const pool = recordPreviewSourceInPool(
+        state.previewSourceByDesign,
         state.recentDesignIds,
         designId,
         content,
       );
       set({
-        previewHtml: content,
-        previewHtmlByDesign: pool.cache,
+        previewSource: content,
+        previewSourceByDesign: pool.cache,
         recentDesignIds: pool.recent,
       });
     },
 
-    setPreviewHtml(content: string) {
+    setPreviewSource(content: string) {
       const state = get();
       if (state.currentDesignId === null) {
-        set({ previewHtml: content });
+        set({ previewSource: content });
         return;
       }
-      const pool = recordPreviewInPool(
-        state.previewHtmlByDesign,
+      const pool = recordPreviewSourceInPool(
+        state.previewSourceByDesign,
         state.recentDesignIds,
         state.currentDesignId,
         content,
       );
       set({
-        previewHtml: content,
-        previewHtmlByDesign: pool.cache,
+        previewSource: content,
+        previewSourceByDesign: pool.cache,
         recentDesignIds: pool.recent,
       });
     },
@@ -198,17 +207,17 @@ export function makeChatSlice(set: SetState, get: GetState): ChatSliceActions {
       const state = get();
       // Don't write a snapshot if the run produced nothing renderable, or if
       // the user has already navigated to a different design (we'd persist the
-      // wrong html otherwise).
+      // wrong source otherwise).
       if (state.currentDesignId !== designId) return;
-      const html = state.previewHtml;
-      if (!html || html.trim().length === 0) return;
-      const referencesWorkspaceSource = hasWorkspaceSourceReference(html);
+      const source = state.previewSource;
+      if (!source || source.trim().length === 0) return;
+      const referencesWorkspaceSource = hasWorkspaceSourceReference(source, LEGACY_SOURCE_ENTRY);
       let resolved: { content: string; path: string };
       try {
         resolved = await resolveWorkspacePreviewSource({
           designId,
-          source: html,
-          path: 'index.html',
+          source,
+          path: referencesWorkspaceSource ? LEGACY_SOURCE_ENTRY : inferPreviewSourcePath(source),
           read: window.codesign.files?.read,
           requireReferencedSource: referencesWorkspaceSource,
         });
@@ -223,16 +232,16 @@ export function makeChatSlice(set: SetState, get: GetState): ChatSliceActions {
       }
       if (get().currentDesignId !== designId) return;
       const artifactContent = resolved.content;
-      if (artifactContent !== html) {
-        const pool = recordPreviewInPool(
-          get().previewHtmlByDesign,
+      if (artifactContent !== source) {
+        const pool = recordPreviewSourceInPool(
+          get().previewSourceByDesign,
           get().recentDesignIds,
           designId,
           artifactContent,
         );
         set({
-          previewHtml: artifactContent,
-          previewHtmlByDesign: pool.cache,
+          previewSource: artifactContent,
+          previewSourceByDesign: pool.cache,
           recentDesignIds: pool.recent,
         });
       }

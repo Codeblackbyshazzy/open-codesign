@@ -11,6 +11,7 @@
  */
 
 import type { AgentTool, AgentToolResult } from '@mariozechner/pi-agent-core';
+import { DEFAULT_SOURCE_ENTRY } from '@open-codesign/shared';
 import { Type } from '@sinclair/typebox';
 
 export interface TextEditorFsCallbacks {
@@ -87,7 +88,7 @@ export function makeTextEditorTool(
   // Per-run view budget: the full content of a file is returned on the FIRST
   // view of each path; subsequent views collapse to a short summary (line
   // count + head snippet + explicit reminder). Rationale: view accumulates in
-  // the agent's context window — re-viewing a 2000-line index.html four times
+  // the agent's context window — re-viewing a 2000-line App.jsx four times
   // has blown the 1M-token limit in production. AGENTIC_TOOL_GUIDANCE already
   // asks the agent to "view once, then work from memory"; this enforces it.
   const viewCountByPath = new Map<string, number>();
@@ -97,7 +98,7 @@ export function makeTextEditorTool(
     label: 'Text editor',
     description:
       'Read and edit files in the current design via view/create/str_replace/insert commands. ' +
-      'Paths are relative to the design root (e.g. "index.html", "_starters/ios-frame.jsx"). ' +
+      `Paths are relative to the design root (e.g. "${DEFAULT_SOURCE_ENTRY}", "_starters/ios-frame.jsx"). ` +
       'Use create for new files; str_replace requires an exact match of old_str; ' +
       'view returns file content or directory listing. ' +
       'IMPORTANT: pass `view_range: [startLine, endLine]` (1-indexed, inclusive; either bound may be -1 for EOF) ' +

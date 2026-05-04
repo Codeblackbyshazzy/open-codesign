@@ -125,8 +125,8 @@ function TokenRow({
 
 export function TweakPanel({ iframeRef }: { iframeRef: RefObject<HTMLIFrameElement | null> }) {
   const t = useT();
-  const previewHtml = useCodesignStore((s) => s.previewHtml);
-  const setPreviewHtml = useCodesignStore((s) => s.setPreviewHtml);
+  const previewSource = useCodesignStore((s) => s.previewSource);
+  const setPreviewSource = useCodesignStore((s) => s.setPreviewSource);
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -229,18 +229,18 @@ export function TweakPanel({ iframeRef }: { iframeRef: RefObject<HTMLIFrameEleme
   }
 
   const block: EditmodeBlock | null = useMemo(
-    () => (previewHtml ? parseEditmodeBlock(previewHtml) : null),
-    [previewHtml],
+    () => (previewSource ? parseEditmodeBlock(previewSource) : null),
+    [previewSource],
   );
 
   const schema: TweakSchema | null = useMemo(
-    () => (previewHtml ? parseTweakSchema(previewHtml) : null),
-    [previewHtml],
+    () => (previewSource ? parseTweakSchema(previewSource) : null),
+    [previewSource],
   );
 
   // Live working copy — drives the UI and the postMessage stream to the iframe
   // without paying for a full srcdoc reload on every keystroke. Persistence
-  // back into `previewHtml` is debounced (see persistTimer below).
+  // back into `previewSource` is debounced (see persistTimer below).
   const [liveTokens, setLiveTokens] = useState<Tokens | null>(null);
   const liveSigRef = useRef<string>('');
   useEffect(() => {
@@ -252,7 +252,7 @@ export function TweakPanel({ iframeRef }: { iframeRef: RefObject<HTMLIFrameEleme
     const sig = Object.keys(block.tokens).sort().join('|');
     // Only resync from store when the *schema* (key set) changes — this happens
     // on a new artifact load. Otherwise we'd clobber the user's in-flight edits
-    // each time `setPreviewHtml` settles from our own debounce.
+    // each time `setPreviewSource` settles from our own debounce.
     if (sig !== liveSigRef.current) {
       setLiveTokens({ ...block.tokens });
       liveSigRef.current = sig;
@@ -299,7 +299,7 @@ export function TweakPanel({ iframeRef }: { iframeRef: RefObject<HTMLIFrameEleme
     };
   }, [open]);
 
-  if (!previewHtml) return null;
+  if (!previewSource) return null;
   const entries = liveTokens ? Object.entries(liveTokens) : [];
   const hasTokens = entries.length > 0;
 
@@ -313,11 +313,11 @@ export function TweakPanel({ iframeRef }: { iframeRef: RefObject<HTMLIFrameEleme
     if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
     persistTimerRef.current = setTimeout(() => {
       persistTimerRef.current = null;
-      const html = useCodesignStore.getState().previewHtml;
-      if (!html) return;
+      const source = useCodesignStore.getState().previewSource;
+      if (!source) return;
       const designId = useCodesignStore.getState().currentDesignId;
-      const optimistic = replaceEditmodeBlock(html, tokens);
-      setPreviewHtml(optimistic);
+      const optimistic = replaceEditmodeBlock(source, tokens);
+      setPreviewSource(optimistic);
 
       const files = window.codesign?.files;
       if (!designId || !files?.write) return;
@@ -325,16 +325,16 @@ export function TweakPanel({ iframeRef }: { iframeRef: RefObject<HTMLIFrameEleme
       persistQueueRef.current = persistQueueRef.current
         .catch(() => undefined)
         .then(async () => {
-          const latestHtml = useCodesignStore.getState().previewHtml ?? optimistic;
+          const latestSource = useCodesignStore.getState().previewSource ?? optimistic;
           const result = await persistTweakTokensToWorkspace({
             designId,
-            previewHtml: latestHtml,
+            previewSource: latestSource,
             tokens,
             read: files.read,
             write: files.write,
           });
           if (useCodesignStore.getState().currentDesignId === designId) {
-            setPreviewHtml(result.content);
+            setPreviewSource(result.content);
           }
         })
         .catch((err) => {

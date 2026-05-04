@@ -20,7 +20,7 @@ whether the design benefits from device chrome and `view`s the
 relevant frame on its own. There is no keyword detection in either the
 main process or the prompt.
 
-If the model picks a frame, it copies the skeleton into `index.html`
+If the model picks a frame, it copies the skeleton into `App.jsx`
 and inserts its app HTML inside the `<div id="screen">` container.
 
 ## Adding a new frame

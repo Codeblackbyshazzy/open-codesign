@@ -7,8 +7,10 @@ import { LanguageToggle } from './LanguageToggle';
 import { ModelSwitcher } from './ModelSwitcher';
 import { ThemeToggle } from './ThemeToggle';
 
-const dragStyle = { WebkitAppRegion: 'drag' } as CSSProperties;
-const noDragStyle = { WebkitAppRegion: 'no-drag' } as CSSProperties;
+export const TOPBAR_DRAG_SPACER_TEST_ID = 'topbar-drag-spacer';
+
+export const dragStyle = { WebkitAppRegion: 'drag' } as CSSProperties;
+export const noDragStyle = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
 const HUB_TABS: HubTab[] = ['recent', 'your', 'examples', 'designSystems'];
 
@@ -35,7 +37,7 @@ export function TopBar() {
 
   return (
     <header
-      className="h-[var(--size-titlebar-height)] shrink-0 flex items-center justify-between pr-[var(--space-6)] select-none"
+      className="h-[var(--size-titlebar-height)] shrink-0 flex items-center gap-[var(--space-4)] pr-[var(--space-6)] select-none"
       style={{
         ...dragStyle,
         paddingLeft: 'var(--space-4)',
@@ -43,7 +45,7 @@ export function TopBar() {
         background: 'var(--color-background)',
       }}
     >
-      <div className="flex items-center gap-[var(--space-8)] min-w-0 h-full" style={noDragStyle}>
+      <div className="flex items-center gap-[var(--space-8)] min-w-0 h-full">
         <Wordmark badge={`v${__APP_VERSION__}`} size="md" />
 
         {view === 'settings' ? (
@@ -55,6 +57,7 @@ export function TopBar() {
               aria-label={t('topbar.closeSettings')}
               className="inline-flex items-center gap-[6px] rounded-[var(--radius-sm)] px-[var(--space-2)] py-[var(--space-1)] transition-colors duration-[var(--duration-faster)]"
               style={{
+                ...noDragStyle,
                 fontFamily: 'var(--font-display)',
                 fontSize: '19px',
                 letterSpacing: '-0.015em',
@@ -80,6 +83,7 @@ export function TopBar() {
                   aria-current={active ? 'page' : undefined}
                   className="relative h-full inline-flex items-center transition-colors duration-[var(--duration-faster)]"
                   style={{
+                    ...noDragStyle,
                     fontFamily: 'var(--font-display)',
                     fontSize: '19px',
                     fontWeight: active ? 500 : 400,
@@ -114,6 +118,7 @@ export function TopBar() {
               aria-label={t('topbar.openMyDesigns')}
               className="inline-flex items-center gap-[6px] rounded-[var(--radius-sm)] px-[var(--space-2)] py-[var(--space-1)] transition-colors duration-[var(--duration-faster)] max-w-[520px]"
               style={{
+                ...noDragStyle,
                 fontFamily: 'var(--font-display)',
                 fontSize: '19px',
                 letterSpacing: '-0.015em',
@@ -137,8 +142,16 @@ export function TopBar() {
         )}
       </div>
 
-      <div className="flex items-center gap-[var(--space-3)]" style={noDragStyle}>
-        <ModelSwitcher variant="topbar" />
+      <div
+        data-testid={TOPBAR_DRAG_SPACER_TEST_ID}
+        className="min-w-[48px] flex-1 self-stretch"
+        style={dragStyle}
+      />
+
+      <div className="flex items-center gap-[var(--space-3)]">
+        <div style={noDragStyle}>
+          <ModelSwitcher variant="topbar" />
+        </div>
         {unreadErrorCount > 0 ? (
           <button
             type="button"
@@ -146,6 +159,7 @@ export function TopBar() {
             aria-label={t('topbar.unreadErrors', { count: unreadErrorCount })}
             title={t('topbar.unreadErrors', { count: unreadErrorCount })}
             className="inline-flex items-center gap-1 h-7 px-2 rounded-[var(--radius-sm)] border border-[var(--color-error)]/30 text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-colors"
+            style={noDragStyle}
           >
             <AlertCircle className="w-3.5 h-3.5" aria-hidden />
             <span className="text-[var(--text-xs)] font-semibold">
@@ -153,7 +167,10 @@ export function TopBar() {
             </span>
           </button>
         ) : null}
-        <div className="flex items-center gap-[2px]" style={{ marginLeft: 'var(--space-1)' }}>
+        <div
+          className="flex items-center gap-[2px]"
+          style={{ ...noDragStyle, marginLeft: 'var(--space-1)' }}
+        >
           <LanguageToggle />
           <ThemeToggle />
           <IconButton label={t('settings.title')} size="md" onClick={() => setView('settings')}>

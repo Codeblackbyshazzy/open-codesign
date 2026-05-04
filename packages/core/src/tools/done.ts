@@ -1,8 +1,9 @@
 /**
  * done — self-check tool the agent calls when it believes the artifact is
  * complete. Two layers:
- *   1. Static lint over `index.html` (unclosed tags, duplicate IDs, missing
- *      alt). Cheap and host-free; runs in every environment.
+ *   1. Static lint over `App.jsx` (or legacy `index.html`) for unclosed tags,
+ *      duplicate IDs, and missing alt text. Cheap and host-free; runs in every
+ *      environment.
  *   2. Optional runtime verifier injected by the host. The desktop app passes
  *      a callback that loads the artifact in a hidden Electron BrowserWindow,
  *      captures `console-message` + `did-fail-load` for ~3s, and returns the
@@ -14,6 +15,7 @@
  */
 
 import type { AgentTool, AgentToolResult } from '@mariozechner/pi-agent-core';
+import { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from '@open-codesign/shared';
 import { Type } from '@sinclair/typebox';
 import type { TextEditorFsCallbacks } from './text-editor.js';
 
@@ -33,6 +35,13 @@ export interface DoneDetails {
   path: string;
   errors: DoneError[];
   summary?: string;
+}
+
+function resolveDonePath(fs: TextEditorFsCallbacks, requested: string | undefined): string {
+  if (requested && requested.trim().length > 0) return requested;
+  if (fs.view(DEFAULT_SOURCE_ENTRY) !== null) return DEFAULT_SOURCE_ENTRY;
+  if (fs.view(LEGACY_SOURCE_ENTRY) !== null) return LEGACY_SOURCE_ENTRY;
+  return DEFAULT_SOURCE_ENTRY;
 }
 
 /** Host-injected runtime verifier. Receives the raw artifact source (the
@@ -151,8 +160,9 @@ function isJsxShaped(src: string): boolean {
  * skipped — those have their own checks via findUnclosedTags etc.
  */
 function findJsxStructuralIssues(src: string): DoneError[] {
-  // Plain HTML files are first-class in v0.2 (agent writes index.html into
-  // the workspace; puppeteer renders file:// directly — no JSX wrap needed).
+  // Plain HTML files are first-class for legacy sources and imported files.
+  // New generated designs default to App.jsx, but HTML should not be coerced
+  // into React just to satisfy JSX-only checks.
   // Skip the JSX structural checks entirely when the source looks like an
   // HTML document, otherwise the "missing ReactDOM.createRoot" error trains
   // the agent to rewrite the file as React, which is a regression.
@@ -312,7 +322,7 @@ export function makeDoneTool(
       'keep the latest artifact but will surface warnings to the user.',
     parameters: DoneParams,
     async execute(_id, params): Promise<AgentToolResult<DoneDetails>> {
-      const path = params.path ?? 'index.html';
+      const path = resolveDonePath(fs, params.path);
       const file = fs.view(path);
       if (file === null) {
         const details: DoneDetails = {
