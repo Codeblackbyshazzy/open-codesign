@@ -1,5 +1,5 @@
 import { useT } from '@open-codesign/i18n';
-import { Cpu, FolderOpen, Palette, Sliders } from 'lucide-react';
+import { Activity, Brain, Cpu, FolderOpen, Image, Palette, Sliders } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { type SettingsTab, useCodesignStore } from '../store';
 import { AdvancedTab } from './settings/AdvancedTab';
@@ -16,19 +16,25 @@ export { resolveTimeoutOptions, TIMEOUT_OPTION_SECONDS } from './settings/Advanc
 export { applyLocaleChange } from './settings/AppearanceTab';
 export { computeModelOptions } from './settings/primitives';
 
-type Tab = 'models' | 'appearance' | 'workspace' | 'advanced';
+type Tab = 'models' | 'images' | 'appearance' | 'workspace' | 'memory' | 'diagnostics' | 'advanced';
 
-const TABS: ReadonlyArray<{ id: Tab; icon: typeof Cpu }> = [
+export const SETTINGS_TABS: ReadonlyArray<{ id: Tab; icon: typeof Cpu }> = [
   { id: 'models', icon: Cpu },
+  { id: 'images', icon: Image },
   { id: 'appearance', icon: Palette },
   { id: 'workspace', icon: FolderOpen },
+  { id: 'memory', icon: Brain },
+  { id: 'diagnostics', icon: Activity },
   { id: 'advanced', icon: Sliders },
 ];
 
-function primarySettingsTab(tab: SettingsTab | null): Tab {
+export function primarySettingsTab(tab: SettingsTab | null): Tab {
+  if (tab === 'images') return 'images';
   if (tab === 'appearance') return 'appearance';
   if (tab === 'storage' || tab === 'workspace') return 'workspace';
-  if (tab === 'memory' || tab === 'diagnostics' || tab === 'advanced') return 'advanced';
+  if (tab === 'memory') return 'memory';
+  if (tab === 'diagnostics') return 'diagnostics';
+  if (tab === 'advanced') return 'advanced';
   return 'models';
 }
 
@@ -47,10 +53,10 @@ export function Settings() {
 
   return (
     <div className="h-full flex flex-col bg-[var(--color-background)]">
-      <div className="flex-1 grid grid-cols-[11rem_1fr] min-h-0 max-[860px]:grid-cols-1">
+      <div className="flex-1 grid grid-cols-[12.5rem_1fr] min-h-0 max-[860px]:grid-cols-1">
         <aside className="bg-[var(--color-background-secondary)] border-r border-[var(--color-border)] p-[var(--space-3)] max-[860px]:border-r-0 max-[860px]:border-b">
           <nav className="codesign-scroll-x flex gap-[var(--space-1)] overflow-x-auto max-[860px]:pb-[var(--space-1)] min-[861px]:block min-[861px]:space-y-0.5">
-            {TABS.map((entry) => {
+            {SETTINGS_TABS.map((entry) => {
               const Icon = entry.icon;
               const active = tab === entry.id;
               return (
@@ -73,21 +79,13 @@ export function Settings() {
         </aside>
 
         <section className="codesign-scroll-area flex flex-col min-h-0 overflow-y-auto p-[clamp(var(--space-4),3vw,var(--space-6))]">
-          {tab === 'models' ? (
-            <div className="space-y-[var(--space-6)]">
-              <ModelsTab />
-              <ImageGenerationTab />
-            </div>
-          ) : null}
+          {tab === 'models' ? <ModelsTab /> : null}
+          {tab === 'images' ? <ImageGenerationTab /> : null}
           {tab === 'appearance' ? <AppearanceTab /> : null}
           {tab === 'workspace' ? <StorageTab /> : null}
-          {tab === 'advanced' ? (
-            <div className="space-y-[var(--space-6)]">
-              <MemoryTab />
-              <DiagnosticsPanel />
-              <AdvancedTab />
-            </div>
-          ) : null}
+          {tab === 'memory' ? <MemoryTab /> : null}
+          {tab === 'diagnostics' ? <DiagnosticsPanel /> : null}
+          {tab === 'advanced' ? <AdvancedTab /> : null}
         </section>
       </div>
     </div>

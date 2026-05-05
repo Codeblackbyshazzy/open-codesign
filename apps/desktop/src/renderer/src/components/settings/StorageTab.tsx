@@ -13,7 +13,6 @@ export function StorageTab() {
   const [paths, setPaths] = useState<AppPaths | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [choosing, setChoosing] = useState<StorageKind | null>(null);
-  const [exporting, setExporting] = useState(false);
   const canChoose = choosing === null;
 
   useEffect(() => {
@@ -70,19 +69,6 @@ export function StorageTab() {
     setConfirmReset(false);
   }
 
-  async function handleOpenLogFolder() {
-    if (!window.codesign?.diagnostics?.openLogFolder) return;
-    try {
-      await window.codesign.diagnostics.openLogFolder();
-    } catch (err) {
-      pushToast({
-        variant: 'error',
-        title: t('settings.storage.openFolderFailed'),
-        description: cleanIpcError(err) || t('settings.common.unknownError'),
-      });
-    }
-  }
-
   async function handleOpenTemplatesFolder() {
     if (!window.codesign?.settings?.openTemplatesFolder) return;
     try {
@@ -93,27 +79,6 @@ export function StorageTab() {
         title: t('settings.storage.openFolderFailed'),
         description: cleanIpcError(err) || t('settings.common.unknownError'),
       });
-    }
-  }
-
-  async function handleExportDiagnostics() {
-    if (!window.codesign?.diagnostics?.exportDiagnostics) return;
-    setExporting(true);
-    try {
-      const zipPath = await window.codesign.diagnostics.exportDiagnostics();
-      pushToast({
-        variant: 'success',
-        title: t('settings.storage.diagnosticsExported', { path: zipPath }),
-      });
-      void window.codesign.diagnostics.showItemInFolder?.(zipPath);
-    } catch (err) {
-      pushToast({
-        variant: 'error',
-        title: t('settings.storage.diagnosticsExportFailed'),
-        description: cleanIpcError(err) || t('settings.common.unknownError'),
-      });
-    } finally {
-      setExporting(false);
     }
   }
 
@@ -156,41 +121,18 @@ export function StorageTab() {
       )}
 
       <div className="pt-4 border-t border-[var(--color-border-subtle)]">
-        <SectionTitle>{t('settings.storage.diagnosticsTitle')}</SectionTitle>
+        <SectionTitle>{t('settings.storage.templatesTitle')}</SectionTitle>
         <p className="text-[var(--text-xs)] text-[var(--color-text-muted)] mt-1 mb-3 leading-[var(--leading-body)]">
-          {t('settings.storage.diagnosticsHint')}
+          {t('settings.storage.templatesHint')}
         </p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void handleOpenLogFolder()}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--text-sm)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors"
-          >
-            <FolderOpen className="w-3.5 h-3.5" />
-            {t('settings.storage.openLogFolder')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleOpenTemplatesFolder()}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--text-sm)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors"
-          >
-            <FolderOpen className="w-3.5 h-3.5" />
-            {t('settings.storage.openTemplatesFolder')}
-          </button>
-          <button
-            type="button"
-            disabled={exporting}
-            onClick={() => void handleExportDiagnostics()}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--text-sm)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {exporting ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <FolderOpen className="w-3.5 h-3.5" />
-            )}
-            {t('settings.storage.exportDiagnostics')}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => void handleOpenTemplatesFolder()}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-md)] border border-[var(--color-border)] text-[var(--text-sm)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors"
+        >
+          <FolderOpen className="w-3.5 h-3.5" />
+          {t('settings.storage.openTemplatesFolder')}
+        </button>
       </div>
 
       <div className="pt-4 border-t border-[var(--color-border-subtle)]">

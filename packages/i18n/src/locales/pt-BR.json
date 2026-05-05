@@ -450,6 +450,8 @@
       "pathsLoadFailed": "Falha ao carregar os caminhos do app",
       "openFolderFailed": "Não foi possível abrir a pasta",
       "onboardingResetToast": "Onboarding redefinido. Reinicie o app para refazer a configuração.",
+      "templatesTitle": "Arquivos de modelo",
+      "templatesHint": "Abra a pasta integrada de starters e templates usada por scaffolds e recursos de design.",
       "diagnosticsTitle": "Diagnóstico",
       "diagnosticsHint": "Abra a pasta de logs para inspecionar os arquivos ou exporte um pacote com dados sensíveis removidos para reportar bugs.",
       "openLogFolder": "Abrir pasta de logs",

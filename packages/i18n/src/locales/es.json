@@ -482,9 +482,12 @@
       "pathsLoadFailed": "Error al cargar las rutas de la aplicación",
       "openFolderFailed": "No se pudo abrir la carpeta",
       "onboardingResetToast": "Bienvenida restablecida. Reinicia la aplicación para volver a ejecutar la configuración.",
+      "templatesTitle": "Archivos de plantilla",
+      "templatesHint": "Abre la carpeta de starters y plantillas integrada que usan los scaffolds y recursos de diseño.",
       "diagnosticsTitle": "Diagnósticos",
       "diagnosticsHint": "Abre la carpeta de registros para inspeccionarlos, o exporta un paquete redactado para informes de errores.",
       "openLogFolder": "Abrir carpeta de registros",
+      "openTemplatesFolder": "Abrir carpeta de plantillas",
       "exportDiagnostics": "Exportar diagnósticos",
       "diagnosticsExported": "Exportado a {{path}}",
       "diagnosticsExportFailed": "No se pudieron exportar los diagnósticos"

@@ -537,6 +537,8 @@
       "pathsLoadFailed": "加载应用路径失败",
       "openFolderFailed": "无法打开文件夹",
       "onboardingResetToast": "引导已重置，重启应用即可重新运行设置。",
+      "templatesTitle": "模板文件",
+      "templatesHint": "打开脚手架和设计资源使用的内置 starter / template 文件夹。",
       "diagnosticsTitle": "诊断",
       "diagnosticsHint": "打开日志文件夹查看日志，或导出脱敏包用于提交 bug 报告。",
       "openLogFolder": "打开日志文件夹",
