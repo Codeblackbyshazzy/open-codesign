@@ -90,6 +90,7 @@ import {
   recordMutation,
   recordScaffold,
 } from './resource-state.js';
+import { buildRunProtocolPreflight, type RunProtocolState } from './run-protocol.js';
 import { availableToolNames } from './tool-manifest.js';
 import { makeAskTool } from './tools/ask.js';
 import { type DoneDetails, type DoneRuntimeVerifier, makeDoneTool } from './tools/done.js';
@@ -333,6 +334,49 @@ function emitPreflightSetTitle(onEvent: GenerateViaAgentDeps['onEvent'], title: 
       details: { title },
     },
   } as AgentEvent);
+}
+
+function todosRequiredResult(
+  toolName: string,
+): AgentToolResult<{ status: string; reason: string }> {
+  return {
+    content: [
+      {
+        type: 'text',
+        text: `Call set_todos before editing, previewing, or finishing. Then retry ${toolName}.`,
+      },
+    ],
+    details: { status: 'blocked', reason: 'todos_required' },
+  };
+}
+
+function wrapTodosState<TParams extends TSchema, TDetails>(
+  tool: AgentTool<TParams, TDetails>,
+  state: RunProtocolState,
+): AgentTool<TParams, TDetails> {
+  return {
+    ...tool,
+    async execute(toolCallId, params) {
+      const result = await tool.execute(toolCallId, params);
+      state.todosSet = true;
+      return result;
+    },
+  };
+}
+
+function wrapPlanningGate<TParams extends TSchema, TDetails>(
+  tool: AgentTool<TParams, TDetails>,
+  state: RunProtocolState,
+): AgentTool<TParams, TDetails> {
+  return {
+    ...tool,
+    async execute(toolCallId, params) {
+      if (state.requiresTodosBeforeMutation && !state.todosSet) {
+        return todosRequiredResult(tool.name) as AgentToolResult<TDetails>;
+      }
+      return await tool.execute(toolCallId, params);
+    },
+  };
 }
 
 function agenticToolGuidance(input: {
@@ -869,6 +913,27 @@ export async function generateViaAgent(
     : null;
   const promptInput =
     preflightTitle !== null ? { ...input, currentDesignName: preflightTitle } : input;
+  const protocolSourceFiles = trackedFs
+    ? sourceCandidates(workspaceFiles(trackedFs), trackedFs)
+    : [];
+  const runProtocol = buildRunProtocolPreflight({
+    prompt: input.prompt,
+    historyCount: input.history.length,
+    workspaceState: { hasSource: protocolSourceFiles.length > 0 },
+    runPreferences: input.runPreferences ?? {
+      schemaVersion: 1,
+      tweaks: 'auto',
+      bitmapAssets: 'auto',
+      reusableSystem: 'auto',
+    },
+    attachmentCount: input.attachments?.length ?? 0,
+    hasReferenceUrl: input.referenceUrl !== null && input.referenceUrl !== undefined,
+    hasDesignSystem: input.designSystem !== null && input.designSystem !== undefined,
+  });
+  const runProtocolState: RunProtocolState = {
+    requiresTodosBeforeMutation: runProtocol.requiresTodosBeforeMutation,
+    todosSet: false,
+  };
   const featureProfile = featureProfileFromRunPreferences(input.runPreferences);
   const systemPrompt =
     input.systemPrompt ??
@@ -902,7 +967,10 @@ export async function generateViaAgent(
   const getWorkspaceRoot = () => input.getWorkspaceRoot?.() ?? input.workspaceRoot ?? null;
   const defaultToolsByName = new Map<string, AgentTool<TSchema, unknown>>();
   defaultToolsByName.set('set_title', makeSetTitleTool() as unknown as AgentTool<TSchema, unknown>);
-  defaultToolsByName.set('set_todos', makeSetTodosTool() as unknown as AgentTool<TSchema, unknown>);
+  defaultToolsByName.set(
+    'set_todos',
+    wrapTodosState(makeSetTodosTool() as unknown as AgentTool<TSchema, unknown>, runProtocolState),
+  );
   const loadedSkills = new Set<string>();
   defaultToolsByName.set(
     'skill',
@@ -917,30 +985,39 @@ export async function generateViaAgent(
   );
   defaultToolsByName.set(
     'scaffold',
-    wrapScaffoldState(
-      makeScaffoldTool(
-        getWorkspaceRoot,
-        () => scaffoldsRoot,
-        input.onScaffolded ? { onScaffolded: input.onScaffolded } : {},
-      ) as unknown as AgentTool<TSchema, unknown>,
-      resourceState,
+    wrapPlanningGate(
+      wrapScaffoldState(
+        makeScaffoldTool(
+          getWorkspaceRoot,
+          () => scaffoldsRoot,
+          input.onScaffolded ? { onScaffolded: input.onScaffolded } : {},
+        ) as unknown as AgentTool<TSchema, unknown>,
+        resourceState,
+      ),
+      runProtocolState,
     ),
   );
   if (trackedFs) {
     defaultToolsByName.set(
       'str_replace_based_edit_tool',
-      makeTextEditorTool(trackedFs) as unknown as AgentTool<TSchema, unknown>,
+      wrapPlanningGate(
+        makeTextEditorTool(trackedFs) as unknown as AgentTool<TSchema, unknown>,
+        runProtocolState,
+      ),
     );
     defaultToolsByName.set(
       'done',
-      wrapDoneState(
-        makeDoneTool(trackedFs, deps.runtimeVerify, {
-          requireDesignMd: true,
-        }) as unknown as AgentTool<TSchema, unknown>,
-        resourceState,
-        () => {
-          doneRepairLimitReached = true;
-        },
+      wrapPlanningGate(
+        wrapDoneState(
+          makeDoneTool(trackedFs, deps.runtimeVerify, {
+            requireDesignMd: true,
+          }) as unknown as AgentTool<TSchema, unknown>,
+          resourceState,
+          () => {
+            doneRepairLimitReached = true;
+          },
+        ),
+        runProtocolState,
       ),
     );
   }
@@ -948,7 +1025,10 @@ export async function generateViaAgent(
     const vision = piModel.input?.includes('image') === true;
     defaultToolsByName.set(
       'preview',
-      makePreviewTool(input.runPreview, { vision }) as unknown as AgentTool<TSchema, unknown>,
+      wrapPlanningGate(
+        makePreviewTool(input.runPreview, { vision }) as unknown as AgentTool<TSchema, unknown>,
+        runProtocolState,
+      ),
     );
   }
   const imageExplicitlyDisabled = explicitDisabled(featureProfile.bitmapAssets);
@@ -956,10 +1036,13 @@ export async function generateViaAgent(
   if (deps.generateImageAsset && !imageExplicitlyDisabled) {
     defaultToolsByName.set(
       'generate_image_asset',
-      makeGenerateImageAssetTool(deps.generateImageAsset, trackedFs, log) as unknown as AgentTool<
-        TSchema,
-        unknown
-      >,
+      wrapPlanningGate(
+        makeGenerateImageAssetTool(deps.generateImageAsset, trackedFs, log) as unknown as AgentTool<
+          TSchema,
+          unknown
+        >,
+        runProtocolState,
+      ),
     );
   }
   if (input.inspectWorkspace) {
@@ -971,7 +1054,10 @@ export async function generateViaAgent(
   if (input.readWorkspaceFiles && !tweaksExplicitlyDisabled) {
     defaultToolsByName.set(
       'tweaks',
-      makeTweaksTool(input.readWorkspaceFiles) as unknown as AgentTool<TSchema, unknown>,
+      wrapPlanningGate(
+        makeTweaksTool(input.readWorkspaceFiles) as unknown as AgentTool<TSchema, unknown>,
+        runProtocolState,
+      ),
     );
   }
   if (input.askBridge) {

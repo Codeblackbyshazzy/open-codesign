@@ -5,9 +5,11 @@ import {
   applyRunPreferenceAnswers,
   buildApplyCommentUserPrompt,
   buildDesignContextPack,
+  buildRunProtocolPreflight,
   type CoreLogger,
   composeSystemPrompt,
   type DesignSessionBriefV1,
+  formatRunProtocolPreflightAnswers,
   type GenerateImageAssetRequest,
   type GenerateImageAssetResult,
   generateTitle,
@@ -94,6 +96,24 @@ export function buildRunPreferenceAskInput(questions: AskInput['questions']): As
     rationale: 'A few setup choices help Open CoDesign avoid unnecessary work.',
     questions,
   };
+}
+
+export function assistantNoteForToolStart(
+  toolName: string,
+  args: Record<string, unknown>,
+  hasModelTextInTurn: boolean,
+): string | null {
+  if (hasModelTextInTurn) return null;
+  if (toolName === 'ask') return 'I need a couple choices before building.';
+  if (toolName === 'set_todos') return 'I’ll lay out the build steps first.';
+  if (toolName === 'preview') return 'I’m previewing the artifact and checking for issues.';
+  if (toolName === 'done') return 'I’m running the final completion check.';
+  if (toolName === 'str_replace_based_edit_tool') {
+    return args['command'] === 'create'
+      ? 'I’m writing the first complete pass now.'
+      : 'I’m applying the next focused edit.';
+  }
+  return null;
 }
 
 function recentHistoryForRunPreferenceRouter(
@@ -540,6 +560,14 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 : {};
             const command =
               typeof argsObj['command'] === 'string' ? (argsObj['command'] as string) : undefined;
+            const note = assistantNoteForToolStart(
+              event.toolName,
+              argsObj,
+              turnTextBuffer.trim().length > 0,
+            );
+            if (note !== null) {
+              sendEvent({ ...baseCtx, type: 'assistant_note', text: note });
+            }
             sendEvent({
               ...baseCtx,
               type: 'tool_call_start',
@@ -791,19 +819,30 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 logger: coreLogger,
               });
               let runPreferences = routedPreferences.preferences;
-              if (
-                routedPreferences.needsClarification &&
-                routedPreferences.clarificationQuestions
-              ) {
+              const runProtocolPreflight = buildRunProtocolPreflight({
+                prompt: payload.prompt,
+                historyCount: chatRows.filter((row) => row.kind === 'user').length,
+                workspaceState: { hasSource: Boolean(payload.previousSource?.trim()) },
+                runPreferences,
+                routerQuestions: routedPreferences.needsClarification
+                  ? routedPreferences.clarificationQuestions
+                  : undefined,
+                attachmentCount: promptContext.attachments.length,
+                hasReferenceUrl: promptContext.referenceUrl !== null,
+                hasDesignSystem: promptContext.designSystem !== null,
+              });
+              let preflightAnswers: Array<{
+                questionId: string;
+                value: string | number | string[] | null;
+              }> = [];
+              if (runProtocolPreflight.requiresClarification) {
                 const askResult = await requestAsk(
                   id,
-                  buildRunPreferenceAskInput(routedPreferences.clarificationQuestions),
+                  buildRunPreferenceAskInput(runProtocolPreflight.clarificationQuestions),
                   () => getMainWindow(),
                 );
-                runPreferences = applyRunPreferenceAnswers(
-                  runPreferences,
-                  askResult.status === 'answered' ? askResult.answers : [],
-                );
+                preflightAnswers = askResult.status === 'answered' ? askResult.answers : [];
+                runPreferences = applyRunPreferenceAnswers(runPreferences, preflightAnswers);
               }
               if (runPreferenceStoreOptions !== null) {
                 appendSessionRunPreferences(runPreferenceStoreOptions, designId, runPreferences);
@@ -838,7 +877,10 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                   attachments: promptContext.attachments,
                   referenceUrl: promptContext.referenceUrl,
                   designSystem: promptContext.designSystem ?? null,
-                  sessionContext: contextPack.contextSections,
+                  sessionContext: [
+                    ...contextPack.contextSections,
+                    ...formatRunProtocolPreflightAnswers(preflightAnswers),
+                  ],
                   ...(memoryContext !== undefined ? { memoryContext: memoryContext.sections } : {}),
                   projectContext: promptContext.projectContext,
                   currentDesignName,

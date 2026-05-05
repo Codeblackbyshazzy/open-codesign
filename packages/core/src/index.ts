@@ -89,6 +89,14 @@ export {
   runPreferencesFromJson,
 } from './run-preferences.js';
 export {
+  buildRunProtocolPreflight,
+  formatRunProtocolPreflightAnswers,
+  type RunProtocolPreflightInput,
+  type RunProtocolPreflightResult,
+  type RunProtocolState,
+  type RunProtocolWorkspaceState,
+} from './run-protocol.js';
+export {
   type AskAnswer,
   type AskBridge,
   type AskInput,

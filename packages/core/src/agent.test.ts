@@ -962,7 +962,7 @@ describe('generateViaAgent()', () => {
     expect(result.resourceState?.lastDone?.status).toBe('has_errors');
   });
 
-  it('allows substantive file edits even when set_todos has not run yet', async () => {
+  it('blocks substantive file edits until set_todos has run for fresh multi-step work', async () => {
     scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
     const fs = makeStubFs({});
     await generateViaAgent(
@@ -977,15 +977,77 @@ describe('generateViaAgent()', () => {
 
     const tools = agentCalls[0]?.options.initialState?.tools ?? [];
     const editor = tools.find((tool) => tool.name === 'str_replace_based_edit_tool');
+    const todos = tools.find((tool) => tool.name === 'set_todos');
     if (!editor) throw new Error('expected editor tool');
+    if (!todos) throw new Error('expected set_todos tool');
 
-    const created = await editor.execute('edit-1', {
+    const blocked = await editor.execute('edit-1', {
+      command: 'create',
+      path: 'App.jsx',
+      file_text: 'function App() { return <main/>; }',
+    });
+    expect(JSON.stringify(blocked.content)).toContain('Call set_todos before editing');
+    expect(fs.view('App.jsx')).toBeNull();
+
+    await todos.execute('todos-1', {
+      items: [{ text: 'Build invoice screen', checked: false }],
+    });
+    const created = await editor.execute('edit-2', {
       command: 'create',
       path: 'App.jsx',
       file_text: 'function App() { return <main/>; }',
     });
     expect(JSON.stringify(created.content)).toContain('Created App.jsx');
     expect(fs.view('App.jsx')).not.toBeNull();
+  });
+
+  it('blocks preview and done until set_todos has run for fresh multi-step work', async () => {
+    scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
+    await generateViaAgent(
+      {
+        prompt: 'design an invoice',
+        history: [],
+        model: MODEL,
+        apiKey: 'sk-test',
+        runPreview: async () => ({
+          ok: true,
+          consoleErrors: [],
+          assetErrors: [],
+          metrics: { nodes: 1, height: 720, width: 1280, loadMs: 10 },
+        }),
+      },
+      { fs: makeStubFs({}) },
+    );
+
+    const tools = agentCalls[0]?.options.initialState?.tools ?? [];
+    const editor = tools.find((tool) => tool.name === 'str_replace_based_edit_tool');
+    const preview = tools.find((tool) => tool.name === 'preview');
+    const done = tools.find((tool) => tool.name === 'done');
+    const todos = tools.find((tool) => tool.name === 'set_todos');
+    if (!editor || !preview || !done || !todos) {
+      throw new Error('expected editor, preview, done, and set_todos tools');
+    }
+
+    expect(JSON.stringify(await preview.execute('preview-1', { path: 'App.jsx' }))).toContain(
+      'Call set_todos before editing',
+    );
+    await todos.execute('todos-1', { items: [{ text: 'Check invoice', checked: false }] });
+    await editor.execute('edit-1', {
+      command: 'create',
+      path: 'App.jsx',
+      file_text: SAMPLE_HTML,
+    });
+    await editor.execute('edit-2', {
+      command: 'create',
+      path: 'DESIGN.md',
+      file_text: VALID_DESIGN_MD,
+    });
+    expect(JSON.stringify(await preview.execute('preview-2', { path: 'App.jsx' }))).not.toContain(
+      'Call set_todos before editing',
+    );
+    expect(JSON.stringify(await done.execute('done-1', { path: 'App.jsx' }))).toContain(
+      '"status":"ok"',
+    );
   });
 
   it('allows a done ok state that covers the latest mutation', async () => {
@@ -1260,7 +1322,7 @@ describe('generateViaAgent()', () => {
     try {
       await generateViaAgent({
         prompt: 'copy a frame',
-        history: [],
+        history: [{ role: 'user', content: 'copy a frame' }],
         model: MODEL,
         apiKey: 'sk-test',
         templatesRoot,

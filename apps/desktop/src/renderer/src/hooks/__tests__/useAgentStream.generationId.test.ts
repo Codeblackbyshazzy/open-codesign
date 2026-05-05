@@ -16,6 +16,7 @@ interface LogPayload {
   code?: string | undefined;
   toolName?: string | undefined;
   toolCallId?: string | undefined;
+  text?: string | undefined;
 }
 
 /** Simulates the log-payload extraction performed by handleTurnStart. */
@@ -54,6 +55,14 @@ function toolCallStartLogPayload(event: AgentStreamEvent): LogPayload {
     designId: event.designId,
     toolName: event.toolName ?? 'unknown',
     toolCallId: event.toolCallId,
+  };
+}
+
+/** Simulates assistant_note persistence input. */
+function assistantNotePayload(event: AgentStreamEvent): { designId: string; text: string } {
+  return {
+    designId: event.designId,
+    text: event.text ?? '',
   };
 }
 
@@ -121,5 +130,13 @@ describe('useAgentStream — generationId in log payloads', () => {
     };
     expect(typeof event.generationId).toBe('string');
     expect(event.generationId.length).toBeGreaterThan(0);
+  });
+
+  it('assistant_note carries text for persisted assistant messages', () => {
+    const event = baseEvent('assistant_note', { text: 'I’m previewing the artifact.' });
+    expect(assistantNotePayload(event)).toEqual({
+      designId: DESIGN_ID,
+      text: 'I’m previewing the artifact.',
+    });
   });
 });

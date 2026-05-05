@@ -242,6 +242,7 @@ export interface UserMemoryConsolidationResult {
 export interface AgentStreamEvent {
   type:
     | 'turn_start'
+    | 'assistant_note'
     | 'text_delta'
     | 'turn_end'
     | 'tool_call_start'
@@ -258,6 +259,8 @@ export interface AgentStreamEvent {
   turnId?: string;
   // text_delta
   delta?: string;
+  // assistant_note
+  text?: string;
   // turn_end
   finalText?: string;
   // tool_call_start

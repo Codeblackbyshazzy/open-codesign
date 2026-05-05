@@ -118,6 +118,19 @@ export function useAgentStream(): void {
       });
     };
 
+    const handleAssistantNote = (event: AgentStreamEvent) => {
+      markGenerationRunning(event.designId, event.generationId, 'streaming');
+      const text = typeof event.text === 'string' ? event.text.trim() : '';
+      if (text.length === 0) return;
+      void appendChatMessage({
+        designId: event.designId,
+        kind: 'assistant_text',
+        payload: { text },
+      });
+      const current = inFlight.current.get(event.generationId);
+      if (current) current.lastPersistedText = text;
+    };
+
     const drainPendingTools = (current: InFlightTurn, finalStatus: 'done' | 'error'): void => {
       const designId = current.designId;
       const stragglers = current.pendingTools.filter((p) => !p.resolved);
@@ -379,6 +392,9 @@ export function useAgentStream(): void {
           return;
         case 'text_delta':
           handleTextDelta(event);
+          return;
+        case 'assistant_note':
+          handleAssistantNote(event);
           return;
         case 'turn_end':
           handleTurnEnd(event);
