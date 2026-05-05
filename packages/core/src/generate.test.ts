@@ -181,7 +181,7 @@ describe('composeSystemPrompt()', () => {
     const prompt = composeSystemPrompt({ mode: 'create' });
     for (const guardrail of [
       'Section/content beats needed to avoid sparse output',
-      'Palette, type ladder, and tweakable tokens',
+      'Palette, type ladder, candidate tweakable tokens',
       'No hotlinked stock or placeholder images',
       'Content must be domain-specific',
       '#0E0E10',
@@ -234,6 +234,18 @@ describe('composeSystemPrompt()', () => {
     expect(prompt).toContain('/*EDITMODE-BEGIN*/');
     expect(prompt).toContain('/*EDITMODE-END*/');
     expect(prompt).toContain('TWEAK_DEFAULTS');
+  });
+
+  it('create mode asks before high-impact ambiguity and treats tweaks as optional', () => {
+    const prompt = composeSystemPrompt({ mode: 'create' });
+    expect(prompt).toContain('ask before editing instead of guessing');
+    expect(prompt).toContain('optional feature would add meaningful work');
+    expect(prompt).toContain('Tweak controls would require extra design-token work');
+    expect(prompt).toContain('Expose tweaks selectively');
+    expect(prompt).toContain('Skip tweak work for narrow edits');
+    expect(prompt).toContain('they can ask for controls in a later turn');
+    expect(prompt).toContain('Empty `{}` is valid');
+    expect(prompt).toContain('user did not want tweak controls');
   });
 
   it('create mode defines concrete DESIGN.md promotion triggers', () => {
@@ -317,13 +329,13 @@ describe('composeSystemPrompt()', () => {
     expect(p).toContain('not a standalone HTML export');
   });
 
-  it('requires staged file generation instead of one huge initial artifact write', () => {
+  it('allows a coherent first file pass before preview', () => {
     const p = composeSystemPrompt({ mode: 'create' });
-    expect(p).toContain('First file scaffold');
-    expect(p).toContain('Do not put the whole finished page into the first write');
+    expect(p).toContain('First file pass');
+    expect(p).toContain('create `App.jsx` when you have a coherent first pass');
     expect(p).toContain('Preview the complete pass');
-    expect(p).toContain('Implement the first complete pass');
-    expect(p).toContain('do not call `preview` while the file is still only a scaffold');
+    expect(p).toContain('Implement and polish');
+    expect(p).toContain('Do not call `preview` while the file is still only a scaffold');
   });
 
   it('asks the agent to interleave concise progress notes with tool phases', () => {

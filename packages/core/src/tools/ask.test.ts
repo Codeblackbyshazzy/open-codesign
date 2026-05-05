@@ -56,6 +56,11 @@ describe('validateAskInput', () => {
 });
 
 describe('makeAskTool', () => {
+  it('describes optional tweak controls as a valid reason to ask', () => {
+    const tool = makeAskTool(async () => ({ status: 'answered', answers: [] }));
+    expect(tool.description).toContain('optional work such as tweak controls');
+  });
+
   it('routes valid input through the bridge and surfaces the answers', async () => {
     const canned: AskResult = {
       status: 'answered',

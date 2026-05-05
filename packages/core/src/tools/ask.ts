@@ -281,7 +281,8 @@ export function makeAskTool(askBridge: AskBridge): AgentTool<typeof AskInput, As
       'Render a structured questionnaire (1–25 questions, 5 types: text-options / ' +
       'svg-options / slider / file / freeform) to the user and wait for answers. ' +
       'Use BEFORE implementing when the request is ambiguous or when aesthetic / ' +
-      "content direction is unclear. Returns `{status: 'answered', answers}` or " +
+      'content direction is unclear, including optional work such as tweak controls. ' +
+      "Returns `{status: 'answered', answers}` or " +
       "`{status: 'cancelled', answers: []}`.",
     parameters: AskInput,
     async execute(_toolCallId, params): Promise<AgentToolResult<AskResult>> {
