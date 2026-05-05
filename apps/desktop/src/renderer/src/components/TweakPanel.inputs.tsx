@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 
-const HEX_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 const CSS_COLOR_RE =
   /^(#([0-9a-f]{3}|[0-9a-f]{6})|(rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\([^)]*\)|color\([^)]*\)|[a-z]+)$/i;
 
@@ -8,8 +7,57 @@ export function isColorString(value: unknown): value is string {
   return typeof value === 'string' && CSS_COLOR_RE.test(value.trim());
 }
 
-function isNativeColorInputValue(value: string): boolean {
-  return HEX_RE.test(value.trim());
+function clampChannel(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function channelToHex(value: number): string {
+  return clampChannel(value).toString(16).padStart(2, '0');
+}
+
+function expandHexColor(value: string): string | null {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!match) return null;
+  const raw = match[1];
+  if (!raw) return null;
+  if (raw.length === 3) {
+    return `#${raw
+      .split('')
+      .map((ch) => ch + ch)
+      .join('')
+      .toLowerCase()}`;
+  }
+  return `#${raw.toLowerCase()}`;
+}
+
+function parseRgbChannel(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed.endsWith('%')) {
+    const pct = Number(trimmed.slice(0, -1));
+    if (!Number.isFinite(pct)) return null;
+    return (pct / 100) * 255;
+  }
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : null;
+}
+
+function rgbFunctionalColorToHex(value: string): string | null {
+  const match = value
+    .trim()
+    .match(
+      /^rgba?\(\s*([+-]?\d*\.?\d+%?)\s*(?:,|\s)\s*([+-]?\d*\.?\d+%?)\s*(?:,|\s)\s*([+-]?\d*\.?\d+%?)(?:\s*(?:\/|,)\s*[^)]*)?\)$/i,
+    );
+  if (!match) return null;
+  const channels = [match[1], match[2], match[3]].map((part) =>
+    part === undefined ? null : parseRgbChannel(part),
+  );
+  if (channels.some((channel) => channel === null)) return null;
+  return `#${channelToHex(channels[0] ?? 0)}${channelToHex(channels[1] ?? 0)}${channelToHex(channels[2] ?? 0)}`;
+}
+
+export function toNativeColorInputValue(value: string): string | null {
+  return expandHexColor(value) ?? rgbFunctionalColorToHex(value);
 }
 
 export function humanize(key: string): string {
@@ -29,31 +77,24 @@ export function ColorSwatch({
   onChange: (next: string) => void;
   pickColorLabel: string;
 }) {
-  const canPickNatively = isNativeColorInputValue(value);
-  const swatchClassName = `relative inline-flex h-[28px] w-[28px] shrink-0 overflow-hidden rounded-[var(--radius-sm)] shadow-[var(--shadow-inset-soft)] transition-transform duration-[var(--duration-faster)] ${
-    canPickNatively
-      ? 'cursor-pointer hover:scale-[1.04] active:scale-[var(--scale-press-down)]'
-      : 'cursor-default'
-  }`;
+  const nativePickerValue = toNativeColorInputValue(value) ?? '#000000';
+  const swatchClassName =
+    'relative inline-flex h-[28px] w-[28px] shrink-0 cursor-pointer overflow-hidden rounded-[var(--radius-sm)] shadow-[var(--shadow-inset-soft)] transition-transform duration-[var(--duration-faster)] hover:scale-[1.04] active:scale-[var(--scale-press-down)]';
   const swatchFill = (
     <span className="block h-full w-full" style={{ backgroundColor: value }} aria-hidden="true" />
   );
   return (
     <div className="flex items-center gap-[var(--space-2)]">
-      {canPickNatively ? (
-        <label className={swatchClassName}>
-          {swatchFill}
-          <input
-            type="color"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 cursor-pointer opacity-0"
-            aria-label={pickColorLabel}
-          />
-        </label>
-      ) : (
-        <div className={swatchClassName}>{swatchFill}</div>
-      )}
+      <label className={swatchClassName}>
+        {swatchFill}
+        <input
+          type="color"
+          value={nativePickerValue}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer appearance-none border-0 p-0 opacity-0"
+          aria-label={pickColorLabel}
+        />
+      </label>
       <input
         type="text"
         value={value}
