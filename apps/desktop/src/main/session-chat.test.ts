@@ -8,7 +8,9 @@ import {
   appendSessionChatMessage,
   appendSessionDesignBrief,
   appendSessionToolStatus,
+  CHAT_TOOL_STATUS_CUSTOM_TYPE,
   CONTEXT_BRIEF_CUSTOM_TYPE,
+  listSessionChatMessages,
   readSessionDesignBrief,
   seedSessionChatFromSnapshots,
 } from './session-chat';
@@ -62,9 +64,14 @@ describe('session design brief storage', () => {
       expect(getDesign(db, design.id)?.updatedAt).toBe('2026-05-02T00:00:00.000Z');
 
       vi.setSystemTime(new Date('2026-05-03T00:00:00.000Z'));
+      const toolMessage = appendSessionChatMessage(opts, {
+        designId: design.id,
+        kind: 'tool_call',
+        payload: { toolName: 'preview', args: {}, status: 'running' },
+      });
       appendSessionToolStatus(opts, {
         designId: design.id,
-        seq: 0,
+        seq: toolMessage.seq,
         status: 'done',
       });
 
@@ -100,6 +107,69 @@ describe('session design brief storage', () => {
       expect(getDesign(db, design.id)?.updatedAt).toBe(beforeSeed);
     } finally {
       vi.useRealTimers();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores orphan tool-status entries when replaying chat history', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'codesign-session-orphan-status-'));
+    try {
+      const db = initSnapshotsDb(path.join(root, 'design-store.json'));
+      const design = createDesign(db, 'Orphan status');
+      updateDesignWorkspace(db, design.id, root);
+      const opts = { db, sessionDir: db.sessionDir };
+
+      appendSessionChatMessage(opts, {
+        designId: design.id,
+        kind: 'user',
+        payload: { text: 'make a stats strip' },
+      });
+
+      const safeId = design.id.replace(/[^A-Za-z0-9_-]/g, '_');
+      const file = path.join(db.sessionDir, `${safeId}.jsonl`);
+      const manager = SessionManager.open(file, db.sessionDir, root);
+      manager.appendCustomEntry(CHAT_TOOL_STATUS_CUSTOM_TYPE, {
+        schemaVersion: 1,
+        seq: 99,
+        status: 'done',
+      });
+      const header = manager.getHeader();
+      if (header === null) throw new Error('missing session header');
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(
+        file,
+        `${[header, ...manager.getEntries()].map((e) => JSON.stringify(e)).join('\n')}\n`,
+      );
+
+      const rows = listSessionChatMessages(opts, design.id);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.kind).toBe('user');
+      expect(seedSessionChatFromSnapshots(opts, design.id)).toBe(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not append tool status updates for missing messages', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'codesign-session-missing-status-'));
+    try {
+      const db = initSnapshotsDb(path.join(root, 'design-store.json'));
+      const design = createDesign(db, 'Missing status target');
+      updateDesignWorkspace(db, design.id, root);
+      const opts = { db, sessionDir: db.sessionDir };
+
+      appendSessionChatMessage(opts, {
+        designId: design.id,
+        kind: 'user',
+        payload: { text: 'hello' },
+      });
+      appendSessionToolStatus(opts, { designId: design.id, seq: 99, status: 'done' });
+
+      const safeId = design.id.replace(/[^A-Za-z0-9_-]/g, '_');
+      const file = path.join(db.sessionDir, `${safeId}.jsonl`);
+      expect(readFileSync(file, 'utf8')).not.toContain(CHAT_TOOL_STATUS_CUSTOM_TYPE);
+      expect(listSessionChatMessages(opts, design.id)).toHaveLength(1);
+    } finally {
       await rm(root, { recursive: true, force: true });
     }
   });

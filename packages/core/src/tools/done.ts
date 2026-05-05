@@ -215,6 +215,43 @@ function findMissingAlt(html: string): DoneError[] {
   return issues;
 }
 
+function findBrokenHashLinks(html: string): DoneError[] {
+  const ids = new Set<string>();
+  const idRe = /\bid\s*=\s*["']([^"']+)["']/g;
+  let idMatch = idRe.exec(html);
+  while (idMatch !== null) {
+    const id = idMatch[1];
+    if (id !== undefined) ids.add(id);
+    idMatch = idRe.exec(html);
+  }
+
+  const issues: DoneError[] = [];
+  const hrefRe = /\bhref\s*=\s*["'](#[^"']*)["']/g;
+  let hrefMatch = hrefRe.exec(html);
+  while (hrefMatch !== null) {
+    const href = hrefMatch[1] ?? '';
+    const lineno = html.slice(0, hrefMatch.index).split('\n').length;
+    if (href === '#') {
+      issues.push({
+        message: 'Anchor href="#" has no real destination; use a button for placeholder actions.',
+        lineno,
+        source: 'html',
+      });
+    } else if (!href.startsWith('#/')) {
+      const targetId = href.slice(1);
+      if (!ids.has(targetId)) {
+        issues.push({
+          message: `Anchor href="${href}" targets no element id="${targetId}"; use a button unless the destination exists.`,
+          lineno,
+          source: 'html',
+        });
+      }
+    }
+    hrefMatch = hrefRe.exec(html);
+  }
+  return issues;
+}
+
 function isFullHtmlDocument(src: string): boolean {
   return (
     /<!doctype\s+html/i.test(src) ||
@@ -465,6 +502,7 @@ export function makeDoneTool(
         ...(isJsxShaped(file.content) ? [] : findUnclosedTags(file.content)),
         ...findDuplicateIds(file.content),
         ...findMissingAlt(file.content),
+        ...findBrokenHashLinks(file.content),
         ...(opts.requireDesignMd ? requiredDesignMdErrors(fs, path) : []),
         ...designMdWorkspaceErrors(fs, path),
       ];

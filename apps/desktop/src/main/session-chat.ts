@@ -205,12 +205,7 @@ function replayEntries(designId: string, entries: unknown[]): ChatMessageRow[] {
         throw new CodesignError('Malformed stored chat tool-status entry', 'IPC_DB_ERROR');
       }
       const idx = rows.findIndex((row) => row.seq === update.seq);
-      if (idx < 0) {
-        throw new CodesignError(
-          'Stored chat tool-status entry references a missing message',
-          'IPC_DB_ERROR',
-        );
-      }
+      if (idx < 0) continue;
       const row = rows[idx];
       if (row) rows[idx] = applyStatusUpdate(row, update);
     }
@@ -267,6 +262,10 @@ export function appendSessionToolStatus(
   opts: SessionChatStoreOptions,
   input: ChatToolStatusUpdate,
 ): void {
+  const row = listSessionChatMessages(opts, input.designId).find(
+    (message) => message.seq === input.seq,
+  );
+  if (row?.kind !== 'tool_call') return;
   const manager = openSession(opts, input.designId);
   const stored: StoredToolStatusUpdate = {
     schemaVersion: 1,

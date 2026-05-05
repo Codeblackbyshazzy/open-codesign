@@ -39,7 +39,7 @@ import {
 import { resolveGenerationWorkspaceRoot } from '../generation-workspace';
 import { resolveImageGenerationConfig, toGenerateImageOptions } from '../image-generation-settings';
 import { getLogger } from '../logger';
-import { loadMemoryContext } from '../memory-ipc';
+import { loadMemoryContext, triggerMemoryUpdate } from '../memory-ipc';
 import { getApiKeyForProvider, getCachedConfig, hasApiKeyForProvider } from '../onboarding-ipc';
 import { readPersisted as readPreferences } from '../preferences-ipc';
 import { runPreview } from '../preview-runtime';
@@ -56,6 +56,7 @@ import {
 } from '../session-chat';
 import { type Database, getDesign, recordDiagnosticEvent } from '../snapshots-db';
 import { readWorkspaceFilesAt } from '../workspace-reader';
+import { finalAssistantTextForTurn } from './assistant-text';
 import { allocateAssetPath, createRuntimeTextEditorFs, resolveLocalAssetRefs } from './runtime-fs';
 import { toolExecutionStatusForStream } from './tool-log';
 
@@ -318,6 +319,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
       : undefined;
 
     let deltaCount = 0;
+    let turnTextBuffer = '';
     let toolCount = 0;
 
     return generateViaAgent(
@@ -346,11 +348,15 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
         onEvent: (event: AgentEvent) => {
           if (event.type === 'turn_start') {
             deltaCount = 0;
+            turnTextBuffer = '';
             toolCount = 0;
             logIpc.info('agent.turn_start', { generationId: id });
           } else if (event.type === 'message_update') {
             const ame = event.assistantMessageEvent;
-            if (ame.type === 'text_delta') deltaCount += 1;
+            if (ame.type === 'text_delta') {
+              deltaCount += 1;
+              if (typeof ame.delta === 'string') turnTextBuffer += ame.delta;
+            }
           } else if (event.type === 'tool_execution_start') {
             toolCount += 1;
             logIpc.info('agent.tool_start', { generationId: id, tool: event.toolName });
@@ -432,10 +438,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
             // delivered via fs_updated / artifact_delivered, not the chat text.
             // The second pattern catches the cancel-mid-stream case where only
             // the opening tag has landed.
-            const finalText = rawText
-              .replace(/<artifact[\s\S]*?<\/artifact>/g, '')
-              .replace(/<artifact\b[\s\S]*$/g, '')
-              .trim();
+            const finalText = finalAssistantTextForTurn(rawText, turnTextBuffer);
             sendEvent({ ...baseCtx, type: 'turn_end', finalText });
             return;
           }
@@ -685,9 +688,30 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                   message: err instanceof Error ? err.message : String(err),
                 });
               });
+            const memoryUpdate = triggerMemoryUpdate({
+              workspacePath: workspaceRoot,
+              designId,
+              designName: design?.name ?? 'Untitled',
+              conversationMessages: capturedMessages,
+              model: active.model,
+              apiKey,
+              db,
+              ...(baseUrl !== undefined ? { baseUrl } : {}),
+              wire: active.wire,
+              ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
+              ...(active.reasoningLevel !== undefined
+                ? { reasoningLevel: active.reasoningLevel }
+                : {}),
+              ...(allowKeyless ? { allowKeyless: true } : {}),
+            }).catch((err) => {
+              logIpc.warn('memory.update.fail', {
+                generationId: id,
+                message: err instanceof Error ? err.message : String(err),
+              });
+            });
 
             if (aggressivePruneDetected) {
-              await briefUpdate;
+              await Promise.all([briefUpdate, memoryUpdate]);
             }
           }
           if (memoryLoadWarning !== undefined) {

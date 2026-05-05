@@ -109,6 +109,28 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);`,
     expect(res.details.errors.some((e) => /alt/.test(e.message))).toBe(true);
   });
 
+  it('flags hash links that point to missing in-page destinations', async () => {
+    const fs = makeFs({
+      'App.jsx': `function App() {
+  return (
+    <main>
+      <section id="work">Work</section>
+      <a href="#work">Work</a>
+      <a href="#archive">Archive</a>
+      <a href="#/work/1">Deep link</a>
+    </main>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);`,
+    });
+    const tool = makeDoneTool(fs);
+    const res = await tool.execute('id-broken-hash-link', {});
+    expect(res.details.status).toBe('has_errors');
+    expect(res.details.errors.some((e) => /href="#archive"/.test(e.message))).toBe(true);
+    expect(res.details.errors.some((e) => /href="#work"/.test(e.message))).toBe(false);
+    expect(res.details.errors.some((e) => /href="#\/work\/1"/.test(e.message))).toBe(false);
+  });
+
   it('does not count JSX component id props as duplicate DOM ids', async () => {
     const fs = makeFs({
       'App.jsx': `function Field({ id, children }) {
