@@ -77,10 +77,10 @@ export function classifyRenderableSource(
   source: string,
   path?: string | undefined,
 ): RenderableSourceKind {
+  if (looksLikeFullHtmlDocument(source)) return 'html';
   const ext = extensionKind(path);
   if (ext === 'tsx') return 'tsx';
   if (ext === 'jsx') return 'jsx';
-  if (looksLikeFullHtmlDocument(source)) return 'html';
   if (looksLikeJsxSource(source)) return 'jsx';
   if (ext === 'html') return 'html';
   return 'unknown';

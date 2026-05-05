@@ -261,6 +261,9 @@ describe('standalone renderable classification', () => {
     expect(
       classifyRenderableSource('function App(): JSX.Element { return <main/>; }', 'App.tsx'),
     ).toBe('tsx');
+    expect(classifyRenderableSource('<!doctype html><html><body>x</body></html>', 'demo.jsx')).toBe(
+      'html',
+    );
     expect(classifyRenderableSource('body {}', 'style.css')).toBe('unknown');
   });
 

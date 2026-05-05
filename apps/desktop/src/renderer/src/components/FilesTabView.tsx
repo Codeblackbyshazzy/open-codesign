@@ -13,7 +13,6 @@ import {
   isTrustedPreviewMessageSource,
   stablePreviewSourceKey,
 } from '../preview/helpers';
-import { LoadingState } from '../preview/LoadingState';
 import {
   readWorkspacePreviewSource,
   resolveDesignPreviewSource,
@@ -262,18 +261,6 @@ export function shouldShowTweakPanelForFile(input: {
   );
 }
 
-export function shouldGateUnverifiedGeneratingPreview(input: {
-  previewKind: FilePreviewKind;
-  currentDesignGenerating: boolean;
-  currentSnapshotId: string | null;
-}): boolean {
-  return (
-    input.previewKind === 'runtime' &&
-    input.currentDesignGenerating &&
-    input.currentSnapshotId === null
-  );
-}
-
 export function shouldUseDesignPreviewResolverForFile(input: {
   path: string;
   previewKind: FilePreviewKind;
@@ -448,9 +435,6 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
   const designs = useCodesignStore((s) => s.designs);
   const currentPreviewSource = useCodesignStore((s) => s.previewSource);
-  const currentSnapshotId = useCodesignStore((s) => s.currentSnapshotId);
-  const isGenerating = useCodesignStore((s) => s.isGenerating);
-  const generatingDesignId = useCodesignStore((s) => s.generatingDesignId);
   const interactionMode = useCodesignStore((s) => s.interactionMode);
   const pushIframeError = useCodesignStore((s) => s.pushIframeError);
   const { files: observedFiles } = useDesignFiles(files ? null : currentDesignId);
@@ -462,13 +446,6 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
   const previewKind = previewKindForFile(path, effectiveFile?.kind);
   const renderable = previewKind === 'runtime';
   const useDesignPreviewResolver = shouldUseDesignPreviewResolverForFile({ path, previewKind });
-  const currentDesignGenerating =
-    currentDesignId !== null && isGenerating && generatingDesignId === currentDesignId;
-  const gateUnverifiedPreview = shouldGateUnverifiedGeneratingPreview({
-    previewKind,
-    currentDesignGenerating,
-    currentSnapshotId,
-  });
   const textPreview = previewKind === 'markdown' || previewKind === 'text';
   const nativePreview =
     previewKind === 'image' ||
@@ -514,11 +491,6 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
       setReadError(null);
       return;
     }
-    if (gateUnverifiedPreview) {
-      setPreviewSource(null);
-      setReadError(null);
-      return;
-    }
     const read = window.codesign?.files?.read;
     if (useDesignPreviewResolver) {
       let cancelled = false;
@@ -526,7 +498,7 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
       void resolveDesignPreviewSource({
         designId: currentDesignId,
         read,
-        snapshotSource: currentSnapshotId === null ? currentPreviewSource : null,
+        snapshotSource: currentPreviewSource,
         listSnapshots: window.codesign?.snapshots.list,
         preferSnapshotSource: true,
       })
@@ -578,8 +550,6 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
   }, [
     currentDesignId,
     currentDesignUpdatedAt,
-    currentSnapshotId,
-    gateUnverifiedPreview,
     previewDependencyKey,
     path,
     currentPreviewSource,
@@ -616,10 +586,6 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
     previewSourceStableKey,
     renderable,
   ]);
-
-  if (gateUnverifiedPreview) {
-    return <LoadingState />;
-  }
 
   if (nativePreview) {
     const url = workspaceUrlForFile({ designId: currentDesignId, filePath: path });

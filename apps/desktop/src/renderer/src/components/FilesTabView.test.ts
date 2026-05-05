@@ -7,7 +7,6 @@ import {
   isRenderableDesignFileKind,
   previewKindForFile,
   resolveReferencedWorkspacePreviewPath,
-  shouldGateUnverifiedGeneratingPreview,
   shouldShowTweakPanelForFile,
   shouldUseDesignPreviewResolverForFile,
   workspaceBaseHrefForFile,
@@ -82,37 +81,6 @@ describe('FilesTabView preview helpers', () => {
         path: 'App.jsx',
         previewKind: 'runtime',
         hasPreviewSource: false,
-      }),
-    ).toBe(false);
-  });
-
-  it('gates first-run runtime file previews while generation is still unverified', () => {
-    expect(
-      shouldGateUnverifiedGeneratingPreview({
-        previewKind: 'runtime',
-        currentDesignGenerating: true,
-        currentSnapshotId: null,
-      }),
-    ).toBe(true);
-    expect(
-      shouldGateUnverifiedGeneratingPreview({
-        previewKind: 'runtime',
-        currentDesignGenerating: true,
-        currentSnapshotId: 'snapshot-1',
-      }),
-    ).toBe(false);
-    expect(
-      shouldGateUnverifiedGeneratingPreview({
-        previewKind: 'markdown',
-        currentDesignGenerating: true,
-        currentSnapshotId: null,
-      }),
-    ).toBe(false);
-    expect(
-      shouldGateUnverifiedGeneratingPreview({
-        previewKind: 'runtime',
-        currentDesignGenerating: false,
-        currentSnapshotId: null,
       }),
     ).toBe(false);
   });
