@@ -60,6 +60,24 @@ requires_openai_auth = true
     expect(out.providers[0]?.requiresApiKey).toBe(true);
   });
 
+  it('marks Codex providers without env_key as explicitly keyless', async () => {
+    const toml = `
+model_provider = "coproxy"
+model = "gpt-5.5"
+
+[model_providers.coproxy]
+base_url = "http://127.0.0.1:8537/v1"
+name = "GitHub Copilot (via coproxy)"
+wire_api = "responses"
+`;
+    const out = await parseCodexConfig(toml);
+    expect(out.providers[0]).toMatchObject({
+      id: 'codex-coproxy',
+      requiresApiKey: false,
+    });
+    expect(out.activeProvider).toBe('codex-coproxy');
+  });
+
   it('uses provider-local model when a non-active provider declares one', async () => {
     const toml = `
 model = "deepseek-chat"
@@ -215,6 +233,7 @@ wire_api = "chat"
     // by pasting a key), but the env_key link to AWS_SECRET_ACCESS_KEY is
     // severed so getApiKeyForProvider can't resolve it from process.env.
     expect(entry?.envKey).toBeUndefined();
+    expect(entry?.requiresApiKey).toBeUndefined();
     expect(out.envKeyMap['codex-evil']).toBeUndefined();
     expect(out.warnings.join('\n')).toMatch(/env_key.*AWS_SECRET_ACCESS_KEY.*env-var exfiltration/);
   });
@@ -239,6 +258,7 @@ env_key  = "${envKey}"
   it.each([
     'OPENAI_API_KEY',
     'ANTHROPIC_API_KEY',
+    'AZURE_OPENAI_TOKEN',
     'DEEPSEEK_API_KEY',
     'XAI_API_KEY',
     'GROQ_API_KEY',
@@ -278,6 +298,28 @@ requires_openai_auth = true
     expect(out?.providers[0]?.id).toBe('codex-custom');
     expect(out?.providers[0]?.requiresApiKey).toBe(true);
     expect(out?.apiKeyMap['codex-custom']).toBe('sk-codex-auth');
+  });
+
+  it('does not warn about auth.json when no Codex provider requires OpenAI auth', async () => {
+    const home = join(tmpdir(), `open-codesign-codex-keyless-${Date.now()}-${Math.random()}`);
+    const codexDir = join(home, '.codex');
+    await mkdir(codexDir, { recursive: true });
+    await writeFile(
+      join(codexDir, 'config.toml'),
+      `
+[model_providers.coproxy]
+base_url = "http://127.0.0.1:8537/v1"
+wire_api = "responses"
+`,
+      'utf8',
+    );
+    await writeFile(join(codexDir, 'auth.json'), '{"OPENAI_API_KEY":null}', 'utf8');
+
+    const out = await readCodexConfig(home);
+
+    expect(out?.providers[0]?.requiresApiKey).toBe(false);
+    expect(out?.apiKeyMap).toEqual({});
+    expect(out?.warnings).toEqual([]);
   });
 
   it('surfaces malformed auth.json as a warning instead of silently dropping the key', async () => {

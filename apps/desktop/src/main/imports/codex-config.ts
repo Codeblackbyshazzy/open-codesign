@@ -41,6 +41,7 @@ export const ALLOWED_IMPORT_ENV_KEYS: ReadonlySet<string> = new Set([
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
   'AZURE_OPENAI_API_KEY',
+  'AZURE_OPENAI_TOKEN',
   'CEREBRAS_API_KEY',
   'DEEPSEEK_API_KEY',
   'FIREWORKS_API_KEY',
@@ -233,8 +234,10 @@ function parseProviderBlock(
       warnings,
     ),
   };
+  const declaresEnvKey = block.env_key !== undefined;
   applyEnvKey(entry, block, id, envKeyMap, warnings);
   if (block.requires_openai_auth === true) entry.requiresApiKey = true;
+  else if (!declaresEnvKey) entry.requiresApiKey = false;
   if (headers !== null) entry.httpHeaders = headers;
   if (query !== null) entry.queryParams = query;
   return entry;
@@ -357,6 +360,9 @@ export async function readCodexConfig(home: string = homedir()): Promise<CodexIm
   const raw = await safeReadImportFile(path);
   if (raw === null) return null;
   const imported = await parseCodexConfig(raw);
+  if (!imported.providers.some((provider) => provider.requiresApiKey === true)) {
+    return imported;
+  }
   const auth = await readCodexOpenAiApiKey(home);
   const warnings =
     auth.warning !== undefined ? [...imported.warnings, auth.warning] : imported.warnings;

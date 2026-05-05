@@ -842,6 +842,46 @@ describe('config:v1:import-codex-config empty env handling', () => {
       expect.objectContaining({ ciphertext: 'enc:sk-codex-auth' }),
     );
   });
+
+  it('imports Codex keyless providers without storing a secret', async () => {
+    const { readCodexConfig } = await import('./imports/codex-config');
+    const { buildSecretRef } = await import('./keychain');
+    const { writeConfig } = await import('./config');
+    vi.mocked(buildSecretRef).mockClear();
+    vi.mocked(writeConfig).mockClear();
+    vi.mocked(readCodexConfig).mockResolvedValueOnce({
+      providers: [
+        {
+          id: 'codex-coproxy',
+          name: 'Codex (imported)',
+          builtin: false,
+          wire: 'openai-responses',
+          baseUrl: 'http://127.0.0.1:8537/v1',
+          defaultModel: 'gpt-5.5',
+          requiresApiKey: false,
+        },
+      ],
+      activeProvider: 'codex-coproxy',
+      activeModel: 'gpt-5.5',
+      envKeyMap: {},
+      apiKeyMap: {},
+      warnings: [],
+    });
+
+    const handler = handlers.get('config:v1:import-codex-config');
+    expect(handler).toBeDefined();
+    await expect(handler?.({} as unknown)).resolves.toMatchObject({
+      provider: 'codex-coproxy',
+      modelPrimary: 'gpt-5.5',
+      hasKey: true,
+    });
+
+    expect(buildSecretRef).not.toHaveBeenCalled();
+    const written = vi.mocked(writeConfig).mock.calls.at(-1)?.[0];
+    expect(written?.activeProvider).toBe('codex-coproxy');
+    expect(written?.secrets['codex-coproxy']).toBeUndefined();
+    expect(written?.providers['codex-coproxy']?.requiresApiKey).toBe(false);
+  });
 });
 
 describe('config:v1:import-claude-code-config — user-type branching', () => {
