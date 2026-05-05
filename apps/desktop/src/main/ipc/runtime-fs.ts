@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path_module from 'node:path';
 import type { CoreLogger, GenerateImageAssetRequest } from '@open-codesign/core';
 import { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from '@open-codesign/shared';
@@ -150,6 +150,33 @@ export function createRuntimeTextEditorFs({
     return writeContent.storedContent;
   }
 
+  async function syncWorkspaceTextFile(
+    filePath: string,
+    absolutePath?: string,
+  ): Promise<{ path: string; content: string }> {
+    const normalizedPath = normalizeDesignFilePath(filePath);
+    let sourcePath = absolutePath;
+    if (!sourcePath) {
+      if (designId === null || db === null) {
+        throw new Error(`Workspace path unavailable for ${normalizedPath}`);
+      }
+      const design = getDesign(db, designId);
+      if (design === null) {
+        throw new Error(`Design not found: ${designId}`);
+      }
+      if (design.workspacePath === null) {
+        throw new Error(`Design is not bound to a workspace: ${designId}`);
+      }
+      const workspacePath = normalizeWorkspacePath(design.workspacePath);
+      sourcePath = await resolveSafeWorkspaceChildPath(workspacePath, normalizedPath);
+    }
+    const content = await readFile(sourcePath, 'utf8');
+    fsMap.set(normalizedPath, content);
+    emitFsUpdated(normalizedPath, content);
+    emitSourceIfAssetChanged(normalizedPath);
+    return { path: normalizedPath, content };
+  }
+
   const fs = {
     view(path: string) {
       const content = fsMap.get(path);
@@ -203,5 +230,5 @@ export function createRuntimeTextEditorFs({
     },
   };
 
-  return { fs, fsMap };
+  return { fs, fsMap, syncWorkspaceTextFile };
 }

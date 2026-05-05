@@ -212,6 +212,12 @@ export interface GenerateInput {
    * errors and builtin skill loading is skipped.
    */
   templatesRoot?: string | undefined;
+  /** Optional host callback invoked after scaffold writes a file into the workspace. */
+  onScaffolded?:
+    | ((
+        details: Extract<import('./tools/scaffold.js').ScaffoldDetails, { ok: true }>,
+      ) => Promise<void> | void)
+    | undefined;
   /** Override the system prompt entirely. When set, `mode` is ignored. */
   systemPrompt?: string | undefined;
   /**

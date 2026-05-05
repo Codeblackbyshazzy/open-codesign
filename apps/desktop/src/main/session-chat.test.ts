@@ -7,11 +7,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   appendSessionChatMessage,
   appendSessionDesignBrief,
+  appendSessionRunPreferences,
   appendSessionToolStatus,
   CHAT_TOOL_STATUS_CUSTOM_TYPE,
   CONTEXT_BRIEF_CUSTOM_TYPE,
   listSessionChatMessages,
   readSessionDesignBrief,
+  readSessionRunPreferences,
   seedSessionChatFromSnapshots,
 } from './session-chat';
 import {
@@ -150,6 +152,61 @@ describe('session design brief storage', () => {
     }
   });
 
+  it('ignores orphan tool-status entries even when mixed around valid tool rows', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'codesign-session-mixed-status-'));
+    try {
+      const db = initSnapshotsDb(path.join(root, 'design-store.json'));
+      const design = createDesign(db, 'Mixed orphan status');
+      updateDesignWorkspace(db, design.id, root);
+      const opts = { db, sessionDir: db.sessionDir };
+
+      appendSessionChatMessage(opts, {
+        designId: design.id,
+        kind: 'user',
+        payload: { text: 'build a deck' },
+      });
+      const toolRow = appendSessionChatMessage(opts, {
+        designId: design.id,
+        kind: 'tool_call',
+        payload: { toolName: 'preview', args: {}, status: 'running' },
+      });
+
+      const safeId = design.id.replace(/[^A-Za-z0-9_-]/g, '_');
+      const file = path.join(db.sessionDir, `${safeId}.jsonl`);
+      const manager = SessionManager.open(file, db.sessionDir, root);
+      manager.appendCustomEntry(CHAT_TOOL_STATUS_CUSTOM_TYPE, {
+        schemaVersion: 1,
+        seq: 999,
+        status: 'error',
+        errorMessage: 'orphaned',
+      });
+      manager.appendCustomEntry(CHAT_TOOL_STATUS_CUSTOM_TYPE, {
+        schemaVersion: 1,
+        seq: toolRow.seq,
+        status: 'done',
+      });
+      manager.appendCustomEntry(CHAT_TOOL_STATUS_CUSTOM_TYPE, {
+        schemaVersion: 1,
+        seq: 1000,
+        status: 'done',
+      });
+      const header = manager.getHeader();
+      if (header === null) throw new Error('missing session header');
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(
+        file,
+        `${[header, ...manager.getEntries()].map((e) => JSON.stringify(e)).join('\n')}\n`,
+      );
+
+      const rows = listSessionChatMessages(opts, design.id);
+      expect(rows).toHaveLength(2);
+      expect(rows[1]?.kind).toBe('tool_call');
+      expect((rows[1]?.payload as { status?: string } | undefined)?.status).toBe('done');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('does not append tool status updates for missing messages', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'codesign-session-missing-status-'));
     try {
@@ -186,6 +243,40 @@ describe('session design brief storage', () => {
       appendSessionDesignBrief(opts, design.id, brief('Latest goal'));
 
       expect(readSessionDesignBrief(opts, design.id)?.goal).toBe('Latest goal');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('appends and reads the latest run preferences from JSONL', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'codesign-session-prefs-'));
+    try {
+      const db = initSnapshotsDb(path.join(root, 'design-store.json'));
+      const design = createDesign(db, 'Run prefs test');
+      updateDesignWorkspace(db, design.id, root);
+      const opts = { db, sessionDir: db.sessionDir };
+
+      appendSessionRunPreferences(opts, design.id, {
+        schemaVersion: 1,
+        tweaks: 'no',
+        bitmapAssets: 'auto',
+        reusableSystem: 'auto',
+      });
+      appendSessionRunPreferences(opts, design.id, {
+        schemaVersion: 1,
+        tweaks: 'yes',
+        bitmapAssets: 'no',
+        reusableSystem: 'auto',
+        visualDirection: 'professional',
+      });
+
+      expect(readSessionRunPreferences(opts, design.id)).toEqual({
+        schemaVersion: 1,
+        tweaks: 'yes',
+        bitmapAssets: 'no',
+        reusableSystem: 'auto',
+        visualDirection: 'professional',
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

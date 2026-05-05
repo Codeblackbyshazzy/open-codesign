@@ -248,6 +248,31 @@ describe('composeSystemPrompt()', () => {
     expect(prompt).toContain('user did not want tweak controls');
   });
 
+  it('routes create prompt guidance when tweaks are disabled', () => {
+    const prompt = composeSystemPrompt({
+      mode: 'create',
+      featureProfile: {
+        tweaks: 'disabled',
+        bitmapAssets: 'auto',
+        reusableSystem: 'auto',
+      },
+    });
+    expect(prompt).toContain('Do not create EDITMODE tweak controls');
+    expect(prompt).not.toContain('Expose tweaks selectively');
+  });
+
+  it('routes create prompt guidance when tweaks are explicitly enabled', () => {
+    const prompt = composeSystemPrompt({
+      mode: 'create',
+      featureProfile: {
+        tweaks: 'enabled',
+        bitmapAssets: 'auto',
+        reusableSystem: 'auto',
+      },
+    });
+    expect(prompt).toContain('Create 2-5 high-leverage EDITMODE controls');
+  });
+
   it('create mode defines concrete DESIGN.md promotion triggers', () => {
     const prompt = composeSystemPrompt({ mode: 'create' });
     expect(prompt).toContain('Before a second screen');

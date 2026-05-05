@@ -65,7 +65,7 @@ import { type Database, getDesign, recordDiagnosticEvent } from '../snapshots-db
 import { readWorkspaceFilesAt } from '../workspace-reader';
 import { finalAssistantTextForTurn } from './assistant-text';
 import { allocateAssetPath, createRuntimeTextEditorFs, resolveLocalAssetRefs } from './runtime-fs';
-import { toolExecutionStatusForStream } from './tool-log';
+import { summarizeToolResultForStream, toolExecutionStatusForStream } from './tool-log';
 
 const DEFAULT_CONTEXT_WINDOW_FOR_CONTEXT_PACK = 200_000;
 
@@ -74,6 +74,13 @@ export function contextWindowForContextPack(model: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
     ? value
     : DEFAULT_CONTEXT_WINDOW_FOR_CONTEXT_PACK;
+}
+
+export function shouldRunUserMemoryCandidateCapture(prefs: {
+  memoryEnabled: boolean;
+  userMemoryAutoUpdate: boolean;
+}): boolean {
+  return prefs.memoryEnabled === true && prefs.userMemoryAutoUpdate === true;
 }
 
 function designMdSummaryForMemory(
@@ -153,6 +160,39 @@ function extractUpstreamHttpStatus(err: unknown): number | undefined {
     }
   }
   return undefined;
+}
+
+function normalizeGenerationFailure(opts: {
+  err: unknown;
+  signal: AbortSignal;
+  provider: string;
+  modelId: string;
+  baseUrl: string | undefined;
+  wire: string | undefined;
+}): { error: unknown; upstreamStatus: number | undefined } {
+  const upstreamStatus = extractUpstreamHttpStatus(opts.err);
+  if (opts.err !== null && typeof opts.err === 'object') {
+    const errAsRec = opts.err as Record<string, unknown>;
+    if (upstreamStatus !== undefined && errAsRec['upstream_status'] === undefined) {
+      errAsRec['upstream_status'] = upstreamStatus;
+    }
+    if (errAsRec['upstream_provider'] === undefined) {
+      errAsRec['upstream_provider'] = opts.provider;
+    }
+    if (errAsRec['upstream_model_id'] === undefined) {
+      errAsRec['upstream_model_id'] = opts.modelId;
+    }
+    if (errAsRec['upstream_baseurl'] === undefined && opts.baseUrl !== undefined) {
+      errAsRec['upstream_baseurl'] = opts.baseUrl;
+    }
+    if (errAsRec['upstream_wire'] === undefined && opts.wire !== undefined) {
+      errAsRec['upstream_wire'] = opts.wire;
+    }
+  }
+  return {
+    error: extractGenerationTimeoutError(opts.signal) ?? opts.err,
+    upstreamStatus,
+  };
 }
 
 function resolveActiveApiKeyFromState(providerId: string): Promise<string> {
@@ -315,7 +355,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
       loadDesignSkills(path_module.join(templatesRoot, 'design-skills')),
       readWorkspaceFilesAt(workspaceRoot),
     ]);
-    const { fs, fsMap } = createRuntimeTextEditorFs({
+    const { fs, fsMap, syncWorkspaceTextFile } = createRuntimeTextEditorFs({
       db,
       designId,
       generationId: id,
@@ -395,6 +435,9 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
         askBridge: (askInput) => requestAsk(id, askInput, () => getMainWindow()),
         workspaceRoot,
         getWorkspaceRoot: currentWorkspaceRoot,
+        onScaffolded: async (details) => {
+          await syncWorkspaceTextFile(details.destPath, details.written);
+        },
         inspectWorkspace: async () =>
           inspectWorkspaceFiles(await readWorkspaceFilesAt(currentWorkspaceRoot())),
         readWorkspaceFiles: (patterns) => readWorkspaceFilesAt(currentWorkspaceRoot(), patterns),
@@ -427,7 +470,11 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
             toolCount += 1;
             logIpc.info('agent.tool_start', { generationId: id, tool: event.toolName });
           } else if (event.type === 'tool_execution_end') {
-            const streamStatus = toolExecutionStatusForStream(event);
+            const streamedResult = summarizeToolResultForStream(event.toolName, event.result);
+            const streamStatus = toolExecutionStatusForStream({
+              ...event,
+              result: streamedResult,
+            });
             logIpc.info('agent.tool_end', {
               generationId: id,
               tool: event.toolName,
@@ -476,13 +523,17 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
           if (event.type === 'tool_execution_end') {
             const startedAt = toolStartedAt.get(event.toolCallId) ?? Date.now();
             toolStartedAt.delete(event.toolCallId);
-            const streamStatus = toolExecutionStatusForStream(event);
+            const streamedResult = summarizeToolResultForStream(event.toolName, event.result);
+            const streamStatus = toolExecutionStatusForStream({
+              ...event,
+              result: streamedResult,
+            });
             sendEvent({
               ...baseCtx,
               type: 'tool_call_result',
               toolName: event.toolName,
               toolCallId: event.toolCallId,
-              result: event.result,
+              result: streamedResult,
               durationMs: Date.now() - startedAt,
               status: streamStatus.status,
               ...(streamStatus.errorMessage !== undefined
@@ -823,38 +874,34 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                       });
                     })
                 : Promise.resolve();
-              const userMemoryMaintenance =
-                prefs.memoryEnabled === true
-                  ? triggerUserMemoryCandidateCapture({
-                      designId,
-                      designName,
-                      userMessages: extractUserMessagesForMemory(messagesForMemory),
+              const userMemoryMaintenance = shouldRunUserMemoryCandidateCapture(prefs)
+                ? triggerUserMemoryCandidateCapture({
+                    designId,
+                    designName,
+                    userMessages: extractUserMessagesForMemory(messagesForMemory),
+                  })
+                    .then(() => {
+                      return triggerUserMemoryConsolidation({
+                        model: active.model,
+                        apiKey,
+                        ...(baseUrl !== undefined ? { baseUrl } : {}),
+                        wire: active.wire,
+                        ...(active.httpHeaders !== undefined
+                          ? { httpHeaders: active.httpHeaders }
+                          : {}),
+                        ...(active.reasoningLevel !== undefined
+                          ? { reasoningLevel: active.reasoningLevel }
+                          : {}),
+                        ...(allowKeyless ? { allowKeyless: true } : {}),
+                      });
                     })
-                      .then(() => {
-                        if (prefs.userMemoryAutoUpdate !== true) {
-                          return { updated: false, candidateCount: 0 };
-                        }
-                        return triggerUserMemoryConsolidation({
-                          model: active.model,
-                          apiKey,
-                          ...(baseUrl !== undefined ? { baseUrl } : {}),
-                          wire: active.wire,
-                          ...(active.httpHeaders !== undefined
-                            ? { httpHeaders: active.httpHeaders }
-                            : {}),
-                          ...(active.reasoningLevel !== undefined
-                            ? { reasoningLevel: active.reasoningLevel }
-                            : {}),
-                          ...(allowKeyless ? { allowKeyless: true } : {}),
-                        });
-                      })
-                      .catch((err) => {
-                        logIpc.warn('user-memory.maintenance.fail', {
-                          generationId: id,
-                          message: err instanceof Error ? err.message : String(err),
-                        });
-                      })
-                  : Promise.resolve();
+                    .catch((err) => {
+                      logIpc.warn('user-memory.maintenance.fail', {
+                        generationId: id,
+                        message: err instanceof Error ? err.message : String(err),
+                      });
+                    })
+                : Promise.resolve();
               if (aggressivePruneDetected) {
                 await Promise.all([briefUpdate, userMemoryMaintenance]);
               }
@@ -869,38 +916,22 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
           } catch (err) {
             // Attach upstream metadata so the renderer's diagnostic pipeline can
             // map this failure to a hypothesis (status, baseUrl, wire, provider).
-            const upstreamStatus = extractUpstreamHttpStatus(err);
-            if (err !== null && typeof err === 'object') {
-              const errAsRec = err as Record<string, unknown>;
-              if (upstreamStatus !== undefined && errAsRec['upstream_status'] === undefined) {
-                errAsRec['upstream_status'] = upstreamStatus;
-              }
-              if (errAsRec['upstream_provider'] === undefined) {
-                errAsRec['upstream_provider'] = active.model.provider;
-              }
-              if (errAsRec['upstream_model_id'] === undefined) {
-                errAsRec['upstream_model_id'] = active.model.modelId;
-              }
-              if (errAsRec['upstream_baseurl'] === undefined && baseUrl !== undefined) {
-                errAsRec['upstream_baseurl'] = baseUrl;
-              }
-              if (errAsRec['upstream_wire'] === undefined && active.wire !== undefined) {
-                errAsRec['upstream_wire'] = active.wire;
-              }
-            }
-            // The SDK catches our AbortController and rethrows a generic
-            // `'Request was aborted.'` that drops signal.reason. Prefer the
-            // CodesignError we stashed on the signal so the user sees the
-            // configured timeout + Settings path instead of an opaque message.
-            const timeoutErr = extractGenerationTimeoutError(controller.signal);
-            const rethrow = timeoutErr ?? err;
+            const failure = normalizeGenerationFailure({
+              err,
+              signal: controller.signal,
+              provider: active.model.provider,
+              modelId: active.model.modelId,
+              baseUrl,
+              wire: active.wire,
+            });
+            const rethrow = failure.error;
             logIpc.error('generate.fail', {
               generationId: id,
               ms: Date.now() - t0,
               provider: active.model.provider,
               modelId: active.model.modelId,
               baseUrl: baseUrl ?? '<default>',
-              status: upstreamStatus,
+              status: failure.upstreamStatus,
               message: rethrow instanceof Error ? rethrow.message : String(rethrow),
               code: rethrow instanceof CodesignError ? rethrow.code : undefined,
             });
@@ -1029,13 +1060,22 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
             });
             return result;
           } catch (err) {
-            const timeoutErr = extractGenerationTimeoutError(controller.signal);
-            const rethrow = timeoutErr ?? err;
+            const failure = normalizeGenerationFailure({
+              err,
+              signal: controller.signal,
+              provider: active.model.provider,
+              modelId: active.model.modelId,
+              baseUrl,
+              wire: active.wire,
+            });
+            const rethrow = failure.error;
             logIpc.error('applyComment.fail', {
               generationId: id,
               ms: Date.now() - t0,
               provider: active.model.provider,
               modelId: active.model.modelId,
+              baseUrl: baseUrl ?? '<default>',
+              status: failure.upstreamStatus,
               selector: payload.selection.selector,
               message: rethrow instanceof Error ? rethrow.message : String(rethrow),
               code: rethrow instanceof CodesignError ? rethrow.code : undefined,

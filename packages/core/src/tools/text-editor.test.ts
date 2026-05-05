@@ -147,9 +147,9 @@ describe('str_replace_based_edit_tool', () => {
     expect(result.details).toMatchObject({ command: 'str_replace', path: 'new.jsx' });
   });
 
-  it('blocks an oversized first App.jsx create so the agent has to work incrementally', async () => {
+  it('allows a complete first App.jsx create instead of forcing incremental writes', async () => {
     const tool = makeTextEditorTool(makeEmptyFs());
-    const hugeSource = [
+    const completeSource = [
       'function App() {',
       '  return <main>',
       ...Array.from({ length: 230 }, (_, i) => `    <section>Row ${i}</section>`),
@@ -158,20 +158,18 @@ describe('str_replace_based_edit_tool', () => {
       "ReactDOM.createRoot(document.getElementById('root')).render(<App />);",
     ].join('\n');
 
-    const result = await tool.execute('large-create', {
+    const result = await tool.execute('complete-create', {
       command: 'create',
       path: 'App.jsx',
-      file_text: hugeSource,
+      file_text: completeSource,
     });
 
     const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
-    expect(text).toContain('Blocked create App.jsx');
-    expect(text).toContain('compact file scaffold');
-    expect(text).toContain('before calling preview');
+    expect(text).toContain('Created App.jsx');
     expect(result.details).toMatchObject({
       command: 'create',
       path: 'App.jsx',
-      result: { blocked: true, reason: 'initial_create_too_large' },
+      result: { path: 'App.jsx' },
     });
   });
 

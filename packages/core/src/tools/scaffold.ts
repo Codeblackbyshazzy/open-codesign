@@ -273,9 +273,14 @@ export type ScaffoldDetails =
   | { ok: false; kind: string; destPath: string; reason: string }
   | { ok: false; reason: string };
 
+export interface MakeScaffoldToolOptions {
+  onScaffolded?: ((details: Extract<ScaffoldDetails, { ok: true }>) => Promise<void> | void) | null;
+}
+
 export function makeScaffoldTool(
   getWorkspaceRoot: () => string | null | undefined,
   getScaffoldsRoot: () => string | null | undefined,
+  opts: MakeScaffoldToolOptions = {},
 ): AgentTool<typeof ScaffoldParams, ScaffoldDetails> {
   return {
     name: 'scaffold',
@@ -313,6 +318,20 @@ export function makeScaffoldTool(
           result.requestedDestPath !== undefined
             ? ` (destPath adjusted from ${params.destPath})`
             : '';
+        const details: Extract<ScaffoldDetails, { ok: true }> = {
+          ok: true,
+          kind: params.kind,
+          destPath,
+          ...(result.requestedDestPath !== undefined
+            ? { requestedDestPath: result.requestedDestPath }
+            : {}),
+          written: result.written,
+          bytes: result.bytes,
+          ...(result.normalizedEditmode ? { normalizedEditmode: true } : {}),
+        };
+        if (opts.onScaffolded) {
+          await opts.onScaffolded(details);
+        }
         return {
           content: [
             {
@@ -320,17 +339,7 @@ export function makeScaffoldTool(
               text: `Scaffolded ${params.kind} -> ${destPath} (${result.bytes} bytes)${suffix}${adjusted}`,
             },
           ],
-          details: {
-            ok: true,
-            kind: params.kind,
-            destPath,
-            ...(result.requestedDestPath !== undefined
-              ? { requestedDestPath: result.requestedDestPath }
-              : {}),
-            written: result.written,
-            bytes: result.bytes,
-            ...(result.normalizedEditmode ? { normalizedEditmode: true } : {}),
-          },
+          details,
         };
       }
       const reason = result.reason ?? 'unknown error';

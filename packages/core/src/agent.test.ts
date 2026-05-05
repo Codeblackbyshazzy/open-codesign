@@ -962,7 +962,7 @@ describe('generateViaAgent()', () => {
     expect(result.resourceState?.lastDone?.status).toBe('has_errors');
   });
 
-  it('requires set_todos before substantive file edits', async () => {
+  it('allows substantive file edits even when set_todos has not run yet', async () => {
     scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
     const fs = makeStubFs({});
     await generateViaAgent(
@@ -977,20 +977,9 @@ describe('generateViaAgent()', () => {
 
     const tools = agentCalls[0]?.options.initialState?.tools ?? [];
     const editor = tools.find((tool) => tool.name === 'str_replace_based_edit_tool');
-    const todos = tools.find((tool) => tool.name === 'set_todos');
-    if (!editor || !todos) throw new Error('expected editor and todos tools');
+    if (!editor) throw new Error('expected editor tool');
 
-    const blocked = await editor.execute('edit-1', {
-      command: 'create',
-      path: 'App.jsx',
-      file_text: 'function App() { return <main/>; }',
-    });
-    expect(JSON.stringify(blocked.content)).toContain('set_todos is required');
-    expect(JSON.stringify(blocked.content)).toContain('No file was written');
-    expect(fs.view('App.jsx')).toBeNull();
-
-    await todos.execute('todos-1', { items: [{ text: 'Build invoice', checked: false }] });
-    const created = await editor.execute('edit-2', {
+    const created = await editor.execute('edit-1', {
       command: 'create',
       path: 'App.jsx',
       file_text: 'function App() { return <main/>; }',
@@ -1352,9 +1341,9 @@ describe('generateViaAgent()', () => {
     const prompt = agentCalls[0]?.prompts[0]?.message as string;
     expect(prompt).toContain('Workspace context');
     expect(prompt).toContain('Existing source candidates: App.jsx');
-    expect(prompt).toContain('Before editing existing source files, call set_todos');
+    expect(prompt).toContain('Before editing existing source files, inspect the workspace');
     expect(prompt).toContain(
-      'Existing-source sequence: `set_todos` -> `inspect_workspace` when available -> `view` the source -> `str_replace`/`insert`',
+      'Existing-source sequence: optional `set_todos` -> `inspect_workspace` when available -> `view` the source -> `str_replace`/`insert`',
     );
     expect(prompt).not.toContain('Existing-source sequence: `set_title`');
     expect(prompt).toContain('then view the current source file');
@@ -1474,11 +1463,11 @@ describe('generateViaAgent()', () => {
     const sys = agentCalls[0]?.options.initialState?.systemPrompt as string;
     expect(sys).toContain('str_replace_based_edit_tool');
     expect(sys).toContain('Use `create` for new files');
-    expect(sys).toContain('Progressive generation is required');
-    expect(sys).toContain('small shell');
+    expect(sys).toContain('Prefer progressive generation');
+    expect(sys).toContain('coherent first pass');
     expect(sys).toContain('complete first pass');
     expect(sys).toContain('Do not call `preview` while the artifact is still only a scaffold');
-    expect(sys).toContain('large initial writes are rejected');
+    expect(sys).toContain('A complete `create App.jsx` is acceptable');
     expect(sys).toContain('Interleave major tool groups');
     expect(sys).toContain('under 18 words');
     expect(sys).toContain('`str_replace`, or `insert`');
@@ -1550,6 +1539,65 @@ describe('generateViaAgent()', () => {
     expect(names).not.toContain('list_files');
     expect(names).not.toContain('load_skill');
     expect(names).not.toContain('verify_html');
+  });
+
+  it('hides tweaks and image tools when the feature profile disables them', async () => {
+    scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
+    await generateViaAgent(
+      {
+        prompt: 'design a landing page',
+        history: [],
+        model: MODEL,
+        apiKey: 'sk-test',
+        featureProfile: {
+          tweaks: 'disabled',
+          bitmapAssets: 'disabled',
+          reusableSystem: 'auto',
+        },
+        runPreview: async () => ({
+          ok: true,
+          consoleErrors: [],
+          assetErrors: [],
+          metrics: { nodes: 1, height: 720, width: 1280, loadMs: 10 },
+        }),
+        readWorkspaceFiles: async () => [],
+      },
+      {
+        fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }),
+        generateImageAsset: async () => ({
+          path: 'assets/hero.png',
+          dataUrl: 'data:image/png;base64,aW1n',
+          mimeType: 'image/png',
+          model: 'gpt-image-2',
+          provider: 'openai',
+        }),
+      },
+    );
+
+    const tools = (agentCalls[0]?.options.initialState?.tools ?? []) as Array<{ name?: string }>;
+    const names = tools.map((tool) => tool.name);
+    expect(names).not.toContain('tweaks');
+    expect(names).not.toContain('generate_image_asset');
+    const sys = agentCalls[0]?.options.initialState?.systemPrompt as string;
+    expect(sys).toContain('Do not call `tweaks()`');
+    expect(sys).not.toContain('Bitmap asset generation');
+  });
+
+  it('keeps selective tweaks guidance in auto mode', async () => {
+    scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
+    await generateViaAgent({
+      prompt: 'design a landing page',
+      history: [],
+      model: MODEL,
+      apiKey: 'sk-test',
+      featureProfile: {
+        tweaks: 'auto',
+        bitmapAssets: 'auto',
+        reusableSystem: 'auto',
+      },
+    });
+    const sys = agentCalls[0]?.options.initialState?.systemPrompt as string;
+    expect(sys).toContain('Call `tweaks()` only when user preference allows');
   });
 
   it('injects apply-comment supporting context only once through the agent boundary', async () => {

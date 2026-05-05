@@ -139,8 +139,8 @@ describe('WorkingCard.buildRows', () => {
         args: { path: 'App.jsx' },
         status: 'error',
         result: {
-          content: [{ type: 'text', text: 'Blocked create App.jsx: set_todos is required.' }],
-          details: { status: 'blocked', reason: 'set_todos_required' },
+          content: [{ type: 'text', text: 'Tool call was blocked by workspace policy.' }],
+          details: { status: 'blocked', reason: 'workspace_policy' },
         },
       }),
       call({

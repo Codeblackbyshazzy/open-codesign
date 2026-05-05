@@ -256,32 +256,35 @@ const MAX_DONE_ERROR_ROUNDS = 3;
 function agenticToolGuidance(input: { inspectWorkspace: boolean }): string {
   const requiredSteps = [
     '1. For a fresh design, call `set_title` once. For continuation or existing-source turns, do not call `set_title` unless the user explicitly asks to rename or pivot to a new artifact.',
-    '2. Call `set_todos` with a short checklist before any `create`, `str_replace`, or `insert` file mutation. This is required even for fresh single-file designs.',
-    '3. If an edit tool reports `set_todos_required`, immediately call `set_todos`, then retry the same edit. The blocked edit did not write a file.',
-    '4. Load optional resources explicitly with `skill(name)` or `scaffold({kind, destPath})` before relying on them.',
+    '2. For multi-step or ambiguous work, call `set_todos` early with a short checklist. Do not delay a ready file mutation solely to add todos.',
+    '3. Load optional resources explicitly with `skill(name)` or `scaffold({kind, destPath})` before relying on them.',
     ...(input.inspectWorkspace
       ? [
-          '5. When the workspace brief says files or reference materials are present, call `inspect_workspace` before editing, then `view` the specific files you need.',
+          '4. When the workspace brief says files or reference materials are present, call `inspect_workspace` before editing, then `view` the specific files you need.',
         ]
       : []),
-    `${input.inspectWorkspace ? '6' : '5'}. Write/edit the design source at \`${DEFAULT_SOURCE_ENTRY}\` through a complete first pass, then call \`preview(path)\` when available. Do not preview scaffold-only, loading, skeleton, placeholder, or empty-section states.`,
-    `${input.inspectWorkspace ? '7' : '6'}. Call \`tweaks()\` for meaningful EDITMODE controls.`,
-    `${input.inspectWorkspace ? '8' : '7'}. Call \`done(path)\` after the final mutation. If it reports errors, fix and retry, but stop after ${MAX_DONE_ERROR_ROUNDS} error rounds.`,
+    `${input.inspectWorkspace ? '5' : '4'}. Match the workspace files to the request. For visual/web work, write/edit the primary preview source at \`${DEFAULT_SOURCE_ENTRY}\`; for document-first work, create the requested Markdown/handoff file without inventing a visual shell.`,
+    `${input.inspectWorkspace ? '6' : '5'}. Call \`tweaks()\` for meaningful EDITMODE controls.`,
+    `${input.inspectWorkspace ? '7' : '6'}. Call \`preview(path)\` for previewable HTML/JSX/TSX files, then call \`done(path)\` after the final mutation. If done reports errors, fix and retry, but stop after ${MAX_DONE_ERROR_ROUNDS} error rounds.`,
   ];
   return [
     '## Workspace output contract',
     '',
-    `- Write the main design source to \`${DEFAULT_SOURCE_ENTRY}\` with \`str_replace_based_edit_tool\`; chat text is never the artifact.`,
-    '- Progressive generation is required: make the first workspace mutation a compact file scaffold, then add sections, data, interactions, and polish in smaller edits before previewing.',
-    '- Fresh workspace sequence: `set_title` -> `set_todos` -> optional `skill`/`scaffold` -> `create App.jsx` with a small shell -> incremental edits to a complete first pass -> `preview(App.jsx)`.',
-    '- Do not call `preview` while the artifact is still only a scaffold, loading state, skeleton, placeholder, or empty lower section. Preview should represent a coherent first pass unless the user explicitly asked for a loading-state design.',
-    '- Existing-source sequence: `set_todos` -> `inspect_workspace` when available -> `view` the source -> `str_replace`/`insert`. Do not edit an existing source from memory, and do not rebuild unless the user explicitly asks.',
+    '- The workspace filesystem is the deliverable. Chat text is never the artifact.',
+    `- For visual/web deliverables, write the primary design source to \`${DEFAULT_SOURCE_ENTRY}\` with \`str_replace_based_edit_tool\`.`,
+    '- Multi-deliverable packages are allowed when useful: preview source, DESIGN.md, Markdown handoff docs, data files, and local assets can all belong to one design.',
+    '- For document-first requests such as design briefs, content outlines, or handoff notes, create the requested `.md` file directly and skip `App.jsx` unless a visual preview is also useful.',
+    '- Prefer progressive generation when it is natural: write a coherent first pass, then add sections, data, interactions, and polish in focused edits before previewing.',
+    '- Fresh visual sequence: `set_title` -> optional `set_todos`/`skill`/`scaffold` -> `create App.jsx` with a coherent first pass -> focused edits if needed -> `preview(App.jsx)`.',
+    '- Fresh document sequence: `set_title` -> optional `set_todos`/`skill` -> create the requested document file -> `done(path)`.',
+    '- Do not call `preview` while a previewable artifact is still only a scaffold, loading state, skeleton, placeholder, or empty lower section. Preview should represent a coherent first pass unless the user explicitly asked for a loading-state design.',
+    '- Existing-source sequence: optional `set_todos` -> `inspect_workspace` when available -> `view` the source -> `str_replace`/`insert`. Do not edit an existing source from memory, and do not rebuild unless the user explicitly asks.',
     '- Use `create` for new files; follow-up edits use `view`, `str_replace`, or `insert`.',
     '- Do not emit `<artifact>` tags, fenced source blocks, raw HTML/JSX/CSS, or HTML wrappers in chat.',
     '- Local workspace assets and scaffolded files are allowed. External scripts remain restricted by the base output rules.',
     '- Interleave major tool groups with one short assistant progress sentence: what you are about to inspect/write/preview/fix, or what the preview showed. Keep it under 18 words and do not reveal hidden reasoning.',
     '',
-    '## Required tool loop',
+    '## Tool loop',
     '',
     ...requiredSteps,
     '',
@@ -289,7 +292,7 @@ function agenticToolGuidance(input: { inspectWorkspace: boolean }): string {
     '',
     '- Keep `old_str` small and unique. Large replacements waste context and are fragile.',
     '- For existing files, call `view` in the same run before `str_replace` or `insert`; use the latest viewed text, not memory.',
-    '- Do not put the whole finished page into the first `create App.jsx`; large initial writes are rejected. Start small enough that the user sees files and preview quickly.',
+    '- A complete first `create` is acceptable when the target file is ready. Keep follow-up edits focused so they remain reliable.',
     '- Never view just to check whether an edit succeeded; the tool reports failures.',
   ].join('\n');
 }
@@ -430,61 +433,6 @@ function wrapDoneState(
         }
       }
       return result;
-    },
-  };
-}
-
-function wrapSetTodosState(
-  tool: AgentTool<TSchema, unknown>,
-  onSetTodos: () => void,
-): AgentTool<TSchema, unknown> {
-  return {
-    ...tool,
-    async execute(id, params, signal): Promise<AgentToolResult<unknown>> {
-      const result = await tool.execute(id, params, signal);
-      onSetTodos();
-      return result;
-    },
-  };
-}
-
-function wrapEditRequiresTodos(
-  tool: AgentTool<TSchema, unknown>,
-  hasTodos: () => boolean,
-): AgentTool<TSchema, unknown> {
-  return {
-    ...tool,
-    async execute(id, params, signal): Promise<AgentToolResult<unknown>> {
-      const command =
-        typeof params === 'object' && params !== null
-          ? (params as Record<string, unknown>)['command']
-          : undefined;
-      if (
-        (command === 'create' || command === 'str_replace' || command === 'insert') &&
-        !hasTodos()
-      ) {
-        const path =
-          typeof params === 'object' && params !== null
-            ? (params as Record<string, unknown>)['path']
-            : undefined;
-        const pathText = typeof path === 'string' && path.trim().length > 0 ? ` ${path}` : '';
-        const message = `Blocked ${String(command)}${pathText}: set_todos is required before file mutations. Call set_todos with a short checklist, then retry this exact edit. No file was written.`;
-        return {
-          content: [
-            {
-              type: 'text',
-              text: message,
-            },
-          ],
-          details: {
-            status: 'blocked',
-            reason: 'set_todos_required',
-            command,
-            ...(typeof path === 'string' ? { path } : {}),
-          },
-        };
-      }
-      return tool.execute(id, params, signal);
     },
   };
 }
@@ -665,7 +613,7 @@ function buildWorkspaceBrief(
     'Workspace context:',
     sources.length > 0
       ? `- Existing source candidates: ${sources.join(', ')}`
-      : `- No existing design source was found. Create ${DEFAULT_SOURCE_ENTRY} as the main design source.`,
+      : `- No existing design source was found. Create ${DEFAULT_SOURCE_ENTRY} for visual/web work, or create the requested document/handoff file for document-first work.`,
     `- DESIGN.md: ${hasDesignMd ? 'present; treat it as the design baton for this workspace.' : 'absent.'}`,
     `- AGENTS.md: ${hasAgentsMd ? 'present' : 'absent'}`,
     `- .codesign/settings.json: ${hasSettingsJson ? 'present' : 'absent'}`,
@@ -673,8 +621,8 @@ function buildWorkspaceBrief(
   ];
   lines.push(
     sources.length > 0
-      ? 'Before editing existing source files, call set_todos, inspect the workspace when available, then view the current source file. Existing-source sequence: `set_todos` -> `inspect_workspace` when available -> `view` the source -> `str_replace`/`insert`. For continuation or existing-source turns, do not call `set_title`; preserve and extend the current design unless the user explicitly asks for a rebuild.'
-      : `This is an empty workspace. Call set_todos first, then create ${DEFAULT_SOURCE_ENTRY} as the main design source.`,
+      ? 'Before editing existing source files, inspect the workspace when available, then view the current source file. Use set_todos when the edit has multiple steps. Existing-source sequence: optional `set_todos` -> `inspect_workspace` when available -> `view` the source -> `str_replace`/`insert`. For continuation or existing-source turns, do not call `set_title`; preserve and extend the current design unless the user explicitly asks for a rebuild.'
+      : `This is an empty workspace. For visual/web work, create ${DEFAULT_SOURCE_ENTRY} when the first pass is ready; for document-first work, create the requested document file. Use set_todos for multi-step work.`,
   );
   if (hasDesignMd) {
     lines.push(
@@ -843,13 +791,7 @@ export async function generateViaAgent(
   const getWorkspaceRoot = () => input.getWorkspaceRoot?.() ?? input.workspaceRoot ?? null;
   const defaultToolsByName = new Map<string, AgentTool<TSchema, unknown>>();
   defaultToolsByName.set('set_title', makeSetTitleTool() as unknown as AgentTool<TSchema, unknown>);
-  let todosCalledThisRun = false;
-  defaultToolsByName.set(
-    'set_todos',
-    wrapSetTodosState(makeSetTodosTool() as unknown as AgentTool<TSchema, unknown>, () => {
-      todosCalledThisRun = true;
-    }),
-  );
+  defaultToolsByName.set('set_todos', makeSetTodosTool() as unknown as AgentTool<TSchema, unknown>);
   const loadedSkills = new Set<string>();
   defaultToolsByName.set(
     'skill',
@@ -865,20 +807,18 @@ export async function generateViaAgent(
   defaultToolsByName.set(
     'scaffold',
     wrapScaffoldState(
-      makeScaffoldTool(getWorkspaceRoot, () => scaffoldsRoot) as unknown as AgentTool<
-        TSchema,
-        unknown
-      >,
+      makeScaffoldTool(
+        getWorkspaceRoot,
+        () => scaffoldsRoot,
+        input.onScaffolded ? { onScaffolded: input.onScaffolded } : {},
+      ) as unknown as AgentTool<TSchema, unknown>,
       resourceState,
     ),
   );
   if (trackedFs) {
     defaultToolsByName.set(
       'str_replace_based_edit_tool',
-      wrapEditRequiresTodos(
-        makeTextEditorTool(trackedFs) as unknown as AgentTool<TSchema, unknown>,
-        () => todosCalledThisRun,
-      ),
+      makeTextEditorTool(trackedFs) as unknown as AgentTool<TSchema, unknown>,
     );
     defaultToolsByName.set(
       'done',

@@ -2,6 +2,7 @@ import type { AgentEvent } from '@open-codesign/core';
 
 type ToolExecutionEndEvent = Extract<AgentEvent, { type: 'tool_execution_end' }>;
 type ToolStreamStatus = { status: 'done' | 'error'; errorMessage?: string };
+const STREAM_TOOL_TEXT_LIMIT_BYTES = 8 * 1024;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -56,6 +57,51 @@ function textFromToolResult(result: unknown): string | undefined {
     )
     .filter((text) => text.length > 0);
   return texts.length > 0 ? texts.join('\n') : undefined;
+}
+
+function withSummaryText(result: unknown, text: string): unknown {
+  if (!isRecord(result)) return result;
+  return {
+    ...result,
+    content: [{ type: 'text', text }],
+  };
+}
+
+function skillSummaryFromResult(result: unknown): string | undefined {
+  if (!isRecord(result)) return undefined;
+  const details = result['details'];
+  if (!isRecord(details)) return undefined;
+  const name = typeof details['name'] === 'string' ? details['name'] : 'skill';
+  const status = details['status'];
+  if (status === 'loaded') {
+    const description = typeof details['description'] === 'string' ? details['description'] : '';
+    const trimmedDescription = description.replace(/[.!\s]+$/u, '');
+    return trimmedDescription.length > 0
+      ? `Loaded skill ${name}: ${trimmedDescription}.`
+      : `Loaded skill ${name}.`;
+  }
+  if (status === 'already-loaded') return `Skill ${name} already loaded.`;
+  if (status === 'not-found') return `Skill ${name} not found.`;
+  return undefined;
+}
+
+export function summarizeToolResultForStream(
+  toolName: string,
+  result: unknown,
+  limitBytes = STREAM_TOOL_TEXT_LIMIT_BYTES,
+): unknown {
+  const text = textFromToolResult(result);
+  if (text === undefined) return result;
+
+  if (toolName === 'skill') {
+    return withSummaryText(result, skillSummaryFromResult(result) ?? 'Skill guidance loaded.');
+  }
+
+  if (text.length <= limitBytes) return result;
+  return withSummaryText(
+    result,
+    `${toolName} result summarized for chat history; see tool details or current workspace state.`,
+  );
 }
 
 function blockedReasonFromToolResult(result: unknown): string | undefined {

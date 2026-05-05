@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listScaffoldKinds, loadScaffoldManifest, makeScaffoldTool, runScaffold } from './scaffold';
 
 const MANIFEST = {
@@ -398,6 +398,32 @@ export const Demo = () => null;
         destPath: '_starters/slide-deck.html',
         requestedDestPath: '_starters/slide-deck.jsx',
       });
+    } finally {
+      rmSync(wsroot, { recursive: true, force: true });
+    }
+  });
+
+  it('makeScaffoldTool calls the post-write hook with the actual destination', async () => {
+    const wsroot = path.join(tmpdir(), `codesign-scaffold-tool-${process.pid}-${Date.now()}`);
+    mkdirSync(wsroot, { recursive: true });
+    const onScaffolded = vi.fn();
+    try {
+      const tool = makeScaffoldTool(
+        () => wsroot,
+        () => scaffoldsRoot,
+        { onScaffolded },
+      );
+      await tool.execute('call-4', {
+        kind: 'demo-html',
+        destPath: '_starters/slide-deck.jsx',
+      });
+      expect(onScaffolded).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ok: true,
+          destPath: '_starters/slide-deck.html',
+          requestedDestPath: '_starters/slide-deck.jsx',
+        }),
+      );
     } finally {
       rmSync(wsroot, { recursive: true, force: true });
     }

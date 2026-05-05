@@ -1,6 +1,10 @@
 import type { AgentEvent } from '@open-codesign/core';
 import { describe, expect, it } from 'vitest';
-import { toolExecutionIsErrorForLog, toolExecutionStatusForStream } from './tool-log';
+import {
+  summarizeToolResultForStream,
+  toolExecutionIsErrorForLog,
+  toolExecutionStatusForStream,
+} from './tool-log';
 
 type ToolExecutionEndEvent = Extract<AgentEvent, { type: 'tool_execution_end' }>;
 
@@ -65,12 +69,12 @@ describe('toolExecutionStatusForStream', () => {
           content: [
             {
               type: 'text',
-              text: 'Blocked create App.jsx: set_todos is required before file mutations.',
+              text: 'Tool call was blocked by workspace policy.',
             },
           ],
           details: {
             status: 'blocked',
-            reason: 'set_todos_required',
+            reason: 'workspace_policy',
             command: 'create',
             path: 'App.jsx',
           },
@@ -80,27 +84,57 @@ describe('toolExecutionStatusForStream', () => {
 
     expect(status).toEqual({
       status: 'error',
-      errorMessage: 'Blocked create App.jsx: set_todos is required before file mutations.',
+      errorMessage: 'Tool call was blocked by workspace policy.',
     });
   });
 
-  it('marks large initial-create blocks as error even when the tool call itself succeeded', () => {
+  it('marks nested blocked tool results as error even when the tool call itself succeeded', () => {
     const status = toolExecutionStatusForStream(
       toolEnd({
         toolName: 'str_replace_based_edit_tool',
         isError: false,
         result: {
-          content: [{ type: 'text', text: 'Blocked create App.jsx: first write too large.' }],
+          content: [{ type: 'text', text: 'Tool call was blocked by workspace policy.' }],
           details: {
             command: 'create',
             path: 'App.jsx',
-            result: { blocked: true, reason: 'initial_create_too_large' },
+            result: { blocked: true, reason: 'workspace_policy' },
           },
         },
       }),
     );
 
     expect(status.status).toBe('error');
-    expect(status.errorMessage).toContain('first write too large');
+    expect(status.errorMessage).toContain('workspace policy');
+  });
+});
+
+describe('summarizeToolResultForStream', () => {
+  it('summarizes loaded skill bodies for the chat stream', () => {
+    const summarized = summarizeToolResultForStream('skill', {
+      content: [{ type: 'text', text: `# huge skill body\n${'x'.repeat(20_000)}` }],
+      details: {
+        name: 'frontend-design-anti-slop',
+        status: 'loaded',
+        description: 'Creates distinctive, production-grade frontend interfaces.',
+      },
+    }) as { content?: Array<{ type?: string; text?: string }> };
+
+    expect(summarized.content).toEqual([
+      {
+        type: 'text',
+        text: 'Loaded skill frontend-design-anti-slop: Creates distinctive, production-grade frontend interfaces.',
+      },
+    ]);
+  });
+
+  it('summarizes oversized non-skill tool text while preserving details', () => {
+    const summarized = summarizeToolResultForStream('preview', {
+      content: [{ type: 'text', text: 'x'.repeat(9000) }],
+      details: { foo: 'bar' },
+    }) as { content?: Array<{ type?: string; text?: string }>; details?: { foo?: string } };
+
+    expect(summarized.content?.[0]?.text).toContain('preview result summarized for chat history');
+    expect(summarized.details?.foo).toBe('bar');
   });
 });

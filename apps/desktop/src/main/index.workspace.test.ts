@@ -1,6 +1,15 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { makeScaffoldTool } from '@open-codesign/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentStreamEvent } from '../preload/index';
 import { normalizeWorkspacePath } from './design-workspace';
@@ -86,6 +95,29 @@ function listFsUpdatedEvents(sendEvent: ReturnType<typeof vi.fn>): AgentStreamEv
   return sendEvent.mock.calls
     .map(([event]) => event as AgentStreamEvent)
     .filter((event) => event.type === 'fs_updated');
+}
+
+function makeScaffoldsRoot(prefix: string, sourcePath: string, sourceBody: string): string {
+  const root = makeTempDir(prefix);
+  mkdirSync(path.dirname(path.join(root, sourcePath)), { recursive: true });
+  writeFileSync(
+    path.join(root, 'manifest.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      scaffolds: {
+        demo: {
+          description: 'demo scaffold',
+          path: sourcePath,
+          category: 'demo',
+          license: 'MIT-internal',
+          source: 'test fixture',
+        },
+      },
+    }),
+    'utf8',
+  );
+  writeFileSync(path.join(root, sourcePath), sourceBody, 'utf8');
+  return root;
 }
 
 describe('createRuntimeTextEditorFs', () => {
@@ -638,5 +670,98 @@ describe('createRuntimeTextEditorFs', () => {
 
     expect(listFsUpdatedEvents(sendEvent)).toHaveLength(0);
     expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('makes scaffolded workspace files viewable in the same run', async () => {
+    const db = initInMemoryDb();
+    const design = createDesign(db, 'Scaffold Visibility');
+    const workspaceDir = makeTempDir('ocd-runtime-scaffold-');
+    const scaffoldsRoot = makeScaffoldsRoot(
+      'ocd-runtime-scaffold-templates-',
+      'device-frames/demo.jsx',
+      'export const Demo = () => <main>frame</main>;\n',
+    );
+    updateDesignWorkspace(db, design.id, normalizeWorkspacePath(workspaceDir));
+    const sendEvent = vi.fn();
+    const logger = { error: vi.fn() };
+    const { fs, syncWorkspaceTextFile } = createRuntimeTextEditorFs({
+      db,
+      designId: design.id,
+      generationId: 'gen-scaffold-visible',
+      logger,
+      previousSource: null,
+      sendEvent,
+    });
+
+    try {
+      const tool = makeScaffoldTool(
+        () => workspaceDir,
+        () => scaffoldsRoot,
+        {
+          onScaffolded: async (details) => {
+            await syncWorkspaceTextFile(details.destPath, details.written);
+          },
+        },
+      );
+      await tool.execute('call-1', { kind: 'demo', destPath: 'frames/iphone16.jsx' });
+
+      expect(fs.view('frames/iphone16.jsx')?.content).toContain('<main>frame</main>');
+      expect(fs.listDir('frames')).toContain('iphone16.jsx');
+      expect(listFsUpdatedEvents(sendEvent)).toEqual([
+        expect.objectContaining({
+          type: 'fs_updated',
+          path: 'frames/iphone16.jsx',
+        }),
+      ]);
+    } finally {
+      cleanupDir(workspaceDir);
+      cleanupDir(scaffoldsRoot);
+    }
+  });
+
+  it('uses the extension-adjusted scaffold destination for same-run views', async () => {
+    const db = initInMemoryDb();
+    const design = createDesign(db, 'Scaffold Extension Visibility');
+    const workspaceDir = makeTempDir('ocd-runtime-scaffold-ext-');
+    const scaffoldsRoot = makeScaffoldsRoot(
+      'ocd-runtime-scaffold-templates-ext-',
+      'decks/demo.html',
+      '<!doctype html><html><body><main>deck</main></body></html>\n',
+    );
+    updateDesignWorkspace(db, design.id, normalizeWorkspacePath(workspaceDir));
+    const sendEvent = vi.fn();
+    const logger = { error: vi.fn() };
+    const { fs, syncWorkspaceTextFile } = createRuntimeTextEditorFs({
+      db,
+      designId: design.id,
+      generationId: 'gen-scaffold-ext-visible',
+      logger,
+      previousSource: null,
+      sendEvent,
+    });
+
+    try {
+      const tool = makeScaffoldTool(
+        () => workspaceDir,
+        () => scaffoldsRoot,
+        {
+          onScaffolded: async (details) => {
+            await syncWorkspaceTextFile(details.destPath, details.written);
+          },
+        },
+      );
+      const result = await tool.execute('call-1', {
+        kind: 'demo',
+        destPath: '_starters/slide-deck.jsx',
+      });
+
+      expect((result.details as { destPath?: string }).destPath).toBe('_starters/slide-deck.html');
+      expect(fs.view('_starters/slide-deck.html')?.content).toContain('<main>deck</main>');
+      expect(fs.view('_starters/slide-deck.jsx')).toBeNull();
+      expect(fs.listDir('_starters')).toContain('slide-deck.html');
+    } finally {
+      cleanupDir(workspaceDir);
+      cleanupDir(scaffoldsRoot);
+    }
   });
 });
