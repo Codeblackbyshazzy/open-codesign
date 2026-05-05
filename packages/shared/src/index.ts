@@ -107,6 +107,20 @@ export const ChatMessage = z
   .strict();
 export type ChatMessage = z.infer<typeof ChatMessage>;
 
+export const DesignRunPreferenceMode = z.enum(['yes', 'no', 'auto']);
+export type DesignRunPreferenceMode = z.infer<typeof DesignRunPreferenceMode>;
+
+export const DesignRunPreferencesV1 = z
+  .object({
+    schemaVersion: z.literal(1),
+    tweaks: DesignRunPreferenceMode,
+    bitmapAssets: DesignRunPreferenceMode,
+    reusableSystem: DesignRunPreferenceMode,
+    visualDirection: z.enum(['editorial', 'professional', 'bold', 'custom']).optional(),
+  })
+  .strict();
+export type DesignRunPreferencesV1 = z.infer<typeof DesignRunPreferencesV1>;
+
 export const LocalInputFile = z
   .object({
     path: z.string().min(1),

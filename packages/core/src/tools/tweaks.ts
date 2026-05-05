@@ -76,7 +76,7 @@ export function makeTweaksTool(
     name: 'tweaks',
     label: 'Tweaks',
     description:
-      "Scan the workspace for EDITMODE blocks across multiple files and return the aggregated tweakable key/value list. The renderer's tweaks panel uses this to let the user adjust values without re-prompting. Call AFTER scaffolding + writing initial code. Pattern array defaults to html/jsx/css/js.",
+      "Scan the workspace for EDITMODE blocks across multiple files and return the aggregated tweakable key/value list. The renderer's tweaks panel uses this to let the user adjust values without re-prompting. Call only when tweak controls are enabled or clearly useful. Pattern array defaults to html/jsx/css/js.",
     parameters: TweaksParams,
     async execute(_toolCallId, params): Promise<AgentToolResult<TweaksDetails>> {
       const patterns = params.patterns ?? DEFAULT_PATTERNS;

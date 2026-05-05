@@ -3,6 +3,7 @@ import { completeWithRetry } from '@open-codesign/providers';
 import type {
   ChatMessage,
   ChatMessageRow,
+  DesignRunPreferencesV1,
   ModelRef,
   ReasoningLevel,
   ResourceStateV1,
@@ -58,6 +59,7 @@ export interface BuildDesignContextPackInput {
   chatRows: readonly ChatMessageRow[];
   brief?: DesignSessionBriefV1 | null | undefined;
   resourceState?: ResourceStateV1 | undefined;
+  runPreferences?: DesignRunPreferencesV1 | null | undefined;
   workspaceState?: {
     sourcePath?: string | null | undefined;
     hasSource?: boolean | undefined;
@@ -342,6 +344,15 @@ function formatWorkspaceContext(input: BuildDesignContextPackInput): string {
     lines.push(
       `- lastDone: ${resource.lastDone ? `${resource.lastDone.status} ${resource.lastDone.path}` : 'none'}`,
     );
+  }
+  if (input.runPreferences) {
+    lines.push('', 'Run preferences:');
+    lines.push(`- tweaks: ${input.runPreferences.tweaks}`);
+    lines.push(`- bitmapAssets: ${input.runPreferences.bitmapAssets}`);
+    lines.push(`- reusableSystem: ${input.runPreferences.reusableSystem}`);
+    if (input.runPreferences.visualDirection) {
+      lines.push(`- visualDirection: ${input.runPreferences.visualDirection}`);
+    }
   }
   return formatUntrustedContext(
     'design_context_pack',

@@ -1,6 +1,8 @@
 import path_module from 'node:path';
 import {
   type AgentEvent,
+  type AskAnswer,
+  type AskInput,
   buildApplyCommentUserPrompt,
   buildDesignContextPack,
   type CoreLogger,
@@ -20,6 +22,7 @@ import {
   ApplyCommentPayload,
   CancelGenerationPayloadV1,
   CodesignError,
+  type DesignRunPreferencesV1,
   deriveResourceStateFromChatRows,
   GeneratePayloadV1,
 } from '@open-codesign/shared';
@@ -57,8 +60,10 @@ import { resolveActiveApiKey, resolveCredentialForProvider } from '../resolve-ap
 import { withRun } from '../runContext';
 import {
   appendSessionDesignBrief,
+  appendSessionRunPreferences,
   listSessionChatMessages,
   readSessionDesignBrief,
+  readSessionRunPreferences,
   type SessionChatStoreOptions,
 } from '../session-chat';
 import { type Database, getDesign, recordDiagnosticEvent } from '../snapshots-db';
@@ -81,6 +86,67 @@ export function shouldRunUserMemoryCandidateCapture(prefs: {
   userMemoryAutoUpdate: boolean;
 }): boolean {
   return prefs.memoryEnabled === true && prefs.userMemoryAutoUpdate === true;
+}
+
+const DEFAULT_RUN_PREFERENCES: DesignRunPreferencesV1 = {
+  schemaVersion: 1,
+  tweaks: 'auto',
+  bitmapAssets: 'auto',
+  reusableSystem: 'auto',
+};
+
+export function shouldRequestRunPreferencePreflight(input: {
+  hasSource: boolean;
+  existingPreferences: DesignRunPreferencesV1 | null;
+  prompt: string;
+}): boolean {
+  if (input.existingPreferences !== null) return false;
+  if (input.hasSource) return false;
+  return input.prompt.trim().length > 0;
+}
+
+export function buildRunPreferenceAskInput(_prompt: string): AskInput {
+  return {
+    rationale: 'A few setup choices help Open CoDesign avoid unnecessary work.',
+    questions: [
+      {
+        id: 'tweaks',
+        type: 'text-options',
+        prompt: 'Do you want tweak controls for this design?',
+        options: ['auto', 'no', 'yes'],
+      },
+    ],
+  };
+}
+
+function answerValue(answers: AskAnswer[], questionId: string): string | null {
+  const value = answers.find((answer) => answer.questionId === questionId)?.value;
+  return typeof value === 'string' ? value : null;
+}
+
+export function mergeRunPreferenceAnswers(
+  base: DesignRunPreferencesV1 | null,
+  answers: AskAnswer[],
+  prompt: string,
+): DesignRunPreferencesV1 {
+  const next: DesignRunPreferencesV1 = { ...(base ?? DEFAULT_RUN_PREFERENCES) };
+  const tweakAnswer = answerValue(answers, 'tweaks');
+  if (tweakAnswer === 'yes' || tweakAnswer === 'no' || tweakAnswer === 'auto') {
+    next.tweaks = tweakAnswer;
+  }
+  const lower = prompt.toLowerCase();
+  const disablesTweaks = /不要.*微调|不.*微调|no tweaks?|without tweaks?/.test(lower);
+  if (disablesTweaks) {
+    next.tweaks = 'no';
+  } else if (/加.*微调|要.*微调|add tweaks?|with tweaks?/.test(lower)) {
+    next.tweaks = 'yes';
+  }
+  if (/不要.*(图片|图像)|不.*生成.*(图片|图像)|no images?|without images?/.test(lower)) {
+    next.bitmapAssets = 'no';
+  } else if (/生成.*(图片|图像)|加.*(图片|图像)|generate images?|with images?/.test(lower)) {
+    next.bitmapAssets = 'yes';
+  }
+  return next;
 }
 
 function designMdSummaryForMemory(
@@ -726,9 +792,41 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
             const chatRows = chatRowsForDesign(designId);
             const resourceState = deriveResourceStateFromChatRows(chatRows);
             const existingBrief = prefs.memoryEnabled ? briefForDesign(designId) : null;
+            const runPreferenceStoreOptions = chatStoreOptions();
+            const existingRunPreferences =
+              runPreferenceStoreOptions !== null
+                ? readSessionRunPreferences(runPreferenceStoreOptions, designId)
+                : null;
+            let runPreferences = mergeRunPreferenceAnswers(
+              existingRunPreferences,
+              [],
+              payload.prompt,
+            );
+            if (
+              shouldRequestRunPreferencePreflight({
+                hasSource: Boolean(payload.previousSource?.trim()),
+                existingPreferences: existingRunPreferences,
+                prompt: payload.prompt,
+              })
+            ) {
+              const askResult = await requestAsk(
+                id,
+                buildRunPreferenceAskInput(payload.prompt),
+                () => getMainWindow(),
+              );
+              runPreferences = mergeRunPreferenceAnswers(
+                runPreferences,
+                askResult.status === 'answered' ? askResult.answers : [],
+                payload.prompt,
+              );
+            }
+            if (runPreferenceStoreOptions !== null) {
+              appendSessionRunPreferences(runPreferenceStoreOptions, designId, runPreferences);
+            }
             const contextPack = buildDesignContextPack({
               chatRows,
               brief: existingBrief,
+              runPreferences,
               resourceState,
               modelContextWindow: contextWindowForContextPack(active.model),
               workspaceState: {
@@ -759,6 +857,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 ...(memoryContext !== undefined ? { memoryContext: memoryContext.sections } : {}),
                 projectContext: promptContext.projectContext,
                 initialResourceState: resourceState,
+                runPreferences,
                 ...(baseUrl !== undefined ? { baseUrl } : {}),
                 wire: active.wire,
                 ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),

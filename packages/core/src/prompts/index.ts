@@ -7,7 +7,7 @@
  * happens through resource manifests plus `skill()` / `scaffold()` tool calls.
  */
 
-import { composeFull } from './compose-full.js';
+import { composeFull, type PromptFeatureProfile } from './compose-full.js';
 
 export { PROMPT_SECTION_FILES, PROMPT_SECTIONS } from './sections/loader.js';
 
@@ -26,6 +26,8 @@ export interface PromptComposeOptions {
   userPrompt?: string | undefined;
   /** Resource-manifest sections to append. These are short indexes, not bodies. */
   resources?: string[] | undefined;
+  /** Host-routed optional feature profile, usually derived from preflight ask answers. */
+  featureProfile?: PromptFeatureProfile | undefined;
 }
 
 /**
@@ -37,7 +39,7 @@ export interface PromptComposeOptions {
  * prompt injection attacks from adversarial codebase content.
  */
 export function composeSystemPrompt(opts: PromptComposeOptions): string {
-  const sections = composeFull(opts.mode);
+  const sections = composeFull(opts.mode, opts.featureProfile);
 
   if (opts.resources?.length) {
     sections.push(opts.resources.join('\n\n---\n\n'));

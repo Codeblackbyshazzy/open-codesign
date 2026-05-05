@@ -44,6 +44,21 @@ describe('ask-ipc', () => {
     await expect(inFlight).resolves.toEqual({ status: 'cancelled', answers: [] });
   });
 
+  it('cancels every pending ask request for the same session', async () => {
+    const send = vi.fn();
+    const fakeWindow = {
+      isDestroyed: () => false,
+      webContents: { send },
+    } as unknown as Electron.BrowserWindow;
+    const first = requestAsk('session-many', sampleInput, () => fakeWindow);
+    const second = requestAsk('session-many', sampleInput, () => fakeWindow);
+
+    cancelPendingAskRequests('session-many');
+
+    await expect(first).resolves.toEqual({ status: 'cancelled', answers: [] });
+    await expect(second).resolves.toEqual({ status: 'cancelled', answers: [] });
+  });
+
   it('rejects malformed answers for a known request instead of leaving it pending', async () => {
     handlers.clear();
     registerAskIpc();

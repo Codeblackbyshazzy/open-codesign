@@ -10,14 +10,19 @@ import type {
   ChatMessageKind,
   ChatMessageRow,
   ChatToolCallPayload,
+  DesignRunPreferencesV1,
 } from '@open-codesign/shared';
-import { CodesignError } from '@open-codesign/shared';
+import {
+  CodesignError,
+  DesignRunPreferencesV1 as DesignRunPreferencesV1Schema,
+} from '@open-codesign/shared';
 import { type Database, getDesign, listSnapshots, touchDesignActivity } from './snapshots-db';
 import { normalizeWorkspacePath } from './workspace-path';
 
 export const CHAT_MESSAGE_CUSTOM_TYPE = 'open-codesign.chat.message';
 export const CHAT_TOOL_STATUS_CUSTOM_TYPE = 'open-codesign.chat.tool_status';
 export const CONTEXT_BRIEF_CUSTOM_TYPE = 'open-codesign.context.brief.v1';
+export const RUN_PREFERENCES_CUSTOM_TYPE = 'open-codesign.context.run_preferences.v1';
 
 export interface SessionChatStoreOptions {
   db: Database;
@@ -54,6 +59,11 @@ interface StoredToolStatusUpdate {
 interface StoredDesignBrief {
   schemaVersion: 1;
   brief: DesignSessionBriefV1;
+}
+
+interface StoredRunPreferences {
+  schemaVersion: 1;
+  preferences: DesignRunPreferencesV1;
 }
 
 interface AppendSessionChatMessageOptions {
@@ -160,6 +170,14 @@ function parseStoredBrief(value: unknown): StoredDesignBrief | null {
     ...(now !== undefined ? { now } : {}),
   });
   return brief === null ? null : { schemaVersion: 1, brief };
+}
+
+function parseStoredRunPreferences(value: unknown): StoredRunPreferences | null {
+  if (!isRecord(value)) return null;
+  if (value['schemaVersion'] !== 1) return null;
+  const result = DesignRunPreferencesV1Schema.safeParse(value['preferences']);
+  if (!result.success) return null;
+  return { schemaVersion: 1, preferences: result.data };
 }
 
 function applyStatusUpdate(row: ChatMessageRow, update: StoredToolStatusUpdate): ChatMessageRow {
@@ -307,6 +325,36 @@ export function appendSessionDesignBrief(
   const manager = openSession(opts, designId);
   const stored: StoredDesignBrief = { schemaVersion: 1, brief };
   manager.appendCustomEntry(CONTEXT_BRIEF_CUSTOM_TYPE, stored);
+  flushSession(manager);
+}
+
+export function readSessionRunPreferences(
+  opts: SessionChatStoreOptions,
+  designId: string,
+): DesignRunPreferencesV1 | null {
+  const cwd = resolveSessionCwd(opts, designId);
+  const file = sessionFileForDesign(opts.sessionDir, designId);
+  if (!existsSync(file)) return null;
+  const manager = SessionManager.open(file, opts.sessionDir, cwd);
+  const entries = manager.getEntries();
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index] as CustomEntryLike | undefined;
+    if (entry?.type !== 'custom' || entry.customType !== RUN_PREFERENCES_CUSTOM_TYPE) continue;
+    const stored = parseStoredRunPreferences(entry.data);
+    if (stored !== null) return stored.preferences;
+  }
+  return null;
+}
+
+export function appendSessionRunPreferences(
+  opts: SessionChatStoreOptions,
+  designId: string,
+  preferences: DesignRunPreferencesV1,
+): void {
+  const parsed = DesignRunPreferencesV1Schema.parse(preferences);
+  const manager = openSession(opts, designId);
+  const stored: StoredRunPreferences = { schemaVersion: 1, preferences: parsed };
+  manager.appendCustomEntry(RUN_PREFERENCES_CUSTOM_TYPE, stored);
   flushSession(manager);
 }
 

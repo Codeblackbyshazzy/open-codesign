@@ -184,6 +184,38 @@ describe('buildDesignContextPack', () => {
     ]);
   });
 
+  it('injects durable run preferences into the design context pack', () => {
+    const pack = buildDesignContextPack({
+      chatRows: [
+        userRow(0, 'make a dashboard'),
+        chatRow(1, 'tool_call', {
+          toolName: 'ask',
+          args: {},
+          status: 'done',
+          result: { answers: [{ questionId: 'tweaks', value: 'no' }] },
+          startedAt: '2026-05-05T00:00:00.000Z',
+          verbGroup: 'Ask',
+        }),
+      ],
+      runPreferences: {
+        schemaVersion: 1,
+        tweaks: 'no',
+        bitmapAssets: 'auto',
+        reusableSystem: 'yes',
+        visualDirection: 'professional',
+      },
+      historyBudgetChars: 500,
+    });
+
+    expect(pack.history).toEqual([{ role: 'user', content: 'make a dashboard' }]);
+    const context = pack.contextSections.join('\n');
+    expect(context).toContain('Run preferences:');
+    expect(context).toContain('- tweaks: no');
+    expect(context).toContain('- bitmapAssets: auto');
+    expect(context).toContain('- reusableSystem: yes');
+    expect(context).toContain('- visualDirection: professional');
+  });
+
   it('uses model context window only to reduce small-model history budgets', () => {
     const largeModel = buildDesignContextPack({
       chatRows: [userRow(0, 'request')],

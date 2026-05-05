@@ -2,6 +2,7 @@ import { completeWithRetry, type RetryReason } from '@open-codesign/providers';
 import type {
   Artifact,
   ChatMessage,
+  DesignRunPreferencesV1,
   ModelRef,
   ReasoningLevel,
   ResourceStateV1,
@@ -218,6 +219,8 @@ export interface GenerateInput {
         details: Extract<import('./tools/scaffold.js').ScaffoldDetails, { ok: true }>,
       ) => Promise<void> | void)
     | undefined;
+  /** Host-routed optional feature preferences for this generation. */
+  runPreferences?: DesignRunPreferencesV1 | undefined;
   /** Override the system prompt entirely. When set, `mode` is ignored. */
   systemPrompt?: string | undefined;
   /**

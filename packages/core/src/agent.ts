@@ -45,6 +45,7 @@ import {
   CodesignError,
   canonicalBaseUrl,
   DEFAULT_SOURCE_ENTRY,
+  type DesignRunPreferencesV1,
   ERROR_CODES,
   formatDesignMdForPrompt,
   LEGACY_SOURCE_ENTRY,
@@ -72,6 +73,7 @@ import {
   formatUntrustedContext,
 } from './lib/context-format.js';
 import { NOOP_LOGGER } from './logger.js';
+import type { PromptFeatureMode, PromptFeatureProfile } from './prompts/compose-full.js';
 import { composeSystemPrompt } from './prompts/index.js';
 import { collectResourceManifest } from './resource-manifest.js';
 import {
@@ -253,7 +255,33 @@ function buildPiModel(
 
 const MAX_DONE_ERROR_ROUNDS = 3;
 
-function agenticToolGuidance(input: { inspectWorkspace: boolean }): string {
+function featureMode(mode: DesignRunPreferencesV1['tweaks'] | undefined): PromptFeatureMode {
+  if (mode === 'yes') return 'enabled';
+  if (mode === 'no') return 'disabled';
+  return 'auto';
+}
+
+function featureProfileFromRunPreferences(
+  preferences: DesignRunPreferencesV1 | undefined,
+): PromptFeatureProfile {
+  return {
+    tweaks: featureMode(preferences?.tweaks),
+    bitmapAssets: featureMode(preferences?.bitmapAssets),
+    reusableSystem: featureMode(preferences?.reusableSystem),
+    ...(preferences?.visualDirection ? { visualDirection: preferences.visualDirection } : {}),
+  };
+}
+
+function agenticToolGuidance(input: {
+  inspectWorkspace: boolean;
+  featureProfile: PromptFeatureProfile;
+}): string {
+  const tweakStep =
+    input.featureProfile.tweaks === 'disabled'
+      ? `${input.inspectWorkspace ? '6' : '5'}. Do not call \`tweaks()\` unless the user explicitly asks for controls later.`
+      : input.featureProfile.tweaks === 'enabled'
+        ? `${input.inspectWorkspace ? '6' : '5'}. Create 2-5 high-leverage EDITMODE controls, then call \`tweaks()\`.`
+        : `${input.inspectWorkspace ? '6' : '5'}. Call \`tweaks()\` only when user preference allows and controls are clearly useful.`;
   const requiredSteps = [
     '1. For a fresh design, call `set_title` once. For continuation or existing-source turns, do not call `set_title` unless the user explicitly asks to rename or pivot to a new artifact.',
     '2. For multi-step or ambiguous work, call `set_todos` early with a short checklist. Do not delay a ready file mutation solely to add todos.',
@@ -264,7 +292,7 @@ function agenticToolGuidance(input: { inspectWorkspace: boolean }): string {
         ]
       : []),
     `${input.inspectWorkspace ? '5' : '4'}. Match the workspace files to the request. For visual/web work, write/edit the primary preview source at \`${DEFAULT_SOURCE_ENTRY}\`; for document-first work, create the requested Markdown/handoff file without inventing a visual shell.`,
-    `${input.inspectWorkspace ? '6' : '5'}. Call \`tweaks()\` for meaningful EDITMODE controls.`,
+    tweakStep,
     `${input.inspectWorkspace ? '7' : '6'}. Call \`preview(path)\` for previewable HTML/JSX/TSX files, then call \`done(path)\` after the final mutation. If done reports errors, fix and retry, but stop after ${MAX_DONE_ERROR_ROUNDS} error rounds.`,
   ];
   return [
@@ -760,11 +788,13 @@ export async function generateViaAgent(
         providerId: input.model.provider,
         templatesRoot: input.templatesRoot,
       });
+  const featureProfile = featureProfileFromRunPreferences(input.runPreferences);
   const systemPrompt =
     input.systemPrompt ??
     composeSystemPrompt({
       mode: 'create',
       userPrompt: input.prompt,
+      featureProfile,
     });
 
   const userContent = buildUserPromptWithContext(
@@ -840,7 +870,7 @@ export async function generateViaAgent(
       makePreviewTool(input.runPreview, { vision }) as unknown as AgentTool<TSchema, unknown>,
     );
   }
-  if (deps.generateImageAsset) {
+  if (deps.generateImageAsset && featureProfile.bitmapAssets !== 'disabled') {
     defaultToolsByName.set(
       'generate_image_asset',
       makeGenerateImageAssetTool(deps.generateImageAsset, trackedFs, log) as unknown as AgentTool<
@@ -855,7 +885,7 @@ export async function generateViaAgent(
       makeInspectWorkspaceTool(input.inspectWorkspace) as unknown as AgentTool<TSchema, unknown>,
     );
   }
-  if (input.readWorkspaceFiles) {
+  if (input.readWorkspaceFiles && featureProfile.tweaks !== 'disabled') {
     defaultToolsByName.set(
       'tweaks',
       makeTweaksTool(input.readWorkspaceFiles) as unknown as AgentTool<TSchema, unknown>,
@@ -870,9 +900,9 @@ export async function generateViaAgent(
   const defaultTools = availableToolNames({
     fs: trackedFs !== undefined,
     preview: input.runPreview !== undefined,
-    image: deps.generateImageAsset !== undefined,
+    image: deps.generateImageAsset !== undefined && featureProfile.bitmapAssets !== 'disabled',
     workspaceInspector: input.inspectWorkspace !== undefined,
-    workspaceReader: input.readWorkspaceFiles !== undefined,
+    workspaceReader: input.readWorkspaceFiles !== undefined && featureProfile.tweaks !== 'disabled',
     ask: input.askBridge !== undefined,
   })
     .map((name) => defaultToolsByName.get(name))
@@ -881,10 +911,12 @@ export async function generateViaAgent(
   const encourageToolUse = deps.encourageToolUse ?? tools.length > 0;
   const baseAgenticGuidance = agenticToolGuidance({
     inspectWorkspace: input.inspectWorkspace !== undefined,
+    featureProfile,
   });
-  const activeGuidance = deps.generateImageAsset
-    ? `${baseAgenticGuidance}\n\n${IMAGE_ASSET_TOOL_GUIDANCE}`
-    : baseAgenticGuidance;
+  const activeGuidance =
+    deps.generateImageAsset && featureProfile.bitmapAssets !== 'disabled'
+      ? `${baseAgenticGuidance}\n\n${IMAGE_ASSET_TOOL_GUIDANCE}`
+      : baseAgenticGuidance;
   const augmentedSystemPrompt = [
     encourageToolUse ? `${systemPrompt}\n\n${activeGuidance}` : systemPrompt,
     ...resourceResult.sections,

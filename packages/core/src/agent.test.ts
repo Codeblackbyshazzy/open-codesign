@@ -1549,9 +1549,10 @@ describe('generateViaAgent()', () => {
         history: [],
         model: MODEL,
         apiKey: 'sk-test',
-        featureProfile: {
-          tweaks: 'disabled',
-          bitmapAssets: 'disabled',
+        runPreferences: {
+          schemaVersion: 1,
+          tweaks: 'no',
+          bitmapAssets: 'no',
           reusableSystem: 'auto',
         },
         runPreview: async () => ({
@@ -1590,7 +1591,8 @@ describe('generateViaAgent()', () => {
       history: [],
       model: MODEL,
       apiKey: 'sk-test',
-      featureProfile: {
+      runPreferences: {
+        schemaVersion: 1,
         tweaks: 'auto',
         bitmapAssets: 'auto',
         reusableSystem: 'auto',

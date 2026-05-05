@@ -20,24 +20,42 @@ import type {
 
 type AnswerValue = string | number | string[] | null;
 
+export interface AskQueueState {
+  active: AskRequest | null;
+  queue: AskRequest[];
+}
+
+export function enqueueAskRequest(state: AskQueueState, request: AskRequest): AskQueueState {
+  if (state.active === null) return { active: request, queue: state.queue };
+  return { active: state.active, queue: [...state.queue, request] };
+}
+
+export function advanceAskQueue(state: AskQueueState): AskQueueState {
+  const [next, ...rest] = state.queue;
+  return { active: next ?? null, queue: rest };
+}
+
 export function AskModal() {
-  const [pending, setPending] = useState<AskRequest | null>(null);
+  const [askQueue, setAskQueue] = useState<AskQueueState>({ active: null, queue: [] });
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
+  const pending = askQueue.active;
 
   useEffect(() => {
     const off = window.codesign?.ask?.onRequest?.((req) => {
-      setPending(req);
-      setAnswers(initialAnswers(req.input.questions));
+      setAskQueue((prev) => enqueueAskRequest(prev, req));
     });
     return () => {
       off?.();
     };
   }, []);
 
+  useEffect(() => {
+    setAnswers(pending ? initialAnswers(pending.input.questions) : {});
+  }, [pending]);
+
   const resolve = useCallback((requestId: string, result: AskResult) => {
     void window.codesign?.ask?.resolve?.(requestId, result);
-    setPending(null);
-    setAnswers({});
+    setAskQueue((prev) => advanceAskQueue(prev));
   }, []);
 
   const cancel = useCallback(() => {
