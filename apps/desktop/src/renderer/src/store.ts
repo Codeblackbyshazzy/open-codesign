@@ -47,7 +47,13 @@ import {
   type PendingEditEnrichment,
 } from './store/slices/generation';
 import { toSnapshotArtifactType } from './store/slices/snapshots';
-import { type CanvasTab, closeTabAt, FILES_TAB, openFileTab } from './store/slices/tabs';
+import {
+  type CanvasTab,
+  closeTabAt,
+  DEFAULT_CANVAS_TABS,
+  FILES_TAB,
+  openFileTab,
+} from './store/slices/tabs';
 import { applyThemeClass, persistTheme, readInitialTheme, type Theme } from './store/slices/theme';
 import { coerceUsageSnapshot, type UsageSnapshot } from './store/slices/usage';
 
@@ -75,6 +81,7 @@ export {
   buildEnrichedPrompt,
   closeTabAt,
   coerceUsageSnapshot,
+  DEFAULT_CANVAS_TABS,
   extractCodesignErrorCode,
   extractUpstreamContext,
   FILES_TAB,
@@ -89,10 +96,11 @@ export type SettingsTab =
   | 'images'
   | 'memory'
   | 'appearance'
+  | 'workspace'
   | 'storage'
   | 'diagnostics'
   | 'advanced';
-export type HubTab = 'recent' | 'your' | 'examples' | 'designSystems';
+export type HubTab = 'recent' | 'all' | 'examples' | 'resources';
 export type InteractionMode = 'default' | 'comment';
 export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';
 export type PreviewZoomMode = 'manual' | 'fit';
@@ -175,7 +183,6 @@ export interface CodesignState {
   previewZoom: number;
   previewZoomMode: PreviewZoomMode;
   interactionMode: InteractionMode;
-
   // Sidebar v2 chat state
   chatMessages: ChatMessageRow[];
   chatLoaded: boolean;
@@ -248,6 +255,7 @@ export interface CodesignState {
     prompt: string;
     attachments?: LocalInputFile[] | undefined;
     referenceUrl?: string | undefined;
+    pendingEdits?: PendingEditEnrichment[] | undefined;
     /** Silent prompts skip the user chat bubble and the auto-rename trigger.
      *  Used by the auto-polish flow so the injected "deepen" request isn't
      *  visible as a user message — the agent still receives it and responds
@@ -298,7 +306,6 @@ export interface CodesignState {
   setPreviewZoomFit: (zoom: number) => void;
   setPreviewZoomMode: (mode: PreviewZoomMode) => void;
   setInteractionMode: (mode: InteractionMode) => void;
-
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
   setView: (view: AppView) => void;
@@ -471,7 +478,6 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
   previewZoom: 100,
   previewZoomMode: 'fit' as PreviewZoomMode,
   interactionMode: 'default' as InteractionMode,
-
   chatMessages: [],
   chatLoaded: false,
   sidebarCollapsed: false,
@@ -482,7 +488,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
   currentSnapshotId: null,
   liveRects: {},
 
-  canvasTabs: [FILES_TAB],
+  canvasTabs: DEFAULT_CANVAS_TABS,
   activeCanvasTab: 0,
 
   recentEvents: [],
@@ -672,7 +678,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     set({ previewZoomMode: mode });
   },
 
-  setInteractionMode(mode) {
+  setInteractionMode(mode: InteractionMode) {
     if (mode === 'default') {
       set({ interactionMode: mode, selectedElement: null, commentBubble: null });
     } else {
@@ -691,12 +697,12 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     get().setTheme(next);
   },
 
-  setView(view) {
+  setView(view: AppView) {
     const prev = get().view;
     set({ view, previousView: prev === view ? get().previousView : prev });
   },
 
-  openSettingsTab(tab) {
+  openSettingsTab(tab: SettingsTab) {
     const prev = get().view;
     set({
       view: 'settings',
@@ -709,11 +715,11 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     set({ settingsTab: null });
   },
 
-  setHubTab(tab) {
+  setHubTab(tab: HubTab) {
     set({ hubTab: tab });
   },
 
-  setPreviewViewport(viewport) {
+  setPreviewViewport(viewport: PreviewViewport) {
     set({ previewViewport: viewport });
   },
 
@@ -743,6 +749,6 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
   },
 
   resetCanvasTabs() {
-    set({ canvasTabs: [FILES_TAB], activeCanvasTab: 0 });
+    set({ canvasTabs: DEFAULT_CANVAS_TABS, activeCanvasTab: 0 });
   },
 }));

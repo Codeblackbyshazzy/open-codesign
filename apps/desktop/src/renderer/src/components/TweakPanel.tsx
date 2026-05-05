@@ -124,7 +124,13 @@ function TokenRow({
   );
 }
 
-export function TweakPanel({ iframeRef }: { iframeRef: RefObject<HTMLIFrameElement | null> }) {
+export function TweakPanel({
+  iframeRef,
+  presentation = 'floating',
+}: {
+  iframeRef: RefObject<HTMLIFrameElement | null>;
+  presentation?: 'floating' | 'inspector';
+}) {
   const t = useT();
   const previewSource = useCodesignStore((s) => s.previewSource);
   const setPreviewSource = useCodesignStore((s) => s.setPreviewSource);
@@ -291,79 +297,91 @@ export function TweakPanel({ iframeRef }: { iframeRef: RefObject<HTMLIFrameEleme
   const emptyHint = t('tweaks.emptyHint');
   const countBadge = hasTokens ? String(entries.length) : '—';
 
+  const panelBody = (
+    <div
+      aria-label={titleText}
+      className={
+        presentation === 'inspector'
+          ? 'flex min-h-0 flex-col overflow-hidden'
+          : 'flex w-[280px] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-elevated)] backdrop-blur'
+      }
+    >
+      <div className="flex items-center justify-between gap-[var(--space-2)] border-b border-[var(--color-border-subtle)] px-[var(--space-3)] py-[var(--space-2)]">
+        <div className="flex min-w-0 flex-1 select-none items-center gap-[var(--space-2)]">
+          <SlidersHorizontal
+            className="h-[14px] w-[14px] text-[var(--color-accent)]"
+            aria-hidden="true"
+          />
+          <span
+            className="text-[13px] text-[var(--color-text-primary)]"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            {titleText}
+          </span>
+          <span
+            className="rounded-full bg-[var(--color-surface-active)] px-[6px] py-[1px] text-[10px] text-[var(--color-text-muted)]"
+            style={{ fontFamily: 'var(--font-mono)', fontFeatureSettings: "'tnum'" }}
+          >
+            {countBadge}
+          </span>
+        </div>
+        <div className="flex items-center gap-[var(--space-1)]">
+          <button
+            type="button"
+            onClick={reset}
+            disabled={!isDirty}
+            title={resetText}
+            aria-label={resetText}
+            className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] transition-colors duration-[var(--duration-faster)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] disabled:pointer-events-none disabled:opacity-30"
+          >
+            <RotateCcw className="h-[12px] w-[12px]" aria-hidden="true" />
+          </button>
+          {presentation === 'floating' ? (
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              title={closeText}
+              aria-label={closeText}
+              className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] transition-colors duration-[var(--duration-faster)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+            >
+              <X className="h-[14px] w-[14px]" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {hasTokens ? (
+        <div className="flex max-h-[60vh] flex-col gap-[var(--space-1)] overflow-y-auto px-[var(--space-3)] py-[var(--space-2)]">
+          {entries.map(([key, value]) => (
+            <TokenRow
+              key={key}
+              tokenKey={key}
+              value={value}
+              onChange={(next) => applyChange(key, next)}
+              pickColorLabel={pickColorLabel}
+              schemaEntry={schema?.[key]}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-start gap-[var(--space-1_5)] px-[var(--space-3)] py-[var(--space-3)]">
+          <div className="text-[12px] font-medium text-[var(--color-text-primary)]">
+            {emptyTitle}
+          </div>
+          <div className="text-[11px] leading-[var(--leading-snug)] text-[var(--color-text-muted)]">
+            {emptyHint}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  if (presentation === 'inspector') return panelBody;
+
   return (
     <div ref={panelRef} className="absolute right-[var(--space-4)] bottom-[var(--space-4)] z-20">
       {open ? (
-        <div
-          aria-label={titleText}
-          className="flex w-[280px] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-elevated)] backdrop-blur"
-        >
-          <div className="flex items-center justify-between gap-[var(--space-2)] border-b border-[var(--color-border-subtle)] px-[var(--space-3)] py-[var(--space-2)]">
-            <div className="flex min-w-0 flex-1 select-none items-center gap-[var(--space-2)]">
-              <SlidersHorizontal
-                className="h-[14px] w-[14px] text-[var(--color-accent)]"
-                aria-hidden="true"
-              />
-              <span
-                className="text-[13px] text-[var(--color-text-primary)]"
-                style={{ fontFamily: 'var(--font-display)' }}
-              >
-                {titleText}
-              </span>
-              <span
-                className="rounded-full bg-[var(--color-surface-active)] px-[6px] py-[1px] text-[10px] text-[var(--color-text-muted)]"
-                style={{ fontFamily: 'var(--font-mono)', fontFeatureSettings: "'tnum'" }}
-              >
-                {countBadge}
-              </span>
-            </div>
-            <div className="flex items-center gap-[var(--space-1)]">
-              <button
-                type="button"
-                onClick={reset}
-                disabled={!isDirty}
-                title={resetText}
-                aria-label={resetText}
-                className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] transition-colors duration-[var(--duration-faster)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] disabled:pointer-events-none disabled:opacity-30"
-              >
-                <RotateCcw className="h-[12px] w-[12px]" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                title={closeText}
-                aria-label={closeText}
-                className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] transition-colors duration-[var(--duration-faster)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
-              >
-                <X className="h-[14px] w-[14px]" aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-
-          {hasTokens ? (
-            <div className="flex max-h-[60vh] flex-col gap-[var(--space-1)] overflow-y-auto px-[var(--space-3)] py-[var(--space-2)]">
-              {entries.map(([key, value]) => (
-                <TokenRow
-                  key={key}
-                  tokenKey={key}
-                  value={value}
-                  onChange={(next) => applyChange(key, next)}
-                  pickColorLabel={pickColorLabel}
-                  schemaEntry={schema?.[key]}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-start gap-[var(--space-1_5)] px-[var(--space-3)] py-[var(--space-3)]">
-              <div className="text-[12px] font-medium text-[var(--color-text-primary)]">
-                {emptyTitle}
-              </div>
-              <div className="text-[11px] leading-[var(--leading-snug)] text-[var(--color-text-muted)]">
-                {emptyHint}
-              </div>
-            </div>
-          )}
-        </div>
+        panelBody
       ) : (
         <button
           type="button"

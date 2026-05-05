@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { AgentStreamEvent } from '../../../../preload/index';
+import { createAgentFsUpdateScheduler } from '../agent-stream-fs-scheduler';
 
 interface LogPayload {
   generationId: string;
@@ -55,14 +56,6 @@ function toolCallStartLogPayload(event: AgentStreamEvent): LogPayload {
     designId: event.designId,
     toolName: event.toolName ?? 'unknown',
     toolCallId: event.toolCallId,
-  };
-}
-
-/** Simulates assistant_note persistence input. */
-function assistantNotePayload(event: AgentStreamEvent): { designId: string; text: string } {
-  return {
-    designId: event.designId,
-    text: event.text ?? '',
   };
 }
 
@@ -131,12 +124,148 @@ describe('useAgentStream — generationId in log payloads', () => {
     expect(typeof event.generationId).toBe('string');
     expect(event.generationId.length).toBeGreaterThan(0);
   });
+});
 
-  it('assistant_note carries text for persisted assistant messages', () => {
-    const event = baseEvent('assistant_note', { text: 'I’m previewing the artifact.' });
-    expect(assistantNotePayload(event)).toEqual({
-      designId: DESIGN_ID,
-      text: 'I’m previewing the artifact.',
+describe('agent fs update scheduler', () => {
+  it('keeps throttled fs updates isolated per generation and path', () => {
+    let now = 0;
+    const timers = new Map<number, () => void>();
+    let nextTimer = 1;
+    const flushed: Array<{
+      designId: string;
+      generationId: string;
+      path: string;
+      content: string;
+    }> = [];
+    const scheduler = createAgentFsUpdateScheduler({
+      delayMs: 250,
+      now: () => now,
+      setTimer(callback) {
+        const id = nextTimer++;
+        timers.set(id, callback);
+        return id;
+      },
+      clearTimer(id) {
+        timers.delete(id);
+      },
+      flush(update) {
+        flushed.push(update);
+      },
     });
+
+    scheduler.schedule({
+      designId: 'design-a',
+      generationId: 'gen-a',
+      path: 'App.jsx',
+      content: 'a1',
+    });
+    scheduler.schedule({
+      designId: 'design-b',
+      generationId: 'gen-b',
+      path: 'App.jsx',
+      content: 'b1',
+    });
+    scheduler.schedule({
+      designId: 'design-a',
+      generationId: 'gen-a',
+      path: 'styles.css',
+      content: 'a-css',
+    });
+
+    expect(flushed).toEqual([
+      { designId: 'design-a', generationId: 'gen-a', path: 'App.jsx', content: 'a1' },
+      { designId: 'design-b', generationId: 'gen-b', path: 'App.jsx', content: 'b1' },
+      { designId: 'design-a', generationId: 'gen-a', path: 'styles.css', content: 'a-css' },
+    ]);
+
+    now = 50;
+    scheduler.schedule({
+      designId: 'design-a',
+      generationId: 'gen-a',
+      path: 'App.jsx',
+      content: 'a2',
+    });
+    scheduler.schedule({
+      designId: 'design-b',
+      generationId: 'gen-b',
+      path: 'App.jsx',
+      content: 'b2',
+    });
+    scheduler.schedule({
+      designId: 'design-a',
+      generationId: 'gen-a',
+      path: 'styles.css',
+      content: 'a-css-2',
+    });
+
+    expect(flushed).toHaveLength(3);
+    expect(timers.size).toBe(3);
+
+    for (const timer of [...timers.values()]) timer();
+
+    expect(flushed.slice(3)).toEqual([
+      { designId: 'design-a', generationId: 'gen-a', path: 'App.jsx', content: 'a2' },
+      { designId: 'design-b', generationId: 'gen-b', path: 'App.jsx', content: 'b2' },
+      { designId: 'design-a', generationId: 'gen-a', path: 'styles.css', content: 'a-css-2' },
+    ]);
+  });
+
+  it('flushes only the pending updates for the ending generation', () => {
+    const timers = new Map<number, () => void>();
+    let nextTimer = 1;
+    const flushed: Array<{
+      designId: string;
+      generationId: string;
+      path: string;
+      content: string;
+    }> = [];
+    const scheduler = createAgentFsUpdateScheduler({
+      delayMs: 250,
+      now: () => 0,
+      setTimer(callback) {
+        const id = nextTimer++;
+        timers.set(id, callback);
+        return id;
+      },
+      clearTimer(id) {
+        timers.delete(id);
+      },
+      flush(update) {
+        flushed.push(update);
+      },
+    });
+
+    scheduler.schedule({
+      designId: 'design-a',
+      generationId: 'gen-a',
+      path: 'App.jsx',
+      content: 'a1',
+    });
+    scheduler.schedule({
+      designId: 'design-b',
+      generationId: 'gen-b',
+      path: 'App.jsx',
+      content: 'b1',
+    });
+    scheduler.schedule({
+      designId: 'design-a',
+      generationId: 'gen-a',
+      path: 'App.jsx',
+      content: 'a2',
+    });
+    scheduler.schedule({
+      designId: 'design-b',
+      generationId: 'gen-b',
+      path: 'App.jsx',
+      content: 'b2',
+    });
+
+    scheduler.flushGeneration('gen-a');
+
+    expect(flushed.map((item) => item.content)).toEqual(['a1', 'b1', 'a2']);
+    expect(timers.size).toBe(1);
+
+    for (const timer of [...timers.values()]) timer();
+    expect(flushed.map((item) => item.content)).toEqual(['a1', 'b1', 'a2', 'b2']);
   });
 });

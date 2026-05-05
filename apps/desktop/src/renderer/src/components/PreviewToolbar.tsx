@@ -19,7 +19,6 @@ export function PreviewToolbar(): ReactElement {
   const exportActive = useCodesignStore((s) => s.exportActive);
   const toastMessage = useCodesignStore((s) => s.toastMessage);
   const dismissToast = useCodesignStore((s) => s.dismissToast);
-  const _previewViewport = useCodesignStore((s) => s.previewViewport);
   const previewZoom = useCodesignStore((s) => s.previewZoom);
   const previewZoomMode = useCodesignStore((s) => s.previewZoomMode);
   const setPreviewZoom = useCodesignStore((s) => s.setPreviewZoom);
@@ -118,7 +117,7 @@ export function PreviewToolbar(): ReactElement {
           type="button"
           disabled={disabled}
           onClick={() => setZoomOpen((v) => !v)}
-          className="inline-flex h-[28px] min-w-[72px] items-center justify-end rounded-[var(--radius-sm)] px-[10px] text-[12px] tabular-nums text-[var(--color-text-secondary)] whitespace-nowrap hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:opacity-40 disabled:pointer-events-none transition-[background-color,color,transform] duration-[var(--duration-faster)] active:scale-[var(--scale-press-down)]"
+          className="inline-flex h-[28px] min-w-[76px] items-center justify-center rounded-[var(--radius-sm)] px-[10px] text-[12px] tabular-nums text-[var(--color-text-secondary)] whitespace-nowrap hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:opacity-40 disabled:pointer-events-none transition-[background-color,color,transform] duration-[var(--duration-faster)] active:scale-[var(--scale-press-down)]"
           aria-haspopup="menu"
           aria-expanded={zoomOpen}
           aria-label={t('preview.zoom')}
@@ -171,12 +170,13 @@ export function PreviewToolbar(): ReactElement {
           type="button"
           disabled={disabled}
           onClick={() => setOpen((v) => !v)}
+          title={t('export.button')}
+          aria-label={t('export.button')}
           className="inline-flex h-[28px] items-center gap-[6px] rounded-[var(--radius-sm)] px-[10px] text-[12px] text-[var(--color-text-secondary)] whitespace-nowrap hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] disabled:opacity-40 disabled:pointer-events-none transition-[background-color,color,transform] duration-[var(--duration-faster)] active:scale-[var(--scale-press-down)]"
           aria-haspopup="menu"
           aria-expanded={open}
         >
           <Download className="w-3.5 h-3.5" aria-hidden="true" />
-          {t('export.button')}
         </button>
 
         {open && (

@@ -1,15 +1,12 @@
 import { useT } from '@open-codesign/i18n';
 import {
-  AlertCircle,
-  Brain,
   Cpu,
   FolderOpen,
-  Image as ImageIcon,
   Palette,
   Sliders,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useCodesignStore } from '../store';
+import { type SettingsTab, useCodesignStore } from '../store';
 import { AdvancedTab } from './settings/AdvancedTab';
 import { AppearanceTab } from './settings/AppearanceTab';
 import { DiagnosticsPanel } from './settings/DiagnosticsPanel';
@@ -24,23 +21,27 @@ export { resolveTimeoutOptions, TIMEOUT_OPTION_SECONDS } from './settings/Advanc
 export { applyLocaleChange } from './settings/AppearanceTab';
 export { computeModelOptions } from './settings/primitives';
 
-type Tab = 'models' | 'images' | 'memory' | 'appearance' | 'storage' | 'diagnostics' | 'advanced';
+type Tab = 'models' | 'appearance' | 'workspace' | 'advanced';
 
 const TABS: ReadonlyArray<{ id: Tab; icon: typeof Cpu }> = [
   { id: 'models', icon: Cpu },
-  { id: 'images', icon: ImageIcon },
-  { id: 'memory', icon: Brain },
   { id: 'appearance', icon: Palette },
-  { id: 'storage', icon: FolderOpen },
-  { id: 'diagnostics', icon: AlertCircle },
+  { id: 'workspace', icon: FolderOpen },
   { id: 'advanced', icon: Sliders },
 ];
+
+function primarySettingsTab(tab: SettingsTab | null): Tab {
+  if (tab === 'appearance') return 'appearance';
+  if (tab === 'storage' || tab === 'workspace') return 'workspace';
+  if (tab === 'memory' || tab === 'diagnostics' || tab === 'advanced') return 'advanced';
+  return 'models';
+}
 
 export function Settings() {
   const t = useT();
   const initialTab = useCodesignStore((s) => s.settingsTab);
   const clearSettingsTab = useCodesignStore((s) => s.clearSettingsTab);
-  const [tab, setTab] = useState<Tab>(initialTab ?? 'models');
+  const [tab, setTab] = useState<Tab>(primarySettingsTab(initialTab));
 
   // Consume the store hint exactly once on mount so future Settings opens
   // start on whatever the user last selected manually.
@@ -77,13 +78,21 @@ export function Settings() {
         </aside>
 
         <section className="codesign-scroll-area flex flex-col min-h-0 overflow-y-auto p-[clamp(var(--space-4),3vw,var(--space-6))]">
-          {tab === 'models' ? <ModelsTab /> : null}
-          {tab === 'images' ? <ImageGenerationTab /> : null}
-          {tab === 'memory' ? <MemoryTab /> : null}
+          {tab === 'models' ? (
+            <div className="space-y-[var(--space-6)]">
+              <ModelsTab />
+              <ImageGenerationTab />
+            </div>
+          ) : null}
           {tab === 'appearance' ? <AppearanceTab /> : null}
-          {tab === 'storage' ? <StorageTab /> : null}
-          {tab === 'diagnostics' ? <DiagnosticsPanel /> : null}
-          {tab === 'advanced' ? <AdvancedTab /> : null}
+          {tab === 'workspace' ? <StorageTab /> : null}
+          {tab === 'advanced' ? (
+            <div className="space-y-[var(--space-6)]">
+              <MemoryTab />
+              <DiagnosticsPanel />
+              <AdvancedTab />
+            </div>
+          ) : null}
         </section>
       </div>
     </div>

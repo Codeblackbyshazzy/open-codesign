@@ -327,8 +327,6 @@ function findJsxStructuralIssues(src: string): DoneError[] {
     });
   }
 
-  // Brace / paren / bracket balance across the whole file. String-aware so
-  // JSX string literals and template literals don't confuse the counter.
   const counters = { '(': 0, '{': 0, '[': 0 };
   let inStr: '"' | "'" | '`' | null = null;
   let escaped = false;

@@ -323,7 +323,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);`,
     const tool = makeDoneTool(fs);
     const res = await tool.execute('id-syntax-brace', {});
     expect(res.details.status).toBe('has_errors');
-    expect(res.details.errors.some((e) => /Unbalanced braces/.test(e.message))).toBe(true);
+    expect(
+      res.details.errors.some(
+        (e) =>
+          e.source === 'syntax' &&
+          /expected|Unexpected|Declaration or statement|Unbalanced braces/.test(e.message),
+      ),
+    ).toBe(true);
   });
 
   it('flags missing ReactDOM.createRoot call when content is JSX-shaped', async () => {

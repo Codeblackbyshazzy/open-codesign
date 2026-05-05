@@ -103,24 +103,6 @@ export function buildRunPreferenceAskInput(
   };
 }
 
-export function assistantNoteForToolStart(
-  toolName: string,
-  args: Record<string, unknown>,
-  hasModelTextInTurn: boolean,
-): string | null {
-  if (hasModelTextInTurn) return null;
-  if (toolName === 'ask') return 'I need a couple choices before building.';
-  if (toolName === 'set_todos') return 'I’ll lay out the build steps first.';
-  if (toolName === 'preview') return 'I’m previewing the artifact and checking for issues.';
-  if (toolName === 'done') return 'I’m running the final completion check.';
-  if (toolName === 'str_replace_based_edit_tool') {
-    return args['command'] === 'create'
-      ? 'I’m writing the first complete pass now.'
-      : 'I’m applying the next focused edit.';
-  }
-  return null;
-}
-
 function recentHistoryForRunPreferenceRouter(
   chatRows: ReturnType<typeof listSessionChatMessages>,
 ): string {
@@ -169,10 +151,7 @@ export function dropCurrentPromptEchoFromChatRows(
 
 function sendPreflightAskEvent(
   getMainWindow: () => ElectronBrowserWindow | null,
-  event: Omit<AgentStreamEvent, 'designId' | 'generationId'> & {
-    designId: string;
-    generationId: string;
-  },
+  event: AgentStreamEvent,
 ): void {
   getMainWindow()?.webContents.send('agent:event:v1', event satisfies AgentStreamEvent);
 }
@@ -624,14 +603,6 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 : {};
             const command =
               typeof argsObj['command'] === 'string' ? (argsObj['command'] as string) : undefined;
-            const note = assistantNoteForToolStart(
-              event.toolName,
-              argsObj,
-              turnTextBuffer.trim().length > 0,
-            );
-            if (note !== null) {
-              sendEvent({ ...baseCtx, type: 'assistant_note', text: note });
-            }
             sendEvent({
               ...baseCtx,
               type: 'tool_call_start',
@@ -922,12 +893,6 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 designId,
                 generationId: id,
                 type: 'turn_start',
-              });
-              sendPreflightAskEvent(getMainWindow, {
-                designId,
-                generationId: id,
-                type: 'assistant_note',
-                text: 'I need a couple choices before building.',
               });
               logIpc.info('agent.tool_start', {
                 generationId: id,

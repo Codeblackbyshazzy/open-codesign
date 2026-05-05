@@ -7,7 +7,7 @@ import type { CodesignState } from '../../store.js';
 import { tr } from '../lib/locale.js';
 import { projectGenerationForDesign } from './generation.js';
 import { recordPreviewSourceInPool } from './snapshots.js';
-import { FILES_TAB } from './tabs.js';
+import { DEFAULT_CANVAS_TABS } from './tabs.js';
 
 type SetState = (
   updater: ((state: CodesignState) => Partial<CodesignState> | object) | Partial<CodesignState>,
@@ -75,9 +75,9 @@ function buildSelectedDesignState(
     currentSnapshotId: null,
     canvasTabs:
       input.sourcePath !== undefined
-        ? [FILES_TAB, { kind: 'file', path: input.sourcePath }]
-        : [FILES_TAB],
-    activeCanvasTab: input.sourcePath !== undefined ? 1 : 0,
+        ? [...DEFAULT_CANVAS_TABS, { kind: 'file', path: input.sourcePath }]
+        : DEFAULT_CANVAS_TABS,
+    activeCanvasTab: 0,
   };
 }
 
@@ -147,7 +147,7 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
           commentsLoaded: false,
           commentBubble: null,
           currentSnapshotId: null,
-          canvasTabs: [FILES_TAB],
+          canvasTabs: DEFAULT_CANVAS_TABS,
           activeCanvasTab: 0,
         });
         await get().loadDesigns();
@@ -295,8 +295,10 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
             previewSource: source?.content ?? null,
             previewSourceByDesign: refreshed.cache,
             recentDesignIds: refreshed.recent,
-            canvasTabs: source ? [FILES_TAB, { kind: 'file', path: source.path }] : [FILES_TAB],
-            activeCanvasTab: source ? 1 : 0,
+            canvasTabs: source
+              ? [...DEFAULT_CANVAS_TABS, { kind: 'file', path: source.path }]
+              : DEFAULT_CANVAS_TABS,
+            activeCanvasTab: 0,
           });
         } catch (err) {
           if (get().currentDesignId !== id) return;
@@ -394,7 +396,7 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
           set({
             currentDesignId: null,
             previewSource: null,
-            canvasTabs: [FILES_TAB],
+            canvasTabs: DEFAULT_CANVAS_TABS,
             activeCanvasTab: 0,
           });
           if (remaining.length > 0 && remaining[0]) {

@@ -1,5 +1,6 @@
 import { useT } from '@open-codesign/i18n';
-import { FolderOpen, X } from 'lucide-react';
+import { Eye, FolderOpen, X } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useCodesignStore } from '../store';
 
 function fileTabLabel(path: string): string {
@@ -7,9 +8,54 @@ function fileTabLabel(path: string): string {
   return segments[segments.length - 1] ?? path;
 }
 
+type CanvasTabForView = { kind: 'preview' } | { kind: 'files' } | { kind: 'file'; path: string };
+
+function tabMeta(
+  tab: CanvasTabForView,
+  t: ReturnType<typeof useT>,
+): {
+  key: string;
+  label: string;
+  title: string;
+  icon: ReactNode;
+  mono: boolean;
+  closable: boolean;
+} {
+  if (tab.kind === 'preview') {
+    const label = t('canvas.previewTab');
+    return {
+      key: 'preview',
+      label,
+      title: label,
+      icon: <Eye className="h-3.5 w-3.5 opacity-80" aria-hidden />,
+      mono: false,
+      closable: false,
+    };
+  }
+  if (tab.kind === 'files') {
+    const label = t('canvas.filesTab');
+    return {
+      key: 'files',
+      label,
+      title: label,
+      icon: <FolderOpen className="h-3.5 w-3.5 opacity-80" aria-hidden />,
+      mono: false,
+      closable: false,
+    };
+  }
+  return {
+    key: `file:${tab.path}`,
+    label: fileTabLabel(tab.path),
+    title: tab.path,
+    icon: null,
+    mono: true,
+    closable: true,
+  };
+}
+
 export function CanvasTabBar() {
   const t = useT();
-  const tabs = useCodesignStore((s) => s.canvasTabs);
+  const tabs = useCodesignStore((s) => s.canvasTabs) as CanvasTabForView[];
   const active = useCodesignStore((s) => s.activeCanvasTab);
   const setActive = useCodesignStore((s) => s.setActiveCanvasTab);
   const close = useCodesignStore((s) => s.closeCanvasTab);
@@ -24,13 +70,11 @@ export function CanvasTabBar() {
     >
       {tabs.map((tab, index) => {
         const isActive = index === active;
-        const isFiles = tab.kind === 'files';
-        const label = isFiles ? t('canvas.filesTab') : fileTabLabel((tab as { path: string }).path);
-        const title = isFiles ? t('canvas.filesTab') : (tab as { path: string }).path;
-        const key: string = isFiles ? 'files' : `file:${(tab as { path: string }).path}`;
+        const item = tabMeta(tab, t);
+
         return (
           <div
-            key={key}
+            key={item.key}
             role="tab"
             aria-selected={isActive}
             className={`group relative flex shrink-0 items-center gap-[var(--space-2)] px-[var(--space-3)] py-[7px] text-[12px] transition-colors duration-[var(--duration-faster)] ${
@@ -42,27 +86,27 @@ export function CanvasTabBar() {
             <button
               type="button"
               onClick={() => setActive(index)}
-              title={title}
+              title={item.title}
               className="flex items-center gap-[var(--space-1_5)] focus:outline-none"
             >
-              {isFiles ? <FolderOpen className="w-3.5 h-3.5 opacity-80" aria-hidden /> : null}
+              {item.icon}
               <span
-                className="truncate max-w-[220px]"
-                style={isFiles ? undefined : { fontFamily: 'var(--font-mono)' }}
+                className="max-w-[220px] truncate"
+                style={item.mono ? { fontFamily: 'var(--font-mono)' } : undefined}
               >
-                {label}
+                {item.label}
               </span>
             </button>
-            {isFiles ? null : (
+            {item.closable ? (
               <button
                 type="button"
                 onClick={() => close(index)}
-                aria-label={t('canvas.closeTab', { name: label })}
-                className="p-[2px] text-[var(--color-text-muted)] opacity-50 hover:opacity-100 hover:text-[var(--color-text-primary)] transition-opacity"
+                aria-label={t('canvas.closeTab', { name: item.label })}
+                className="p-[2px] text-[var(--color-text-muted)] opacity-50 transition-opacity hover:text-[var(--color-text-primary)] hover:opacity-100"
               >
-                <X className="w-3 h-3" aria-hidden />
+                <X className="h-3 w-3" aria-hidden />
               </button>
-            )}
+            ) : null}
             {isActive ? (
               <span
                 aria-hidden

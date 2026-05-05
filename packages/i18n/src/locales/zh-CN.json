@@ -128,7 +128,12 @@
     "runtimeError": "预览运行时错误",
     "dismissErrors": "关闭预览错误",
     "zoom": "缩放",
-    "zoomFit": "适配"
+    "zoomFit": "适配",
+    "viewport": {
+      "desktop": "桌面预览",
+      "tablet": "平板预览",
+      "mobile": "手机预览"
+    }
   },
   "tweaks": {
     "title": "微调",
@@ -139,6 +144,31 @@
     "swatchAria": "{{key}} 颜色",
     "emptyTitle": "暂无可调 token",
     "emptyHint": "Agent 还没有声明 EDITMODE 区块。下次生成时会自动暴露设计 token。"
+  },
+  "inspector": {
+    "title": "检查器",
+    "close": "关闭检查器",
+    "panels": {
+      "tweaks": "微调",
+      "comments": "评论",
+      "selection": "选中项",
+      "run": "运行"
+    },
+    "empty": {
+      "tweaks": "还没有可微调的预览。",
+      "selection": "在评论模式中选择一个元素即可检查。"
+    },
+    "comments": {
+      "enterMode": "在预览中评论"
+    },
+    "selection": {
+      "target": "目标"
+    },
+    "run": {
+      "status": "状态",
+      "id": "运行 ID",
+      "tokens": "Tokens"
+    }
   },
   "chat": {
     "placeholder": "想设计什么？",
@@ -231,6 +261,7 @@
       "images": "图像 API",
       "memory": "记忆",
       "appearance": "外观",
+      "workspace": "工作区与文件",
       "storage": "存储",
       "diagnostics": "诊断",
       "advanced": "高级"

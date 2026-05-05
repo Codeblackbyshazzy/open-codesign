@@ -17,6 +17,7 @@ import { useEffect, useRef } from 'react';
 import type { AgentStreamEvent } from '../../../preload/index';
 import { resolveReferencedWorkspacePreviewPath } from '../preview/workspace-source';
 import { useCodesignStore } from '../store';
+import { createAgentFsUpdateScheduler } from './agent-stream-fs-scheduler';
 
 interface PendingPersist {
   /** Resolves to the persisted row's seq, or null if the append failed. */
@@ -53,40 +54,29 @@ export function useAgentStream(): void {
   const markGenerationRunning = useCodesignStore((s) => s.markGenerationRunning);
   const inFlight = useRef<Map<string, InFlightTurn>>(new Map());
 
-  // Throttled live-preview push. iframe srcdoc reloads the whole page on every
-  // change, so a flurry of str_replace events (10+ per turn is normal) would
-  // strobe. Coalesce to ~250ms with a guaranteed trailing edge so the final
-  // state always lands.
-  const fsThrottle = useRef<{
-    timer: ReturnType<typeof setTimeout> | null;
-    pending: { designId: string; content: string } | null;
-    lastFlushAt: number;
-  }>({ timer: null, pending: null, lastFlushAt: 0 });
   const FS_THROTTLE_MS = 250;
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.codesign) return;
-    const flushFs = () => {
-      const slot = fsThrottle.current;
-      slot.timer = null;
-      const pending = slot.pending;
-      slot.pending = null;
-      if (!pending) return;
-      slot.lastFlushAt = Date.now();
-      setPreviewSourceFromAgent(pending);
-    };
-    const scheduleFs = (next: { designId: string; content: string }) => {
-      const slot = fsThrottle.current;
-      slot.pending = next;
-      const since = Date.now() - slot.lastFlushAt;
-      if (since >= FS_THROTTLE_MS && slot.timer === null) {
-        // Cold path: flush immediately, then a future event will land within
-        // the throttle window and be coalesced.
-        flushFs();
-        return;
-      }
-      if (slot.timer !== null) return;
-      slot.timer = setTimeout(flushFs, Math.max(FS_THROTTLE_MS - since, 0));
+    const fsScheduler = createAgentFsUpdateScheduler({
+      delayMs: FS_THROTTLE_MS,
+      setTimer: (callback, delayMs) => setTimeout(callback, delayMs),
+      clearTimer: (timer) => clearTimeout(timer),
+      flush(update) {
+        setPreviewSourceFromAgent({
+          designId: update.designId,
+          content: update.content,
+        });
+      },
+    });
+
+    const scheduleFs = (next: {
+      designId: string;
+      generationId: string;
+      path: string;
+      content: string;
+    }) => {
+      fsScheduler.schedule(next);
     };
 
     const handleTurnStart = (event: AgentStreamEvent) => {
@@ -116,19 +106,6 @@ export function useAgentStream(): void {
         designId: current.designId,
         text: current.textBuffer,
       });
-    };
-
-    const handleAssistantNote = (event: AgentStreamEvent) => {
-      markGenerationRunning(event.designId, event.generationId, 'streaming');
-      const text = typeof event.text === 'string' ? event.text.trim() : '';
-      if (text.length === 0) return;
-      void appendChatMessage({
-        designId: event.designId,
-        kind: 'assistant_text',
-        payload: { text },
-      });
-      const current = inFlight.current.get(event.generationId);
-      if (current) current.lastPersistedText = text;
     };
 
     const drainPendingTools = (current: InFlightTurn, finalStatus: 'done' | 'error'): void => {
@@ -273,7 +250,12 @@ export function useAgentStream(): void {
       // index.html directly or as a small placeholder pointing at JSX/TSX.
       if (typeof event.path !== 'string' || typeof event.content !== 'string') return;
       if (event.path === DEFAULT_SOURCE_ENTRY || event.path === LEGACY_SOURCE_ENTRY) {
-        scheduleFs({ designId: event.designId, content: event.content });
+        scheduleFs({
+          designId: event.designId,
+          generationId: event.generationId,
+          path: event.path,
+          content: event.content,
+        });
         return;
       }
       const state = useCodesignStore.getState();
@@ -287,7 +269,12 @@ export function useAgentStream(): void {
         LEGACY_SOURCE_ENTRY,
       );
       if (referencedPath === event.path) {
-        scheduleFs({ designId: event.designId, content: event.content });
+        scheduleFs({
+          designId: event.designId,
+          generationId: event.generationId,
+          path: event.path,
+          content: event.content,
+        });
       }
     };
 
@@ -334,19 +321,9 @@ export function useAgentStream(): void {
     };
 
     const handleAgentEnd = (event: AgentStreamEvent) => {
-      // Flush any throttled fs_updated payload synchronously so the preview
-      // store reflects the final html before we read it back for persistence.
-      const slot = fsThrottle.current;
-      if (slot.timer !== null) {
-        clearTimeout(slot.timer);
-        slot.timer = null;
-      }
-      const pending = slot.pending;
-      slot.pending = null;
-      if (pending) {
-        slot.lastFlushAt = Date.now();
-        setPreviewSourceFromAgent(pending);
-      }
+      // Flush only this generation's pending preview updates before persisting
+      // the final snapshot so concurrent background runs stay isolated.
+      fsScheduler.flushGeneration(event.generationId);
       const current = inFlight.current.get(event.generationId);
       const finalText = current?.lastPersistedText ?? undefined;
       void persistAgentRunSnapshot({
@@ -403,9 +380,6 @@ export function useAgentStream(): void {
         case 'text_delta':
           handleTextDelta(event);
           return;
-        case 'assistant_note':
-          handleAssistantNote(event);
-          return;
         case 'turn_end':
           handleTurnEnd(event);
           return;
@@ -428,12 +402,7 @@ export function useAgentStream(): void {
     });
     return () => {
       off();
-      const slot = fsThrottle.current;
-      if (slot.timer !== null) {
-        clearTimeout(slot.timer);
-        slot.timer = null;
-      }
-      slot.pending = null;
+      fsScheduler.clearAll();
     };
   }, [
     appendChatMessage,

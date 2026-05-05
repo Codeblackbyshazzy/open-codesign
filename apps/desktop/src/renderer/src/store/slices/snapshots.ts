@@ -49,9 +49,9 @@ export function artifactFromResult(
 
 // PreviewPane keeps an iframe per recently-visited design alive so switching
 // back is instant. Bound the pool so memory stays small for users with lots
-// of designs — 5 covers the typical "compare two or three" workflow with
-// headroom and only costs a few MB of iframe documents.
-export const PREVIEW_POOL_LIMIT = 5;
+// of designs — 3 covers the common "current + two references" workflow while
+// avoiding five live iframe documents after a browsing session.
+export const PREVIEW_POOL_LIMIT = 3;
 
 export function recordPreviewSourceInPool(
   prevCache: Record<string, string>,

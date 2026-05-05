@@ -30,8 +30,8 @@ export function HubView({ onUseExamplePrompt }: HubViewProps = {}) {
               <RecentTab />
             </div>
           ) : null}
-          {mounted.has('your') ? (
-            <div hidden={hubTab !== 'your'}>
+          {mounted.has('all') ? (
+            <div hidden={hubTab !== 'all'}>
               <YourDesignsTab />
             </div>
           ) : null}
@@ -40,8 +40,8 @@ export function HubView({ onUseExamplePrompt }: HubViewProps = {}) {
               <ExamplesTab onUsePrompt={(example) => onUseExamplePrompt?.(example.prompt)} />
             </div>
           ) : null}
-          {mounted.has('designSystems') ? (
-            <div hidden={hubTab !== 'designSystems'}>
+          {mounted.has('resources') ? (
+            <div hidden={hubTab !== 'resources'}>
               <DesignSystemsTab />
             </div>
           ) : null}

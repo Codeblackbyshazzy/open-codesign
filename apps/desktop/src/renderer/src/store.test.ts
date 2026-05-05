@@ -273,6 +273,51 @@ describe('useCodesignStore streaming assistant text', () => {
   });
 });
 
+describe('useCodesignStore inline comments', () => {
+  it('routes inline comment edits through the main generate path with scoped prompt context', async () => {
+    const generatePayloads: Array<Record<string, unknown>> = [];
+    const generate = vi.fn((payload: Record<string, unknown>) => {
+      generatePayloads.push(payload);
+      return Promise.resolve({
+        artifacts: [{ content: '<html>ok</html>' }],
+        message: 'Applied.',
+      });
+    });
+
+    vi.stubGlobal('window', {
+      codesign: {
+        generate,
+        chat: mockChatApi(),
+        comments: mockCommentsApi(),
+        snapshots: mockSnapshotsApi(),
+      },
+      setTimeout,
+    });
+
+    setWorkspaceBackedDesign();
+    useCodesignStore.setState({
+      previewSource:
+        'function App(){ return <button id="cta">Buy</button>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+      selectedElement: {
+        selector: '#cta',
+        tag: 'button',
+        outerHTML: '<button id="cta">Buy</button>',
+        rect: { top: 0, left: 0, width: 120, height: 40 },
+      },
+    });
+
+    await useCodesignStore.getState().applyInlineComment('make it bolder');
+
+    expect(generate).toHaveBeenCalledOnce();
+    const generatedPrompt = String(generatePayloads[0]?.['prompt'] ?? '');
+    expect(generatedPrompt).toContain('Edit 1 target');
+    expect(generatedPrompt).toContain('#cta');
+    expect(generatedPrompt).toContain('make it bolder');
+    expect(generatedPrompt).toContain('apply every edit below');
+    expect(useCodesignStore.getState().selectedElement).toBeNull();
+  });
+});
+
 describe('useCodesignStore generation cancellation', () => {
   beforeAll(async () => {
     await initI18n('en');

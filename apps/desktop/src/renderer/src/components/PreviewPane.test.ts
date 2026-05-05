@@ -7,6 +7,7 @@ import {
   postModeToPreviewWindow,
   previewArtboardFrameClass,
   previewArtboardStyle,
+  previewPaneLayoutClasses,
   previewViewportDimensions,
   scaleRectForZoom,
   stablePreviewSourceKey,
@@ -49,6 +50,17 @@ describe('scaleRectForZoom', () => {
 });
 
 describe('preview artboard frame', () => {
+  it('keeps the preview stage shrinkable inside the workspace shell', () => {
+    const classes = previewPaneLayoutClasses();
+
+    expect(classes.root).toContain('min-w-0');
+    expect(classes.root).toContain('overflow-hidden');
+    expect(classes.stage).toContain('min-w-0');
+    expect(classes.stage).toContain('overflow-hidden');
+    expect(classes.canvasHost).toContain('min-w-0');
+    expect(classes.canvasHost).toContain('overflow-hidden');
+  });
+
   it('uses fixed viewport dimensions for desktop and tablet frames', () => {
     expect(previewArtboardStyle('desktop')).toEqual({
       width: 'var(--size-preview-desktop-width)',

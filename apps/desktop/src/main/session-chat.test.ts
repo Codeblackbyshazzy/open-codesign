@@ -231,6 +231,58 @@ describe('session design brief storage', () => {
     }
   });
 
+  it('compacts oversized tool results before writing tool-status entries', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'codesign-session-compact-status-'));
+    try {
+      const db = initSnapshotsDb(path.join(root, 'design-store.json'));
+      const design = createDesign(db, 'Compact status');
+      updateDesignWorkspace(db, design.id, root);
+      const opts = { db, sessionDir: db.sessionDir };
+
+      const toolRow = appendSessionChatMessage(opts, {
+        designId: design.id,
+        kind: 'tool_call',
+        payload: { toolName: 'preview', args: {}, status: 'running' },
+      });
+
+      appendSessionToolStatus(opts, {
+        designId: design.id,
+        seq: toolRow.seq,
+        status: 'done',
+        result: {
+          content: [{ type: 'text', text: 'preview ok' }],
+          details: {
+            ok: true,
+            screenshot: 'data:image/png;base64,' + 'x'.repeat(50_000),
+            domOutline: 'd'.repeat(8_000),
+            consoleErrors: Array.from({ length: 25 }, (_, index) => ({
+              level: 'error',
+              message: `console ${index}`,
+            })),
+            assetErrors: Array.from({ length: 25 }, (_, index) => ({
+              url: `https://cdn.example/${index}`,
+              status: 404,
+            })),
+          },
+        },
+      });
+
+      const rows = listSessionChatMessages(opts, design.id);
+      const replayed = rows.find((row) => row.seq === toolRow.seq);
+      const payload = replayed?.payload as
+        | { result?: { details?: Record<string, unknown> } }
+        | undefined;
+      expect(payload?.result?.details?.['screenshot']).toBe('[stripped for chat history]');
+      expect((payload?.result?.details?.['consoleErrors'] as unknown[])?.length).toBe(10);
+
+      const safeId = design.id.replace(/[^A-Za-z0-9_-]/g, '_');
+      const file = path.join(db.sessionDir, `${safeId}.jsonl`);
+      expect(readFileSync(file, 'utf8')).not.toContain('data:image/png;base64');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('appends and reads the latest design session brief from JSONL', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'codesign-session-brief-'));
     try {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { LAYER_CLASS } from '../lib/layers';
 
 /**
  * Three-button bash permission dialog. Renders when the main process
@@ -49,7 +50,7 @@ export function PermissionDialog() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="permission-title"
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-[var(--color-overlay-scrim)]"
+      className={`fixed inset-0 ${LAYER_CLASS.blockingModal} flex items-center justify-center bg-[var(--color-overlay-scrim)]`}
     >
       <div className="w-[min(28rem,calc(100vw-2rem))] rounded-[var(--radius-lg)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-overlay)] p-[var(--space-6)] shadow-[var(--shadow-overlay)]">
         <header className="mb-[var(--space-4)] flex items-center gap-[var(--space-2)]">

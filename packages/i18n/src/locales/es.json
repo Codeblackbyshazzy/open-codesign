@@ -42,6 +42,7 @@
     "tokens": "{{count}} tokens"
   },
   "canvas": {
+    "previewTab": "Vista previa",
     "filesTab": "Archivos",
     "filesTabEmpty": "Sin archivos aún",
     "openInTab": "Abrir en pestaña",
@@ -126,7 +127,13 @@
     "commentModeHint": "Haz clic en cualquier elemento para comentar",
     "runtimeError": "Error de ejecución en vista previa",
     "dismissErrors": "Descartar errores de vista previa",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "zoomFit": "Ajustar",
+    "viewport": {
+      "desktop": "Vista de escritorio",
+      "tablet": "Vista de tablet",
+      "mobile": "Vista móvil"
+    }
   },
   "tweaks": {
     "title": "Ajustes",
@@ -137,6 +144,31 @@
     "swatchAria": "Color de {{key}}",
     "emptyTitle": "Sin tokens ajustables",
     "emptyHint": "El agente no ha declarado un bloque EDITMODE aún. Futuras generaciones expondrán tokens de diseño aquí."
+  },
+  "inspector": {
+    "title": "Inspector",
+    "close": "Cerrar inspector",
+    "panels": {
+      "tweaks": "Ajustes",
+      "comments": "Comentarios",
+      "selection": "Selección",
+      "run": "Ejecución"
+    },
+    "empty": {
+      "tweaks": "Aún no hay vista previa para ajustar.",
+      "selection": "Selecciona un elemento en modo comentario para inspeccionarlo."
+    },
+    "comments": {
+      "enterMode": "Comentar en la vista previa"
+    },
+    "selection": {
+      "target": "Objetivo"
+    },
+    "run": {
+      "status": "Estado",
+      "id": "ID de ejecución",
+      "tokens": "Tokens"
+    }
   },
   "chat": {
     "placeholder": "Describe qué quieres diseñar…",
@@ -200,6 +232,7 @@
       "models": "Modelos",
       "images": "API de Imágenes",
       "appearance": "Apariencia",
+      "workspace": "Espacio y archivos",
       "storage": "Almacenamiento",
       "diagnostics": "Diagnósticos",
       "advanced": "Avanzado"
@@ -1049,8 +1082,10 @@
     "backToHub": "Todos los diseños",
     "tabs": {
       "recent": "Recientes",
+      "all": "Todos",
       "your": "Tus diseños",
       "examples": "Ejemplos",
+      "resources": "Recursos",
       "designSystems": "Sistemas de diseño"
     },
     "recent": {

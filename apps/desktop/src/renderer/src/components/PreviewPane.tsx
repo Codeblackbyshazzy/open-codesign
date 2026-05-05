@@ -82,6 +82,16 @@ const PREVIEW_DIMENSIONS = {
   mobile: { width: 381, height: 818 },
 } as const satisfies Record<PreviewSlotProps['viewport'], { width: number; height: number }>;
 
+const PREVIEW_PANE_LAYOUT_CLASSES = {
+  root: 'flex min-h-0 min-w-0 flex-1 overflow-hidden',
+  stage: 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
+  canvasHost: 'relative min-w-0 flex-1 overflow-hidden',
+} as const;
+
+export function previewPaneLayoutClasses(): typeof PREVIEW_PANE_LAYOUT_CLASSES {
+  return PREVIEW_PANE_LAYOUT_CLASSES;
+}
+
 export function previewViewportDimensions(viewport: PreviewSlotProps['viewport']): {
   width: number;
   height: number;
@@ -214,7 +224,7 @@ function PreviewSlot({
   let body: React.ReactNode;
   if (isMobile) {
     body = (
-      <div className="codesign-scroll-area min-h-full p-6 flex flex-col items-center justify-center overflow-auto">
+      <div className="codesign-preview-scroll min-h-full p-6 flex flex-col items-center justify-center overflow-auto">
         <ScaledPreviewFrame viewport="mobile" zoom={zoom}>
           <div className="relative inline-flex">
             <PhoneFrame>{rawIframe}</PhoneFrame>
@@ -225,7 +235,7 @@ function PreviewSlot({
     );
   } else if (viewport === 'tablet') {
     body = (
-      <div className="codesign-scroll-area h-full p-6 flex flex-col items-center justify-start overflow-auto bg-[var(--color-background-secondary)]">
+      <div className="codesign-preview-scroll h-full p-6 flex flex-col items-center justify-start overflow-auto bg-[var(--color-background-secondary)]">
         <ScaledPreviewFrame viewport="tablet" zoom={zoom}>
           <div className={ARTBOARD_FRAME_CLASS} style={previewArtboardStyle('tablet')}>
             {showCommentUi && active ? (
@@ -239,7 +249,7 @@ function PreviewSlot({
     );
   } else {
     body = (
-      <div className="codesign-scroll-area h-full p-6 flex items-start justify-center overflow-auto bg-[var(--color-background-secondary)]">
+      <div className="codesign-preview-scroll h-full p-6 flex items-start justify-center overflow-auto bg-[var(--color-background-secondary)]">
         <ScaledPreviewFrame viewport="desktop" zoom={zoom}>
           <div className={ARTBOARD_FRAME_CLASS} style={previewArtboardStyle('desktop')}>
             {showCommentUi && active ? (
@@ -594,8 +604,8 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   const isWelcome = !errorMessage && !previewSource && !designHasContent;
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <div className="flex flex-col min-h-0 flex-1">
+    <div className={PREVIEW_PANE_LAYOUT_CLASSES.root}>
+      <div className={PREVIEW_PANE_LAYOUT_CLASSES.stage}>
         {isWelcome ? null : (
           <div className="flex items-stretch justify-between gap-[var(--space-2)] border-b border-[var(--color-border-muted)] bg-[var(--color-background-secondary)] pl-[var(--space-2)]">
             {hasTabs ? <CanvasTabBar /> : <div />}
@@ -605,7 +615,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
         <CanvasErrorBar />
         <div
           ref={canvasHostRef}
-          className="relative flex-1 overflow-hidden"
+          className={PREVIEW_PANE_LAYOUT_CLASSES.canvasHost}
           onDrop={(e) => void handleDrop(e)}
           onDragOver={(e) => e.preventDefault()}
         >

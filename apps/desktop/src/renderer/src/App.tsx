@@ -6,7 +6,6 @@ import { DesignsView } from './components/DesignsView';
 import { ReportEventDialog } from './components/diagnostics/ReportEventDialog';
 import { NewDesignDialog } from './components/NewDesignDialog';
 import { PermissionDialog } from './components/PermissionDialog';
-import { PreviewPane } from './components/PreviewPane';
 import { RebindWorkspaceDialog } from './components/RebindWorkspaceDialog';
 import { RenameDesignDialog } from './components/RenameDesignDialog';
 import { Sidebar } from './components/Sidebar';
@@ -21,6 +20,9 @@ import { useUpdateWiring } from './hooks/useUpdateWiring';
 // out of the first-paint chunk — its ~2700-line tree + dynamic provider
 // cards add ~16kb gzipped that users rarely need on launch.
 const Settings = lazy(() => import('./components/Settings').then((m) => ({ default: m.Settings })));
+const PreviewPane = lazy(() =>
+  import('./components/PreviewPane').then((m) => ({ default: m.PreviewPane })),
+);
 
 import { createUpdateStore } from './state/update-store';
 import { useCodesignStore } from './store';
@@ -222,7 +224,7 @@ export function App() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[var(--color-background)]">
+    <div className="h-full overflow-hidden flex flex-col bg-[var(--color-background)]">
       <UpdateBanner store={updateStore} />
       <TopBar />
       <div className="flex-1 min-h-0 relative">
@@ -250,8 +252,11 @@ export function App() {
           </div>
         ) : null}
         {workspaceMounted ? (
-          <div hidden={view !== 'workspace'} className="h-full flex flex-col">
-            <div className="flex-1 min-h-0 flex relative">
+          <div
+            hidden={view !== 'workspace'}
+            className="h-full min-w-0 overflow-hidden flex flex-col"
+          >
+            <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex relative">
               {isResizing && <div className="absolute inset-0 z-20 cursor-col-resize" />}
               <div className="relative shrink-0" style={{ width: sidebarWidth }}>
                 <Sidebar prompt={prompt} setPrompt={setPrompt} onSubmit={submit} />
@@ -264,7 +269,9 @@ export function App() {
                 />
               </div>
               <main className="flex flex-col min-h-0 flex-1 min-w-0">
-                <PreviewPane onPickStarter={(p) => setPrompt(p)} />
+                <Suspense fallback={null}>
+                  <PreviewPane onPickStarter={(p) => setPrompt(p)} />
+                </Suspense>
               </main>
             </div>
           </div>

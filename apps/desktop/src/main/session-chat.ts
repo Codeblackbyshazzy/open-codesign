@@ -16,6 +16,7 @@ import {
   CodesignError,
   DesignRunPreferencesV1 as DesignRunPreferencesV1Schema,
 } from '@open-codesign/shared';
+import { compactToolResultForHistory } from './ipc/tool-log';
 import { type Database, getDesign, listSnapshots, touchDesignActivity } from './snapshots-db';
 import { normalizeWorkspacePath } from './workspace-path';
 
@@ -285,11 +286,17 @@ export function appendSessionToolStatus(
   );
   if (row?.kind !== 'tool_call') return;
   const manager = openSession(opts, input.designId);
+  const toolName =
+    typeof (row.payload as { toolName?: unknown } | null)?.toolName === 'string'
+      ? ((row.payload as { toolName: string }).toolName ?? 'unknown')
+      : 'unknown';
   const stored: StoredToolStatusUpdate = {
     schemaVersion: 1,
     seq: input.seq,
     status: input.status,
-    ...(input.result !== undefined ? { result: input.result } : {}),
+    ...(input.result !== undefined
+      ? { result: compactToolResultForHistory(toolName, input.result) }
+      : {}),
     ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
     ...(input.errorMessage !== undefined ? { errorMessage: input.errorMessage } : {}),
   };

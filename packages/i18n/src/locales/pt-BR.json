@@ -42,6 +42,7 @@
     "tokens": "{{count}} tokens"
   },
   "canvas": {
+    "previewTab": "Pré-visualização",
     "filesTab": "Arquivos",
     "filesTabEmpty": "Nenhum arquivo ainda",
     "openInTab": "Abrir em nova aba",
@@ -126,7 +127,13 @@
     "commentModeHint": "Clique em qualquer elemento para comentar",
     "runtimeError": "Erro de execução na pré-visualização",
     "dismissErrors": "Dispensar erros da pré-visualização",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "zoomFit": "Ajustar",
+    "viewport": {
+      "desktop": "Prévia desktop",
+      "tablet": "Prévia tablet",
+      "mobile": "Prévia mobile"
+    }
   },
   "tweaks": {
     "title": "Ajustes",
@@ -137,6 +144,31 @@
     "swatchAria": "Cor {{key}}",
     "emptyTitle": "Nenhum token ajustável",
     "emptyHint": "O agente ainda não declarou um bloco EDITMODE. Gerações futuras disponibilizarão tokens de design aqui."
+  },
+  "inspector": {
+    "title": "Inspector",
+    "close": "Fechar inspector",
+    "panels": {
+      "tweaks": "Ajustes",
+      "comments": "Comentários",
+      "selection": "Seleção",
+      "run": "Execução"
+    },
+    "empty": {
+      "tweaks": "Ainda não há pré-visualização para ajustar.",
+      "selection": "Selecione um elemento no modo comentário para inspecioná-lo."
+    },
+    "comments": {
+      "enterMode": "Comentar na pré-visualização"
+    },
+    "selection": {
+      "target": "Alvo"
+    },
+    "run": {
+      "status": "Status",
+      "id": "ID da execução",
+      "tokens": "Tokens"
+    }
   },
   "chat": {
     "placeholder": "Descreva o que quer criar…",
@@ -199,6 +231,7 @@
     "tabs": {
       "models": "Modelos",
       "appearance": "Aparência",
+      "workspace": "Espaço e arquivos",
       "storage": "Armazenamento",
       "diagnostics": "Diagnóstico",
       "advanced": "Avançado"
@@ -1026,8 +1059,10 @@
     "backToHub": "Todos os designs",
     "tabs": {
       "recent": "Recentes",
+      "all": "Todos",
       "your": "Seus designs",
       "examples": "Exemplos",
+      "resources": "Recursos",
       "designSystems": "Design systems"
     },
     "recent": {

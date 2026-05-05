@@ -1,6 +1,7 @@
 import type { AgentEvent } from '@open-codesign/core';
 import { describe, expect, it } from 'vitest';
 import {
+  compactToolResultForHistory,
   summarizeToolResultForStream,
   toolExecutionIsErrorForLog,
   toolExecutionStatusForStream,
@@ -128,13 +129,64 @@ describe('summarizeToolResultForStream', () => {
     ]);
   });
 
-  it('summarizes oversized non-skill tool text while preserving details', () => {
-    const summarized = summarizeToolResultForStream('preview', {
+  it('caps oversized non-skill tool text while preserving generic details', () => {
+    const summarized = summarizeToolResultForStream('inspect_workspace', {
       content: [{ type: 'text', text: 'x'.repeat(9000) }],
       details: { foo: 'bar' },
     }) as { content?: Array<{ type?: string; text?: string }>; details?: { foo?: string } };
 
-    expect(summarized.content?.[0]?.text).toContain('preview result summarized for chat history');
+    expect(summarized.content?.[0]?.text?.length ?? 0).toBeLessThanOrEqual(8 * 1024);
     expect(summarized.details?.foo).toBe('bar');
+  });
+
+  it('strips preview screenshots and caps preview detail arrays for history', () => {
+    const compacted = compactToolResultForHistory('preview', {
+      content: [{ type: 'text', text: 'preview ok' }],
+      details: {
+        ok: true,
+        screenshot: 'data:image/png;base64,' + 'x'.repeat(50_000),
+        domOutline: 'd'.repeat(10_000),
+        consoleErrors: Array.from({ length: 20 }, (_, index) => ({
+          level: 'error',
+          message: `console ${index}`,
+        })),
+        assetErrors: Array.from({ length: 20 }, (_, index) => ({
+          url: `https://cdn.example/${index}`,
+          status: 404,
+        })),
+        metrics: { nodes: 10, width: 100, height: 100, loadMs: 50 },
+      },
+    }) as { details?: Record<string, unknown> };
+
+    expect(compacted.details?.['screenshot']).toBe('[stripped for chat history]');
+    expect((compacted.details?.['consoleErrors'] as unknown[])?.length).toBe(10);
+    expect((compacted.details?.['assetErrors'] as unknown[])?.length).toBe(10);
+    expect(String(compacted.details?.['domOutline']).length).toBeLessThan(2500);
+  });
+
+  it('compacts done details to a short structured summary', () => {
+    const compacted = compactToolResultForHistory('done', {
+      content: [{ type: 'text', text: 'has_errors\n' + 'x'.repeat(20_000) }],
+      details: {
+        status: 'has_errors',
+        path: 'App.jsx',
+        errors: Array.from({ length: 12 }, (_, index) => ({
+          message: `error ${index}`,
+          source: 'syntax',
+          lineno: index + 1,
+        })),
+        summary: 'repair me',
+      },
+    }) as { details?: Record<string, unknown>; content?: Array<{ text?: string }> };
+
+    expect(compacted.content?.[0]?.text?.length ?? 0).toBeLessThanOrEqual(8 * 1024);
+    expect(compacted.details).toMatchObject({
+      status: 'has_errors',
+      path: 'App.jsx',
+      errorCount: 12,
+      summary: 'repair me',
+      summarized: true,
+    });
+    expect((compacted.details?.['errorsPreview'] as unknown[])?.length).toBe(6);
   });
 });

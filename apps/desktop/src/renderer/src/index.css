@@ -7,6 +7,7 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
+  overflow: hidden;
   font-family: var(--font-sans);
   background: var(--color-background);
   color: var(--color-text-primary);
@@ -25,6 +26,7 @@ h3,
 
 #root {
   height: 100%;
+  overflow: hidden;
 }
 
 * {
@@ -65,8 +67,48 @@ h3,
 }
 
 .codesign-scroll-area {
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
   overscroll-behavior: contain;
+}
+
+.codesign-preview-scroll {
+  overscroll-behavior: contain;
+  scrollbar-gutter: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.codesign-preview-scroll:hover,
+.codesign-preview-scroll:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--color-text-muted) 26%, transparent) transparent;
+}
+
+.codesign-preview-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.codesign-preview-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.codesign-preview-scroll::-webkit-scrollbar-thumb {
+  min-height: 48px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  background-clip: padding-box;
+}
+
+.codesign-preview-scroll:hover::-webkit-scrollbar-thumb,
+.codesign-preview-scroll:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-text-muted) 20%, transparent);
+  background-clip: padding-box;
+}
+
+.codesign-preview-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-text-muted) 32%, transparent);
+  background-clip: padding-box;
 }
 
 .codesign-scroll-x {

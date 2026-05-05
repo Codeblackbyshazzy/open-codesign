@@ -409,7 +409,7 @@ function applyGenerateSuccess(
     };
   });
 
-  if (deliveredPath && get().currentDesignId === designId) {
+  if (deliveredPath && firstArtifact === undefined && get().currentDesignId === designId) {
     get().openCanvasFileTab(deliveredPath);
   }
 
@@ -721,8 +721,10 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
       const pendingEdits = get().comments.filter(
         (c) => c.kind === 'edit' && c.status === 'pending',
       );
+      const injectedPendingEdits = input.pendingEdits ?? [];
       const trimmedInput = input.prompt.trim();
-      if (trimmedInput.length === 0 && pendingEdits.length === 0) return;
+      if (trimmedInput.length === 0 && pendingEdits.length === 0 && injectedPendingEdits.length === 0)
+        return;
       const effectivePrompt =
         trimmedInput.length === 0 ? 'Apply the pending changes.' : trimmedInput;
 
@@ -733,7 +735,8 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
       );
       if (!request) return;
 
-      const enrichedPrompt = buildEnrichedPrompt(request.prompt, pendingEdits);
+      const allPendingEdits = [...pendingEdits, ...injectedPendingEdits];
+      const enrichedPrompt = buildEnrichedPrompt(request.prompt, allPendingEdits);
       const pendingEditIds = pendingEdits.map((c) => c.id);
 
       const designIdAtStart = get().currentDesignId;
@@ -902,107 +905,35 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
     async applyInlineComment(comment) {
       const trimmed = comment.trim();
       if (!trimmed) return;
-      if (!window.codesign) return;
       const cfg = get().config;
-      const source = get().previewSource;
       const selection = get().selectedElement;
       const designIdAtStart = get().currentDesignId;
-      if (
-        cfg === null ||
-        !cfg.hasKey ||
-        source === null ||
-        selection === null ||
-        designIdAtStart === null
-      )
+      if (cfg === null || !cfg.hasKey || selection === null || designIdAtStart === null)
         return;
       if (get().generationByDesign[designIdAtStart] !== undefined) return;
 
       const userMessageText = `Edit ${selection.tag}: ${trimmed}`;
       const referenceUrl = normalizeReferenceUrl(get().referenceUrl);
       const attachments = uniqueFiles(get().inputFiles);
-      const generationId = newId();
-      startGenerationForDesign(set, designIdAtStart, generationId);
-      set(() => ({
+      set({
+        selectedElement: null,
         errorMessage: null,
         iframeErrors: [],
-      }));
-
-      void get().appendChatMessage({
-        designId: designIdAtStart,
-        kind: 'user',
-        payload: {
-          text: userMessageText,
-          ...(attachments.length > 0 ? { attachments } : {}),
-        },
       });
-      if (attachments.length > 0) {
-        set({ inputFiles: [] });
-      }
 
-      try {
-        const result = await window.codesign.applyComment({
-          designId: designIdAtStart,
-          generationId,
-          artifactSource: source,
-          comment: trimmed,
-          selection,
-          ...(referenceUrl ? { referenceUrl } : {}),
-          attachments,
-        });
-        const firstArtifact = result.artifacts[0];
-        const assistantText = result.message || tr('common.applied');
-        const { usage, rejected: rejectedUsageFields } = coerceUsageSnapshot(result);
-        finishGenerationForDesign(set, designIdAtStart, generationId, 'done');
-        set((s) => {
-          const isCurrentDesign = s.currentDesignId === designIdAtStart;
-          const nextSource = firstArtifact?.content ?? (isCurrentDesign ? s.previewSource : null);
-          const pool =
-            firstArtifact?.content !== undefined
-              ? recordPreviewSourceInPool(
-                  s.previewSourceByDesign,
-                  s.recentDesignIds,
-                  designIdAtStart,
-                  firstArtifact.content,
-                )
-              : { cache: s.previewSourceByDesign, recent: s.recentDesignIds };
-          return {
-            ...(isCurrentDesign ? { previewSource: nextSource, selectedElement: null } : {}),
-            previewSourceByDesign: pool.cache,
-            recentDesignIds: pool.recent,
-            lastUsage: usage,
-          };
-        });
-        void get().appendChatMessage({
-          designId: designIdAtStart,
-          kind: 'assistant_text',
-          payload: { text: assistantText },
-        });
-        const artifact = artifactFromResult(firstArtifact, userMessageText, assistantText);
-        void persistDesignState(get, designIdAtStart, firstArtifact?.content ?? null, artifact);
-        if (rejectedUsageFields.length > 0) {
-          const detail = rejectedUsageFields.join(', ');
-          console.warn('[open-codesign] dropped non-finite usage values from provider:', detail);
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : tr('errors.unknown');
-        finishGenerationForDesign(set, designIdAtStart, generationId, 'error');
-        if (get().currentDesignId === designIdAtStart) {
-          set({
-            errorMessage: msg,
-            lastError: msg,
-          });
-        }
-        void get().appendChatMessage({
-          designId: designIdAtStart,
-          kind: 'error',
-          payload: { message: msg },
-        });
-        get().pushToast({
-          variant: 'error',
-          title: tr('notifications.inlineCommentFailed'),
-          description: msg,
-        });
-      }
+      await get().sendPrompt({
+        prompt: userMessageText,
+        ...(attachments.length > 0 ? { attachments } : {}),
+        ...(referenceUrl ? { referenceUrl } : {}),
+        pendingEdits: [
+          {
+            selector: selection.selector,
+            tag: selection.tag,
+            outerHTML: selection.outerHTML,
+            text: trimmed,
+          },
+        ],
+      });
     },
 
     tryAutoPolish(designId, locale) {
