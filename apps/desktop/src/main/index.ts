@@ -261,7 +261,7 @@ if (!IS_VITEST) {
       registerCodexOAuthIpc();
       registerPreferencesIpc();
       registerImageGenerationSettingsIpc();
-      registerExporterIpc(getMainWindow);
+      registerExporterIpc(getMainWindow, diagnosticsDb);
       registerDiagnosticsIpc(diagnosticsDb);
       registerAskIpc();
       if (IS_SMOKE_TEST) {

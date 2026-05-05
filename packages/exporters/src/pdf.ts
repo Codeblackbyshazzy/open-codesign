@@ -2,11 +2,16 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CodesignError, ERROR_CODES } from '@open-codesign/shared';
-import { inlineLocalAssetsInHtml, type LocalAssetOptions } from './assets';
-import { buildHtmlDocument } from './html';
 import type { ExportResult } from './index';
+import { type BrowserWaitUntil, buildExportHtmlDocument } from './rendered-html';
 
-export interface ExportPdfOptions extends LocalAssetOptions {
+export interface ExportPdfOptions {
+  /** Workspace-relative source path used to classify JSX vs TSX and anchor relative assets. */
+  sourcePath?: string | undefined;
+  /** Directory used to resolve relative HTML references. */
+  assetBasePath?: string | undefined;
+  /** Workspace/root directory used for root-relative references and containment. */
+  assetRootPath?: string | undefined;
   /** Override the discovered Chrome binary path. Useful for tests / CI. */
   chromePath?: string;
   /**
@@ -15,8 +20,8 @@ export interface ExportPdfOptions extends LocalAssetOptions {
    * for HTML prototypes that aren't paginated.
    */
   format?: 'Letter' | 'A4' | 'auto';
-  /** Puppeteer navigation wait strategy. Defaults to networkidle0. */
-  waitUntil?: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2';
+  /** Puppeteer navigation wait strategy. Defaults to load. */
+  waitUntil?: BrowserWaitUntil;
   /** setContent timeout in milliseconds. Defaults to 45 seconds. */
   renderTimeoutMs?: number;
   /** Extra delay after fonts/layout settle, useful for lazy UI. Defaults to 0. */
@@ -36,6 +41,8 @@ export interface ExportPdfOptions extends LocalAssetOptions {
   };
   /** Inline local src/href/url() references as data URIs when assetBasePath is set. */
   inlineLocalAssets?: boolean;
+  /** Inject Tailwind CDN into standalone HTML before browser rendering. Defaults to true. */
+  injectTailwind?: boolean;
 }
 
 const DEFAULT_VIEWPORT = { width: 1280, height: 800 } as const;
@@ -82,13 +89,9 @@ export async function exportPdf(
     });
     const page = await browser.newPage();
     await page.setViewport(DEFAULT_VIEWPORT);
-    let exportHtml = buildHtmlDocument(artifactSource, { prettify: false });
-    exportHtml =
-      (opts.inlineLocalAssets ?? true)
-        ? await inlineLocalAssetsInHtml(exportHtml, opts)
-        : exportHtml;
+    const exportHtml = await buildExportHtmlDocument(artifactSource, opts);
     await page.setContent(exportHtml, {
-      waitUntil: opts.waitUntil ?? 'networkidle0',
+      waitUntil: opts.waitUntil ?? 'load',
       timeout: opts.renderTimeoutMs ?? 45_000,
     });
     await page.evaluate('document.fonts?.ready ?? Promise.resolve()');

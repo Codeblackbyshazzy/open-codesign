@@ -225,6 +225,17 @@ describe('buildStandaloneDocument', () => {
     expect(out).not.toContain('CODESIGN_OVERLAY_SCRIPT');
   });
 
+  it('initializes EDITMODE CSS variables in standalone JSX exports', () => {
+    const out = buildStandaloneDocument(
+      'const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{"accentColor":"red"}/*EDITMODE-END*/;\nfunction App() { return <main style={{ color: "var(--ocd-tweak-accent-color)" }}>hi</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+      { path: 'App.jsx' },
+    );
+
+    expect(out).toContain('window.__codesign_tweaks__');
+    expect(out).toContain('applyInitial');
+    expect(out.indexOf('applyInitial')).toBeLessThan(out.lastIndexOf('Babel.transform'));
+  });
+
   it('exports mixed HTML without external React/Babel CDN scripts or preview overlay', () => {
     const out = buildStandaloneDocument(
       [

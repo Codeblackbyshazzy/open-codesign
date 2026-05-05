@@ -19,6 +19,8 @@ export interface ExportZipOptions extends LocalAssetOptions {
   assets?: ZipAsset[];
   /** Automatically bundle local src/href/url() references when assetBasePath is set. */
   collectLocalAssets?: boolean;
+  /** Include the original source under source/<sourcePath>. Defaults to true. */
+  includeSource?: boolean;
   /** Override the README banner. */
   readmeTitle?: string;
 }
@@ -32,6 +34,8 @@ This bundle was exported from [open-codesign](https://github.com/OpenCoworkAI/op
 \`\`\`
 .
 ├── index.html      The exported design (open in any browser)
+├── manifest.json   Machine-readable export metadata
+├── source/         Original design source used for this export
 ├── DESIGN.md       Design system handoff file (when present in workspace)
 ├── assets/         Linked assets (images, fonts, scripts)
 └── README.md       This file
@@ -40,8 +44,8 @@ This bundle was exported from [open-codesign](https://github.com/OpenCoworkAI/op
 ## Notes
 
 - Generated: ${generatedAt}
-- The HTML is self-contained; opening \`index.html\` directly works without a server.
-- To re-edit, open the bundle in open-codesign via *File → Import bundle*.
+- \`index.html\` is the portable rendered handoff.
+- \`source/\` preserves the editable source used to produce this export.
 `;
 
 /**
@@ -65,7 +69,10 @@ export async function exportZip(
 
   const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'codesign-zip-'));
   try {
-    const htmlDocument = buildHtmlDocument(artifactSource, { prettify: false });
+    const htmlDocument = buildHtmlDocument(artifactSource, {
+      prettify: false,
+      sourcePath: opts.sourcePath,
+    });
     const collectedAssets =
       (opts.collectLocalAssets ?? true) ? await collectLocalAssetsFromHtml(htmlDocument, opts) : [];
     const exportHtml =
@@ -76,10 +83,8 @@ export async function exportZip(
     const indexPath = path.join(stagingDir, 'index.html');
     await fs.writeFile(indexPath, exportHtml, 'utf8');
 
-    const readme = README_TEMPLATE(
-      opts.readmeTitle ?? 'open-codesign export',
-      new Date().toISOString(),
-    );
+    const generatedAt = new Date().toISOString();
+    const readme = README_TEMPLATE(opts.readmeTitle ?? 'open-codesign export', generatedAt);
     const readmePath = path.join(stagingDir, 'README.md');
     await fs.writeFile(readmePath, readme, 'utf8');
 
@@ -96,7 +101,46 @@ export async function exportZip(
         if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
       }
     }
-    const assets = [...collectedAssets, ...designMdAssets, ...(opts.assets ?? [])];
+    const sourceAssets: ZipAsset[] =
+      (opts.includeSource ?? true)
+        ? [
+            {
+              path: sourceArchivePath(opts.sourcePath ?? 'App.jsx'),
+              content: artifactSource,
+            },
+          ]
+        : [];
+    const manifestFiles = [
+      'index.html',
+      'README.md',
+      'manifest.json',
+      ...collectedAssets.map((asset) => asset.path),
+      ...designMdAssets.map((asset) => asset.path),
+      ...sourceAssets.map((asset) => asset.path),
+      ...(opts.assets ?? []).map((asset) => asset.path.replace(/\\/g, '/').replace(/^\/+/, '')),
+    ]
+      .filter((file, index, list) => file.length > 0 && list.indexOf(file) === index)
+      .sort((a, b) => a.localeCompare(b));
+    const manifest: ZipAsset = {
+      path: 'manifest.json',
+      content: `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          generatedAt,
+          sourcePath: opts.sourcePath ?? 'App.jsx',
+          files: manifestFiles,
+        },
+        null,
+        2,
+      )}\n`,
+    };
+    const assets = [
+      ...collectedAssets,
+      ...designMdAssets,
+      ...sourceAssets,
+      manifest,
+      ...(opts.assets ?? []),
+    ];
     if (assets.length > 0) {
       const stagingResolved = path.resolve(stagingDir);
       const written = new Set<string>();
@@ -134,4 +178,20 @@ export async function exportZip(
   } finally {
     await fs.rm(stagingDir, { recursive: true, force: true });
   }
+}
+
+function sourceArchivePath(sourcePath: string): string {
+  const normalized = sourcePath
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/, '');
+  if (
+    normalized.length === 0 ||
+    normalized.startsWith('/') ||
+    /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(normalized) ||
+    normalized.split('/').some((part) => part.length === 0 || part === '.' || part === '..')
+  ) {
+    return 'source/App.jsx';
+  }
+  return `source/${normalized}`;
 }

@@ -47,6 +47,16 @@ describe('buildHtmlDocument', () => {
     expect(out).not.toContain('CODESIGN_STANDALONE_RUNTIME');
   });
 
+  it('does not mutate script string literals while prettifying standalone JSX exports', () => {
+    const out = buildHtmlDocument(
+      'const svg = "<svg><path d=\\"M0 0\\" /></svg>";\nfunction App() { return <main>{svg}</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+    );
+
+    expect(out).toContain('const svg =');
+    expect(out).toContain('M0 0');
+    expect(out).not.toContain('<svg>\n<path');
+  });
+
   it('writes a self-contained HTML file with local assets inlined', async () => {
     const dest = join(tempDir, 'out.html');
     await exportHtml('<img src="assets/logo.svg">', dest, {

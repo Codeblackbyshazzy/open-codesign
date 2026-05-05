@@ -110,6 +110,8 @@ export interface ExportInvokePayload {
   format: ExportFormat;
   artifactSource: string;
   defaultFilename?: string;
+  designId?: string;
+  designName?: string;
   workspacePath?: string;
   sourcePath?: string;
 }

@@ -77,6 +77,32 @@ describe('exportZip', () => {
     expect(out).toContain('zip-jsx');
   });
 
+  it('bundles the original source and export manifest for handoff quality', async () => {
+    const dest = join(tempDir, 'source-manifest.zip');
+    await exportZip(
+      'function App() { return <main id="zip-source">ZIP</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+      dest,
+      { sourcePath: 'screens/App.tsx', readmeTitle: 'Source manifest' },
+    );
+
+    const { Unzip } = await import('zip-lib');
+    const extractDir = join(tempDir, 'source-manifest-extracted');
+    const unzip = new Unzip();
+    await unzip.extract(dest, extractDir);
+
+    expect(readFileSync(join(extractDir, 'source', 'screens', 'App.tsx'), 'utf8')).toContain(
+      'zip-source',
+    );
+    const manifest = JSON.parse(readFileSync(join(extractDir, 'manifest.json'), 'utf8')) as {
+      schemaVersion: number;
+      sourcePath: string;
+      files: string[];
+    };
+    expect(manifest.schemaVersion).toBe(1);
+    expect(manifest.sourcePath).toBe('screens/App.tsx');
+    expect(manifest.files).toContain('source/screens/App.tsx');
+  });
+
   it('auto-collects local asset references and rewrites root-relative paths', async () => {
     const dest = join(tempDir, 'auto-assets.zip');
     await exportZip('<img src="/assets/logo.svg">', dest, {

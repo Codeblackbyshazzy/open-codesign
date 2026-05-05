@@ -996,7 +996,11 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
         const res = await window.codesign.export({
           format,
           artifactSource,
-          defaultFilename: `codesign-${stamp}.${ext}`,
+          ...(activeDesign === null || !activeDesign.workspacePath
+            ? { defaultFilename: `codesign-${stamp}.${ext}` }
+            : {}),
+          ...(designId !== null ? { designId } : {}),
+          ...(activeDesign?.name ? { designName: activeDesign.name } : {}),
           ...(activeDesign?.workspacePath ? { workspacePath: activeDesign.workspacePath } : {}),
           sourcePath: resolved.path,
         });

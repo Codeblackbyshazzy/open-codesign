@@ -62,7 +62,7 @@ describe('exportPdf', () => {
       );
       expect(setContentMock).toHaveBeenCalledWith(
         expect.stringContaining('<!doctype html>'),
-        expect.objectContaining({ waitUntil: 'networkidle0' }),
+        expect.objectContaining({ waitUntil: 'load' }),
       );
       expect(pdfMock).toHaveBeenCalled();
       expect(closeMock).toHaveBeenCalled();
@@ -85,7 +85,30 @@ describe('exportPdf', () => {
 
       expect(setContentMock).toHaveBeenCalledWith(
         expect.stringContaining('CODESIGN_STANDALONE_RUNTIME'),
-        expect.objectContaining({ waitUntil: 'networkidle0' }),
+        expect.objectContaining({ waitUntil: 'load' }),
+      );
+    },
+    CHROME_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'preserves TSX transform options before rendering to PDF',
+    async () => {
+      setContentMock.mockClear();
+      const { exportPdf } = await import('./pdf');
+      await exportPdf(
+        'type Props = { title: string };\nfunction App({ title }: Props) { return <main>{title}</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App title="typed" />);',
+        join(tempDir, 'tsx.pdf'),
+        { chromePath: '/tmp/fake-chrome', sourcePath: 'screens/App.tsx' },
+      );
+
+      expect(setContentMock).toHaveBeenCalledWith(
+        expect.stringContaining('"typescript"'),
+        expect.objectContaining({ waitUntil: 'load' }),
+      );
+      expect(setContentMock).toHaveBeenCalledWith(
+        expect.stringContaining('"filename":"artifact.tsx"'),
+        expect.objectContaining({ waitUntil: 'load' }),
       );
     },
     CHROME_TEST_TIMEOUT_MS,

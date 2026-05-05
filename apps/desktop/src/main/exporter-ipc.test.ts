@@ -1,6 +1,25 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { CodesignError } from '@open-codesign/shared';
-import { describe, expect, it } from 'vitest';
-import { exportAssetOptions, parseRequest } from './exporter-ipc';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  buildDefaultExportPath,
+  ensureExportExtension,
+  exportAssetOptions,
+  parseRequest,
+  resolveExportSource,
+} from './exporter-ipc';
+
+let tempDir = '';
+
+beforeAll(() => {
+  tempDir = mkdtempSync(join(tmpdir(), 'codesign-export-ipc-test-'));
+});
+
+afterAll(() => {
+  rmSync(tempDir, { recursive: true, force: true });
+});
 
 describe('parseRequest', () => {
   it('rejects a null payload with IPC_BAD_INPUT', () => {
@@ -50,6 +69,20 @@ describe('parseRequest', () => {
     });
   });
 
+  it('accepts design identity for workspace-first export resolution and naming', () => {
+    const result = parseRequest({
+      format: 'html',
+      artifactSource: '<main>preview cache</main>',
+      designId: 'design-1',
+      designName: 'Launch / Deck: Q2',
+      workspacePath: '/workspace',
+      sourcePath: 'App.jsx',
+    });
+
+    expect(result.designId).toBe('design-1');
+    expect(result.designName).toBe('Launch / Deck: Q2');
+  });
+
   it('preserves sourcePath for export classification even without a workspace path', () => {
     const result = parseRequest({
       format: 'html',
@@ -85,5 +118,82 @@ describe('parseRequest', () => {
         }),
       ).toThrowError(expect.objectContaining({ code: 'IPC_BAD_INPUT' }));
     }
+  });
+});
+
+describe('export path helpers', () => {
+  it('builds a stable workspace exports path from design name, source path, format, and time', () => {
+    const out = buildDefaultExportPath({
+      format: 'pptx',
+      workspacePath: '/workspace/My Design',
+      designName: 'Launch / Deck: Q2',
+      sourcePath: 'screens/Home.tsx',
+      now: new Date('2026-05-05T10:20:30.000Z'),
+    });
+
+    expect(out).toBe('/workspace/My Design/exports/Launch-Deck-Q2-Home-2026-05-05-102030.pptx');
+  });
+
+  it('falls back to a plain filename when no workspace path is available', () => {
+    const out = buildDefaultExportPath({
+      format: 'markdown',
+      designName: '',
+      sourcePath: 'App.jsx',
+      now: new Date('2026-05-05T10:20:30.000Z'),
+    });
+
+    expect(out).toBe('open-codesign-App-2026-05-05-102030.md');
+  });
+
+  it('keeps export files on the selected format extension', () => {
+    expect(ensureExportExtension('/tmp/report', 'pdf')).toBe('/tmp/report.pdf');
+    expect(ensureExportExtension('/tmp/report.PDF', 'pdf')).toBe('/tmp/report.PDF');
+    expect(ensureExportExtension('/tmp/report.txt', 'pdf')).toBe('/tmp/report.txt.pdf');
+    expect(ensureExportExtension('/tmp/report.markdown', 'markdown')).toBe(
+      '/tmp/report.markdown.md',
+    );
+  });
+});
+
+describe('resolveExportSource', () => {
+  it('prefers the current workspace source over the renderer preview cache', async () => {
+    mkdirSync(join(tempDir, 'workspace'), { recursive: true });
+    writeFileSync(
+      join(tempDir, 'workspace', 'App.jsx'),
+      'function App(){ return <main>disk</main>; }',
+    );
+
+    const req = parseRequest({
+      format: 'html',
+      artifactSource: '<main>stale-preview</main>',
+      designId: 'design-1',
+      workspacePath: join(tempDir, 'workspace'),
+      sourcePath: 'App.jsx',
+    });
+
+    const resolved = await resolveExportSource(req);
+    expect(resolved.artifactSource).toBe('function App(){ return <main>disk</main>; }');
+    expect(resolved.sourcePath).toBe('App.jsx');
+  });
+
+  it('resolves placeholder HTML to the referenced JSX source before export', async () => {
+    const workspace = join(tempDir, 'referenced-workspace');
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(
+      join(workspace, 'index.html'),
+      '<!doctype html><body><!-- artifact source lives in index.jsx --></body>',
+    );
+    writeFileSync(join(workspace, 'index.jsx'), 'function App(){ return <main>real</main>; }');
+
+    const req = parseRequest({
+      format: 'zip',
+      artifactSource: readFileSync(join(workspace, 'index.html'), 'utf8'),
+      workspacePath: workspace,
+      sourcePath: 'index.html',
+    });
+
+    const resolved = await resolveExportSource(req);
+    expect(resolved.artifactSource).toBe('function App(){ return <main>real</main>; }');
+    expect(resolved.sourcePath).toBe('index.jsx');
   });
 });

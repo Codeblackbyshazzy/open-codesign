@@ -65,7 +65,7 @@ export async function exportArtifact(
   }
   if (format === 'markdown') {
     const mod = await import('./markdown');
-    return mod.exportMarkdown(artifactSource, destinationPath);
+    return mod.exportMarkdown(artifactSource, destinationPath, opts);
   }
   throw new CodesignError(
     `Unknown exporter format: ${format as string}`,

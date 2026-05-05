@@ -126,7 +126,8 @@ function injectIntoHead(html: string, tag: string): string {
  * `js-beautify` (would blow the dep budget) — Tier 2 can swap this out.
  */
 function prettifyHtml(html: string): string {
-  const tokens = html.replace(/>\s+</g, '><').replace(/></g, '>\n<').split('\n');
+  const protectedHtml = protectRawTextBlocks(html);
+  const tokens = protectedHtml.html.replace(/>\s+</g, '><').replace(/></g, '>\n<').split('\n');
 
   const voidElements = new Set([
     'area',
@@ -153,6 +154,12 @@ function prettifyHtml(html: string): string {
   for (const raw of tokens) {
     const line = raw.trim();
     if (!line) continue;
+
+    const rawBlock = protectedHtml.blocks.get(line);
+    if (rawBlock !== undefined) {
+      lines.push(`${'  '.repeat(depth)}${rawBlock}`);
+      continue;
+    }
 
     if (inInline) {
       lines.push(line);
@@ -188,6 +195,21 @@ function prettifyHtml(html: string): string {
   }
 
   return `${lines.join('\n')}\n`;
+}
+
+function protectRawTextBlocks(html: string): { html: string; blocks: Map<string, string> } {
+  const blocks = new Map<string, string>();
+  let index = 0;
+  const protectedHtml = html.replace(
+    /<(script|style|pre|textarea)\b[\s\S]*?<\/\1>/gi,
+    (block: string) => {
+      const key = `__CODESIGN_RAW_BLOCK_${index}__`;
+      index += 1;
+      blocks.set(key, block);
+      return key;
+    },
+  );
+  return { html: protectedHtml, blocks };
 }
 
 function openTagName(line: string): string | null {

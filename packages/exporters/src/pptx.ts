@@ -5,11 +5,16 @@ import {
   removeHtmlElementBlocks,
   stripHtmlTags,
 } from '@open-codesign/shared/html-utils';
-import { inlineLocalAssetsInHtml, type LocalAssetOptions } from './assets';
-import { buildHtmlDocument } from './html';
 import type { ExportResult } from './index';
+import { buildExportHtmlDocument } from './rendered-html';
 
-export interface ExportPptxOptions extends LocalAssetOptions {
+export interface ExportPptxOptions {
+  /** Workspace-relative source path used to classify JSX vs TSX and anchor relative assets. */
+  sourcePath?: string | undefined;
+  /** Directory used to resolve relative HTML references. */
+  assetBasePath?: string | undefined;
+  /** Workspace/root directory used for root-relative references and containment. */
+  assetRootPath?: string | undefined;
   /** Slide title shown in PowerPoint's outline view. */
   deckTitle?: string;
   /**
@@ -25,6 +30,8 @@ export interface ExportPptxOptions extends LocalAssetOptions {
   viewport?: { width: number; height: number };
   /** CSS selector used to find slide-like containers when no <section> elements exist. */
   slideSelector?: string;
+  /** Inject Tailwind CDN into standalone HTML before browser rendering. Defaults to true. */
+  injectTailwind?: boolean;
 }
 
 interface SlideContent {
@@ -141,12 +148,16 @@ async function renderSlideScreenshots(
     height: Math.max(1, requestedViewport.height),
   };
   const executablePath = opts.chromePath ?? (await findSystemChrome());
-  let html = buildHtmlDocument(artifactSource, { prettify: false });
-  html = await inlineLocalAssetsInHtml(html, opts);
+  const html = await buildExportHtmlDocument(artifactSource, opts);
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const userDataDir = await mkdtemp(join(tmpdir(), 'codesign-pptx-'));
 
   const browser = await puppeteer.launch({
     executablePath,
     headless: true,
+    userDataDir,
     args: [
       '--headless=new',
       '--disable-dev-shm-usage',
@@ -159,7 +170,7 @@ async function renderSlideScreenshots(
     const page = await browser.newPage();
     await page.setViewport({ ...viewport, deviceScaleFactor: 2 });
     await page.setContent(html, {
-      waitUntil: 'networkidle0',
+      waitUntil: 'load',
       timeout: opts.renderTimeoutMs ?? 45_000,
     });
     await page.evaluate('document.fonts?.ready ?? Promise.resolve()');
@@ -239,6 +250,7 @@ async function renderSlideScreenshots(
     return screenshots;
   } finally {
     await browser.close();
+    await rm(userDataDir, { recursive: true, force: true });
   }
 }
 

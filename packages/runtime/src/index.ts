@@ -389,6 +389,8 @@ ${baseTag(opts.baseHref)}<link rel="preconnect" href="https://fonts.googleapis.c
 <div id="root"></div>
 ${STANDALONE_RUNTIME_MARKER}
 ${jsxRuntimeBaseScripts()}
+<script>${TWEAKS_BRIDGE_SETUP}</script>
+${applyInitialTweaksScript(normalized)}
 ${compileAndRunScript(normalized, kind)}
 </body>
 </html>`;

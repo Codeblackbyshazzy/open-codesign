@@ -1,7 +1,55 @@
-import { describe, expect, it } from 'vitest';
-import { htmlToMarkdown, sanitizeUrl } from './markdown';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { exportMarkdown, htmlToMarkdown, sanitizeUrl } from './markdown';
+
+const launchMock = vi.fn();
+const newPageMock = vi.fn();
+const setViewportMock = vi.fn();
+const setContentMock = vi.fn();
+const evaluateMock = vi.fn();
+const closeMock = vi.fn();
+
+vi.mock('puppeteer-core', () => ({
+  default: { launch: launchMock },
+}));
+
+vi.mock('./chrome-discovery', () => ({
+  findSystemChrome: vi.fn(async () => '/tmp/fake-chrome'),
+}));
 
 const META = { title: 'Demo', schemaVersion: 1 as const };
+let tempDir = '';
+
+beforeAll(() => {
+  tempDir = mkdtempSync(join(tmpdir(), 'codesign-markdown-test-'));
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  launchMock.mockResolvedValue({
+    newPage: newPageMock,
+    close: closeMock,
+  });
+  newPageMock.mockResolvedValue({
+    setViewport: setViewportMock,
+    setContent: setContentMock,
+    evaluate: evaluateMock,
+  });
+  evaluateMock.mockImplementation(async (source: unknown) => {
+    if (typeof source === 'string') {
+      return source.includes('document.body')
+        ? '<main><h1>Rendered JSX</h1><p>Actual DOM text</p></main>'
+        : undefined;
+    }
+    return '<main><h1>Rendered JSX</h1><p>Actual DOM text</p></main>';
+  });
+});
+
+afterAll(() => {
+  rmSync(tempDir, { recursive: true, force: true });
+});
 
 describe('htmlToMarkdown', () => {
   it('writes a YAML frontmatter with title and schemaVersion', () => {
@@ -224,5 +272,26 @@ describe('sanitizeUrl encoded-scheme bypass guard', () => {
 
   it('keeps URLs with stray literal % that would break decodeURIComponent', () => {
     expect(sanitizeUrl('https://x.test/?q=100%', 'link')).toBe('https://x.test/?q=100%');
+  });
+});
+
+describe('exportMarkdown', () => {
+  it('exports Markdown from the rendered DOM for JSX sources', async () => {
+    const dest = join(tempDir, 'rendered.md');
+
+    await exportMarkdown(
+      'function App() { return <main><h1>Source JSX</h1></main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+      dest,
+      { sourcePath: 'App.jsx' },
+    );
+
+    const out = readFileSync(dest, 'utf8');
+    expect(setContentMock).toHaveBeenCalledWith(
+      expect.stringContaining('CODESIGN_STANDALONE_RUNTIME'),
+      expect.objectContaining({ waitUntil: 'load' }),
+    );
+    expect(out).toContain('# Rendered JSX');
+    expect(out).toContain('Actual DOM text');
+    expect(out).not.toContain('Source JSX');
   });
 });

@@ -7,13 +7,19 @@ import {
   stripHtmlTags,
 } from '@open-codesign/shared/html-utils';
 import type { ExportResult } from './index';
+import {
+  type BrowserRenderOptions,
+  buildExportHtmlDocument,
+  renderArtifactBodyHtml,
+  shouldRenderForStaticDom,
+} from './rendered-html';
 
 export interface MarkdownMeta {
   title?: string;
   schemaVersion: 1;
 }
 
-export interface ExportMarkdownOptions {
+export interface ExportMarkdownOptions extends BrowserRenderOptions {
   meta?: Partial<MarkdownMeta>;
 }
 
@@ -23,8 +29,14 @@ export async function exportMarkdown(
   opts: ExportMarkdownOptions = {},
 ): Promise<ExportResult> {
   const fs = await import('node:fs/promises');
-  const md = htmlToMarkdown(artifactSource, {
-    title: opts.meta?.title ?? deriveTitle(artifactSource),
+  const html = shouldRenderForStaticDom(artifactSource, opts)
+    ? await renderArtifactBodyHtml(artifactSource, {
+        ...opts,
+        injectTailwind: opts.injectTailwind ?? false,
+      })
+    : await buildExportHtmlDocument(artifactSource, opts);
+  const md = htmlToMarkdown(html, {
+    title: opts.meta?.title ?? deriveTitle(html),
     schemaVersion: 1,
   });
   await fs.writeFile(destinationPath, md, 'utf8');

@@ -234,7 +234,26 @@ describe('exportPptx', () => {
 
     expect(setContentMock).toHaveBeenCalledWith(
       expect.stringContaining('CODESIGN_STANDALONE_RUNTIME'),
-      expect.objectContaining({ waitUntil: 'networkidle0' }),
+      expect.objectContaining({ waitUntil: 'load' }),
+    );
+  });
+
+  it('preserves TSX transform options before screenshotting PPTX slides', async () => {
+    setContentMock.mockClear();
+    const dest = join(tempDir, 'tsx-visual.pptx');
+    await exportPptx(
+      'type Props = { title: string };\nfunction App({ title }: Props) { return <section><h1>{title}</h1></section>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App title="typed" />);',
+      dest,
+      { sourcePath: 'slides/App.tsx' },
+    );
+
+    expect(setContentMock).toHaveBeenCalledWith(
+      expect.stringContaining('"typescript"'),
+      expect.objectContaining({ waitUntil: 'load' }),
+    );
+    expect(setContentMock).toHaveBeenCalledWith(
+      expect.stringContaining('"filename":"artifact.tsx"'),
+      expect.objectContaining({ waitUntil: 'load' }),
     );
   });
 });
