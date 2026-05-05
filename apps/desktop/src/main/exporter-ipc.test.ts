@@ -122,27 +122,50 @@ describe('parseRequest', () => {
 });
 
 describe('export path helpers', () => {
-  it('builds a stable workspace exports path from design name, source path, format, and time', () => {
+  it('builds a stable Downloads export path from design name, source path, format, and time', () => {
     const out = buildDefaultExportPath({
       format: 'pptx',
-      workspacePath: '/workspace/My Design',
+      downloadsPath: '/Users/roy/Downloads',
       designName: 'Launch / Deck: Q2',
       sourcePath: 'screens/Home.tsx',
       now: new Date('2026-05-05T10:20:30.000Z'),
     });
 
-    expect(out).toBe('/workspace/My Design/exports/Launch-Deck-Q2-Home-2026-05-05-102030.pptx');
+    expect(out).toBe('/Users/roy/Downloads/Launch-Deck-Q2-Home-2026-05-05-102030.pptx');
   });
 
-  it('falls back to a plain filename when no workspace path is available', () => {
+  it('falls back to an open-codesign name inside Downloads when no design name is available', () => {
     const out = buildDefaultExportPath({
       format: 'markdown',
+      downloadsPath: '/Users/roy/Downloads',
       designName: '',
       sourcePath: 'App.jsx',
       now: new Date('2026-05-05T10:20:30.000Z'),
     });
 
-    expect(out).toBe('open-codesign-App-2026-05-05-102030.md');
+    expect(out).toBe('/Users/roy/Downloads/open-codesign-App-2026-05-05-102030.md');
+  });
+
+  it('treats legacy defaultFilename as a Downloads filename, not a cwd-relative path', () => {
+    const out = buildDefaultExportPath({
+      format: 'html',
+      downloadsPath: '/Users/roy/Downloads',
+      defaultFilename: 'codesign-2026-05-05T06-04-43.html',
+      now: new Date('2026-05-05T10:20:30.000Z'),
+    });
+
+    expect(out).toBe('/Users/roy/Downloads/codesign-2026-05-05T06-04-43.html');
+  });
+
+  it('keeps legacy defaultFilename on the requested format extension', () => {
+    const out = buildDefaultExportPath({
+      format: 'pdf',
+      downloadsPath: '/Users/roy/Downloads',
+      defaultFilename: 'preview.html',
+      now: new Date('2026-05-05T10:20:30.000Z'),
+    });
+
+    expect(out).toBe('/Users/roy/Downloads/preview.html.pdf');
   });
 
   it('keeps export files on the selected format extension', () => {

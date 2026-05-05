@@ -13,7 +13,7 @@ import {
   LEGACY_SOURCE_ENTRY,
 } from '@open-codesign/shared';
 import type { BrowserWindow } from 'electron';
-import { dialog, ipcMain } from './electron-runtime';
+import { app, dialog, ipcMain } from './electron-runtime';
 import { type Database, getDesign } from './snapshots-db';
 import { readWorkspaceFileAt } from './workspace-reader';
 
@@ -132,17 +132,24 @@ export function ensureExportExtension(filePath: string, format: ExporterFormat):
 
 export function buildDefaultExportPath(input: {
   format: ExporterFormat;
-  workspacePath?: string | undefined;
+  downloadsPath: string;
+  defaultFilename?: string | undefined;
   designName?: string | undefined;
   sourcePath?: string | undefined;
   now?: Date | undefined;
 }): string {
+  if (input.defaultFilename && input.defaultFilename.trim().length > 0) {
+    return ensureExportExtension(
+      path.join(input.downloadsPath, normalizeDefaultFilename(input.defaultFilename)),
+      input.format,
+    );
+  }
   const design = sanitizeFilenamePart(input.designName ?? '') || 'open-codesign';
   const source =
     sanitizeFilenamePart(sourceStem(input.sourcePath ?? DEFAULT_SOURCE_ENTRY)) || 'App';
   const stamp = formatTimestamp(input.now ?? new Date());
   const filename = `${design}-${source}-${stamp}.${extensionForFormat(input.format)}`;
-  return input.workspacePath ? path.join(input.workspacePath, 'exports', filename) : filename;
+  return path.join(input.downloadsPath, filename);
 }
 
 export async function resolveExportSource(
@@ -218,14 +225,13 @@ export function registerExporterIpc(
     const req = parseRequest(raw);
     const resolved = await resolveExportSource(req, { db });
     const win = getWindow();
-    const defaultPath =
-      req.defaultFilename ??
-      buildDefaultExportPath({
-        format: req.format,
-        workspacePath: resolved.workspacePath,
-        designName: resolved.designName,
-        sourcePath: resolved.sourcePath,
-      });
+    const defaultPath = buildDefaultExportPath({
+      format: req.format,
+      downloadsPath: app.getPath('downloads'),
+      defaultFilename: req.defaultFilename,
+      designName: resolved.designName,
+      sourcePath: resolved.sourcePath,
+    });
     if (path.isAbsolute(defaultPath)) {
       await mkdir(path.dirname(defaultPath), { recursive: true });
     }
@@ -262,6 +268,13 @@ function sourceStem(sourcePath: string): string {
   const basename = path.basename(sourcePath.replace(/\\/g, '/'));
   const ext = path.extname(basename);
   return ext ? basename.slice(0, -ext.length) : basename;
+}
+
+function normalizeDefaultFilename(value: string): string {
+  const normalized = value.trim().replace(/\\/g, '/');
+  const basename = path.basename(normalized);
+  const sanitized = sanitizeFilenamePart(basename);
+  return sanitized || 'open-codesign-export';
 }
 
 function sanitizeFilenamePart(value: string): string {

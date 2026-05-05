@@ -987,8 +987,6 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
             recentDesignIds: pool.recent,
           });
         }
-        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const ext = format === 'markdown' ? 'md' : format;
         const activeDesign =
           designId === null
             ? null
@@ -996,9 +994,6 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
         const res = await window.codesign.export({
           format,
           artifactSource,
-          ...(activeDesign === null || !activeDesign.workspacePath
-            ? { defaultFilename: `codesign-${stamp}.${ext}` }
-            : {}),
           ...(designId !== null ? { designId } : {}),
           ...(activeDesign?.name ? { designName: activeDesign.name } : {}),
           ...(activeDesign?.workspacePath ? { workspacePath: activeDesign.workspacePath } : {}),
