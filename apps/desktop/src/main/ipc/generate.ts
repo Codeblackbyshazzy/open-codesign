@@ -40,7 +40,13 @@ import {
 import { resolveGenerationWorkspaceRoot } from '../generation-workspace';
 import { resolveImageGenerationConfig, toGenerateImageOptions } from '../image-generation-settings';
 import { getLogger } from '../logger';
-import { loadMemoryContext, triggerMemoryUpdate } from '../memory-ipc';
+import {
+  loadMemoryContext,
+  triggerUserMemoryCandidateCapture,
+  triggerUserMemoryConsolidation,
+  triggerWorkspaceMemoryUpdate,
+  workspaceNameFromPath,
+} from '../memory-ipc';
 import { getApiKeyForProvider, getCachedConfig, hasApiKeyForProvider } from '../onboarding-ipc';
 import { readPersisted as readPreferences } from '../preferences-ipc';
 import { runPreview } from '../preview-runtime';
@@ -68,6 +74,56 @@ export function contextWindowForContextPack(model: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
     ? value
     : DEFAULT_CONTEXT_WINDOW_FOR_CONTEXT_PACK;
+}
+
+function designMdSummaryForMemory(
+  projectContext: Awaited<ReturnType<typeof preparePromptContext>>['projectContext'],
+): string | null {
+  const raw = projectContext.designMd ?? projectContext.invalidDesignMd?.raw ?? null;
+  if (raw === null || raw.trim().length === 0) return null;
+  const headings = raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^#{1,3}\s+\S/.test(line))
+    .slice(0, 24);
+  if (headings.length === 0) {
+    return projectContext.invalidDesignMd
+      ? 'DESIGN.md exists but currently fails validation.'
+      : 'DESIGN.md exists and should remain the authoritative design-system source.';
+  }
+  return [
+    projectContext.invalidDesignMd
+      ? 'DESIGN.md exists but currently fails validation.'
+      : 'DESIGN.md exists and should remain the authoritative design-system source.',
+    'Headings:',
+    ...headings.map((heading) => `- ${heading.replace(/^#+\s*/, '')}`),
+  ].join('\n');
+}
+
+function extractUserMessagesForMemory(messages: DesignBriefConversationMessages): string[] {
+  const out: string[] = [];
+  for (const msg of messages) {
+    if (msg.role !== 'user') continue;
+    const content = (msg as { content?: unknown }).content;
+    if (typeof content === 'string') {
+      const trimmed = content.trim();
+      if (trimmed.length > 0) out.push(trimmed);
+      continue;
+    }
+    if (!Array.isArray(content)) continue;
+    const text = content
+      .map((part) => {
+        if (typeof part !== 'object' || part === null) return '';
+        const record = part as Record<string, unknown>;
+        return record['type'] === 'text' && typeof record['text'] === 'string'
+          ? record['text']
+          : '';
+      })
+      .join('\n')
+      .trim();
+    if (text.length > 0) out.push(text);
+  }
+  return out;
 }
 
 /**
@@ -570,22 +626,25 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
           });
 
           const { designId, workspaceRoot } = requireWorkspaceRootForDesign(payload.designId);
+          const prefs = await readPreferences();
           const promptContext = await preparePromptContext({
             attachments: payload.attachments,
             referenceUrl: payload.referenceUrl,
             designSystem: cfg.designSystem ?? null,
             workspaceRoot,
           });
-          let memoryContext: string[] | undefined;
+          let memoryContext: Awaited<ReturnType<typeof loadMemoryContext>> | undefined;
           let memoryLoadWarning: string | undefined;
-          try {
-            memoryContext = await loadMemoryContext(workspaceRoot);
-          } catch (err) {
-            memoryLoadWarning = `Project memory unavailable: ${err instanceof Error ? err.message : String(err)}`;
-            logIpc.warn('memory.load.fail', {
-              generationId: id,
-              message: err instanceof Error ? err.message : String(err),
-            });
+          if (prefs.memoryEnabled) {
+            try {
+              memoryContext = await loadMemoryContext(workspaceRoot);
+            } catch (err) {
+              memoryLoadWarning = `Project memory unavailable: ${err instanceof Error ? err.message : String(err)}`;
+              logIpc.warn('memory.load.fail', {
+                generationId: id,
+                message: err instanceof Error ? err.message : String(err),
+              });
+            }
           }
 
           logIpc.info('generate', {
@@ -615,7 +674,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
             let aggressivePruneDetected = false;
             const chatRows = chatRowsForDesign(designId);
             const resourceState = deriveResourceStateFromChatRows(chatRows);
-            const existingBrief = briefForDesign(designId);
+            const existingBrief = prefs.memoryEnabled ? briefForDesign(designId) : null;
             const contextPack = buildDesignContextPack({
               chatRows,
               brief: existingBrief,
@@ -646,7 +705,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 referenceUrl: promptContext.referenceUrl,
                 designSystem: promptContext.designSystem ?? null,
                 sessionContext: contextPack.contextSections,
-                ...(memoryContext !== undefined ? { memoryContext } : {}),
+                ...(memoryContext !== undefined ? { memoryContext: memoryContext.sections } : {}),
                 projectContext: promptContext.projectContext,
                 initialResourceState: resourceState,
                 ...(baseUrl !== undefined ? { baseUrl } : {}),
@@ -679,6 +738,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
               cost: result.costUsd,
             });
             if (capturedMessages !== null) {
+              const messagesForMemory = capturedMessages;
               const design = db !== null ? getDesign(db, designId) : null;
               let memoryWorkspaceRoot = workspaceRoot;
               try {
@@ -689,59 +749,114 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                   message: err instanceof Error ? err.message : String(err),
                 });
               }
-              const briefUpdate = updateDesignSessionBrief({
-                existingBrief,
-                conversationMessages: capturedMessages,
-                designId,
-                designName: design?.name ?? 'Untitled',
-                model: active.model,
-                apiKey,
-                ...(baseUrl !== undefined ? { baseUrl } : {}),
-                wire: active.wire,
-                ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
-                ...(active.reasoningLevel !== undefined
-                  ? { reasoningLevel: active.reasoningLevel }
-                  : {}),
-                ...(allowKeyless ? { allowKeyless: true } : {}),
-              })
-                .then((briefResult) => {
-                  const opts = chatStoreOptions();
-                  if (opts !== null) appendSessionDesignBrief(opts, designId, briefResult.brief);
-                  logIpc.info('design-brief.update.ok', {
-                    generationId: id,
-                    outputLen: JSON.stringify(briefResult.brief).length,
-                  });
-                })
-                .catch((err) => {
-                  logIpc.warn('design-brief.update.fail', {
-                    generationId: id,
-                    message: err instanceof Error ? err.message : String(err),
-                  });
-                });
-              const memoryUpdate = triggerMemoryUpdate({
-                workspacePath: memoryWorkspaceRoot,
-                designId,
-                designName: design?.name ?? 'Untitled',
-                conversationMessages: capturedMessages,
-                model: active.model,
-                apiKey,
-                db,
-                ...(baseUrl !== undefined ? { baseUrl } : {}),
-                wire: active.wire,
-                ...(active.httpHeaders !== undefined ? { httpHeaders: active.httpHeaders } : {}),
-                ...(active.reasoningLevel !== undefined
-                  ? { reasoningLevel: active.reasoningLevel }
-                  : {}),
-                ...(allowKeyless ? { allowKeyless: true } : {}),
-              }).catch((err) => {
-                logIpc.warn('memory.update.fail', {
-                  generationId: id,
-                  message: err instanceof Error ? err.message : String(err),
-                });
-              });
+              const designName = design?.name ?? 'Untitled';
+              const workspaceMemoryUpdate =
+                prefs.memoryEnabled === true && prefs.workspaceMemoryAutoUpdate === true
+                  ? triggerWorkspaceMemoryUpdate({
+                      workspacePath: memoryWorkspaceRoot,
+                      workspaceName: workspaceNameFromPath(memoryWorkspaceRoot),
+                      designId,
+                      designName,
+                      conversationMessages: messagesForMemory,
+                      userMemory: memoryContext?.userMemory?.content ?? null,
+                      designMdSummary: designMdSummaryForMemory(promptContext.projectContext),
+                      model: active.model,
+                      apiKey,
+                      ...(baseUrl !== undefined ? { baseUrl } : {}),
+                      wire: active.wire,
+                      ...(active.httpHeaders !== undefined
+                        ? { httpHeaders: active.httpHeaders }
+                        : {}),
+                      ...(active.reasoningLevel !== undefined
+                        ? { reasoningLevel: active.reasoningLevel }
+                        : {}),
+                      ...(allowKeyless ? { allowKeyless: true } : {}),
+                    }).catch((err) => {
+                      logIpc.warn('workspace-memory.update.fail', {
+                        generationId: id,
+                        message: err instanceof Error ? err.message : String(err),
+                      });
+                      return memoryContext?.workspaceMemory ?? null;
+                    })
+                  : Promise.resolve(memoryContext?.workspaceMemory ?? null);
 
+              const briefUpdate = prefs.memoryEnabled
+                ? workspaceMemoryUpdate
+                    .then((workspaceMemory) =>
+                      updateDesignSessionBrief({
+                        existingBrief,
+                        conversationMessages: messagesForMemory,
+                        designId,
+                        designName,
+                        userMemory: memoryContext?.userMemory?.content ?? null,
+                        workspaceMemory: workspaceMemory?.content ?? null,
+                        sourceUserMemoryHash: memoryContext?.userMemory?.hash,
+                        sourceWorkspaceMemoryHash: workspaceMemory?.hash,
+                        sourceMemoryUpdatedAt:
+                          workspaceMemory?.updatedAt ?? memoryContext?.userMemory?.updatedAt,
+                        model: active.model,
+                        apiKey,
+                        ...(baseUrl !== undefined ? { baseUrl } : {}),
+                        wire: active.wire,
+                        ...(active.httpHeaders !== undefined
+                          ? { httpHeaders: active.httpHeaders }
+                          : {}),
+                        ...(active.reasoningLevel !== undefined
+                          ? { reasoningLevel: active.reasoningLevel }
+                          : {}),
+                        ...(allowKeyless ? { allowKeyless: true } : {}),
+                      }),
+                    )
+                    .then((briefResult) => {
+                      const opts = chatStoreOptions();
+                      if (opts !== null)
+                        appendSessionDesignBrief(opts, designId, briefResult.brief);
+                      logIpc.info('design-brief.update.ok', {
+                        generationId: id,
+                        outputLen: JSON.stringify(briefResult.brief).length,
+                      });
+                    })
+                    .catch((err) => {
+                      logIpc.warn('design-brief.update.fail', {
+                        generationId: id,
+                        message: err instanceof Error ? err.message : String(err),
+                      });
+                    })
+                : Promise.resolve();
+              const userMemoryMaintenance =
+                prefs.memoryEnabled === true
+                  ? triggerUserMemoryCandidateCapture({
+                      designId,
+                      designName,
+                      userMessages: extractUserMessagesForMemory(messagesForMemory),
+                    })
+                      .then(() => {
+                        if (prefs.userMemoryAutoUpdate !== true) {
+                          return { updated: false, candidateCount: 0 };
+                        }
+                        return triggerUserMemoryConsolidation({
+                          model: active.model,
+                          apiKey,
+                          ...(baseUrl !== undefined ? { baseUrl } : {}),
+                          wire: active.wire,
+                          ...(active.httpHeaders !== undefined
+                            ? { httpHeaders: active.httpHeaders }
+                            : {}),
+                          ...(active.reasoningLevel !== undefined
+                            ? { reasoningLevel: active.reasoningLevel }
+                            : {}),
+                          ...(allowKeyless ? { allowKeyless: true } : {}),
+                        });
+                      })
+                      .catch((err) => {
+                        logIpc.warn('user-memory.maintenance.fail', {
+                          generationId: id,
+                          message: err instanceof Error ? err.message : String(err),
+                        });
+                      })
+                  : Promise.resolve();
               if (aggressivePruneDetected) {
-                await Promise.all([briefUpdate, memoryUpdate]);
+                await Promise.all([briefUpdate, userMemoryMaintenance]);
               }
             }
             if (memoryLoadWarning !== undefined) {

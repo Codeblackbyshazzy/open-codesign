@@ -34,6 +34,9 @@ export interface DesignSessionBriefV1 {
     checkedAt?: string;
   };
   lastUserIntent: string;
+  sourceUserMemoryHash?: string;
+  sourceWorkspaceMemoryHash?: string;
+  sourceMemoryUpdatedAt?: string;
 }
 
 export interface DesignContextPackV1 {
@@ -78,6 +81,11 @@ export interface UpdateDesignSessionBriefInput {
   httpHeaders?: Record<string, string> | undefined;
   allowKeyless?: boolean | undefined;
   reasoningLevel?: ReasoningLevel | undefined;
+  userMemory?: string | null | undefined;
+  workspaceMemory?: string | null | undefined;
+  sourceUserMemoryHash?: string | undefined;
+  sourceWorkspaceMemoryHash?: string | undefined;
+  sourceMemoryUpdatedAt?: string | undefined;
   logger?: CoreLogger | undefined;
 }
 
@@ -113,9 +121,13 @@ export const DESIGN_BRIEF_SYSTEM_PROMPT = [
   '- currentFiles: string[]',
   '- lastVerification: { status: "none" | "ok" | "has_errors", path?: string, errorCount?: number, checkedAt?: string }',
   '- lastUserIntent: string',
+  '- sourceUserMemoryHash?: string',
+  '- sourceWorkspaceMemoryHash?: string',
+  '- sourceMemoryUpdatedAt?: string',
   '',
   'Rules:',
-  '- Preserve durable design facts and user preferences.',
+  '- Derive durable design facts from Workspace MEMORY.md and Global User Memory first.',
+  '- Use recent conversation only as fresh evidence, not as a replacement for memory files.',
   '- Do not copy large source code, tool outputs, or full token tables.',
   '- Treat DESIGN.md as authoritative when mentioned; summarize decisions, not raw tokens.',
   "- Use the same language as the user's prompts when practical.",
@@ -137,6 +149,12 @@ function truncate(text: string, max: number): string {
 
 function stringField(value: unknown, fallback = ''): string {
   return truncate(typeof value === 'string' ? value : fallback, BRIEF_MAX_FIELD_CHARS);
+}
+
+function optionalStringField(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const text = truncate(value, BRIEF_MAX_FIELD_CHARS);
+  return text.length > 0 ? text : undefined;
 }
 
 function stringArray(value: unknown): string[] {
@@ -173,7 +191,7 @@ export function normalizeDesignSessionBrief(
   meta: { designId: string; designName: string; now?: string },
 ): DesignSessionBriefV1 | null {
   if (!isRecord(raw)) return null;
-  return {
+  const out: DesignSessionBriefV1 = {
     schemaVersion: 1,
     designId: meta.designId,
     designName: meta.designName,
@@ -190,6 +208,14 @@ export function normalizeDesignSessionBrief(
     lastVerification: normalizeLastVerification(raw['lastVerification']),
     lastUserIntent: stringField(raw['lastUserIntent']),
   };
+  const sourceUserMemoryHash = optionalStringField(raw['sourceUserMemoryHash']);
+  if (sourceUserMemoryHash !== undefined) out.sourceUserMemoryHash = sourceUserMemoryHash;
+  const sourceWorkspaceMemoryHash = optionalStringField(raw['sourceWorkspaceMemoryHash']);
+  if (sourceWorkspaceMemoryHash !== undefined)
+    out.sourceWorkspaceMemoryHash = sourceWorkspaceMemoryHash;
+  const sourceMemoryUpdatedAt = optionalStringField(raw['sourceMemoryUpdatedAt']);
+  if (sourceMemoryUpdatedAt !== undefined) out.sourceMemoryUpdatedAt = sourceMemoryUpdatedAt;
+  return out;
 }
 
 function messageFromRow(row: ChatMessageRow): ChatMessage | null {
@@ -364,12 +390,21 @@ export async function updateDesignSessionBrief(
     '## Existing Brief',
     input.existingBrief ? JSON.stringify(input.existingBrief, null, 2) : '(none)',
     '',
+    '## Global User Memory',
+    input.userMemory ?? '(none)',
+    '',
+    '## Workspace MEMORY.md',
+    input.workspaceMemory ?? '(none)',
+    '',
     '## Conversation Context',
     conversation,
     '',
     '## Metadata',
     `designId: ${input.designId}`,
     `designName: ${input.designName}`,
+    `sourceUserMemoryHash: ${input.sourceUserMemoryHash ?? ''}`,
+    `sourceWorkspaceMemoryHash: ${input.sourceWorkspaceMemoryHash ?? ''}`,
+    `sourceMemoryUpdatedAt: ${input.sourceMemoryUpdatedAt ?? ''}`,
     `timestamp: ${new Date().toISOString()}`,
     '',
     'Return the updated brief JSON now.',

@@ -20,6 +20,7 @@ import { registerIpcHandlers } from './ipc/register';
 import { getPendingUpdate, setupAutoUpdater } from './ipc/update';
 import { registerLocaleIpc } from './locale-ipc';
 import { getLogger, initLogger } from './logger';
+import { registerMemoryIpc } from './memory-ipc';
 import { loadConfigOnBoot, registerOnboardingIpc } from './onboarding-ipc';
 import { isAllowedExternalUrl } from './open-external';
 import { readPersisted as readPreferences, registerPreferencesIpc } from './preferences-ipc';
@@ -260,6 +261,7 @@ if (!IS_VITEST) {
       registerOnboardingIpc();
       registerCodexOAuthIpc();
       registerPreferencesIpc();
+      registerMemoryIpc();
       registerImageGenerationSettingsIpc();
       registerExporterIpc(getMainWindow, diagnosticsDb);
       registerDiagnosticsIpc(diagnosticsDb);

@@ -7,22 +7,25 @@ let mockUserDataPath = '/tmp/test-memory-ipc';
 
 vi.mock('./electron-runtime', () => ({
   app: { getPath: (name: string) => (name === 'userData' ? mockUserDataPath : '/tmp') },
+  shell: { openPath: vi.fn(async () => '') },
 }));
 
 vi.mock('./logger', () => ({
   getLogger: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }),
 }));
 
-vi.mock('./db/designs', () => ({
-  listDesigns: vi.fn(() => []),
-}));
-
 vi.mock('@open-codesign/core', async () => {
   const actual = await vi.importActual<typeof import('@open-codesign/core')>('@open-codesign/core');
   return {
     ...actual,
-    updateDesignMemory: vi.fn(async () => ({
-      content: '# Updated Memory',
+    updateWorkspaceMemory: vi.fn(async () => ({
+      content: '# Updated Workspace Memory',
+      inputTokens: 100,
+      outputTokens: 50,
+      costUsd: 0.001,
+    })),
+    updateUserMemory: vi.fn(async () => ({
+      content: '# Updated User Memory',
       inputTokens: 100,
       outputTokens: 50,
       costUsd: 0.001,
@@ -30,12 +33,16 @@ vi.mock('@open-codesign/core', async () => {
   };
 });
 
-import { updateDesignMemory } from '@open-codesign/core';
+import { updateUserMemory, updateWorkspaceMemory } from '@open-codesign/core';
 import {
   loadMemoryContext,
-  readDesignMemoryFile,
-  triggerMemoryUpdate,
-  writeDesignMemoryFile,
+  readUserMemoryFile,
+  readWorkspaceMemoryFile,
+  triggerUserMemoryCandidateCapture,
+  triggerUserMemoryConsolidation,
+  triggerWorkspaceMemoryUpdate,
+  writeUserMemoryFileAtomic,
+  writeWorkspaceMemoryFileAtomic,
 } from './memory-ipc';
 
 let tempDir: string;
@@ -50,134 +57,131 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
-describe('readDesignMemoryFile', () => {
-  it('returns content when memory.md exists', async () => {
-    await writeFile(path.join(tempDir, 'memory.md'), '# Test Memory', 'utf-8');
-    const result = await readDesignMemoryFile(tempDir);
-    expect(result).toBe('# Test Memory');
-  });
-
-  it('returns null when file does not exist', async () => {
-    const result = await readDesignMemoryFile(path.join(tempDir, 'nonexistent'));
-    expect(result).toBeNull();
-  });
-});
-
-describe('writeDesignMemoryFile', () => {
-  it('writes memory file atomically', async () => {
-    await writeDesignMemoryFile(tempDir, '# Written Memory');
-    const content = await readFile(path.join(tempDir, 'memory.md'), 'utf-8');
-    expect(content).toBe('# Written Memory');
-  });
-
-  it('overwrites existing content', async () => {
-    await writeDesignMemoryFile(tempDir, '# First');
-    await writeDesignMemoryFile(tempDir, '# Second');
-    const content = await readFile(path.join(tempDir, 'memory.md'), 'utf-8');
-    expect(content).toBe('# Second');
-  });
-
-  it('creates the workspace directory before writing memory', async () => {
-    const workspace = path.join(tempDir, 'missing-workspace');
-    await writeDesignMemoryFile(workspace, '# New Workspace Memory');
-    const content = await readFile(path.join(workspace, 'memory.md'), 'utf-8');
-    expect(content).toBe('# New Workspace Memory');
-  });
-});
-
-describe('loadMemoryContext', () => {
-  it('returns undefined when no memory files exist', async () => {
-    const result = await loadMemoryContext(path.join(tempDir, 'no-workspace'));
-    expect(result).toBeUndefined();
-  });
-
-  it('loads design memory into context', async () => {
-    await writeFile(path.join(tempDir, 'memory.md'), '# Design Memory', 'utf-8');
-    const result = await loadMemoryContext(tempDir);
-    expect(result).toBeDefined();
-    expect(result?.length).toBeGreaterThan(0);
-    expect(result?.some((s) => s.includes('Design Memory'))).toBe(true);
-  });
-
-  it('returns undefined for undefined workspace path', async () => {
-    const result = await loadMemoryContext(undefined);
-    expect(result).toBeUndefined();
-  });
-
-  it('does not inject the global memory index by default', async () => {
-    await writeFile(path.join(tempDir, 'memory.md'), 'global|Other|Different project', 'utf-8');
-    const result = await loadMemoryContext(path.join(tempDir, 'workspace-without-memory'));
-    expect(result).toBeUndefined();
-  });
-});
-
-describe('triggerMemoryUpdate', () => {
-  it('calls updateDesignMemory and writes result', async () => {
-    await triggerMemoryUpdate({
-      workspacePath: tempDir,
-      designId: 'test-id',
-      designName: 'Test Design',
-      conversationMessages: [],
-      model: { provider: 'anthropic', modelId: 'claude-sonnet-4-6' },
-      apiKey: 'test-key',
-      reasoningLevel: 'off',
-      db: null,
+describe('workspace memory files', () => {
+  it('prefers uppercase MEMORY.md and treats lowercase memory.md as legacy seed', async () => {
+    await writeFile(path.join(tempDir, 'memory.md'), '# Legacy Memory', 'utf-8');
+    expect(await readWorkspaceMemoryFile(tempDir)).toMatchObject({
+      content: '# Legacy Memory',
+      source: 'legacy',
     });
 
-    expect(updateDesignMemory).toHaveBeenCalledOnce();
-    expect(updateDesignMemory).toHaveBeenCalledWith(
-      expect.objectContaining({ reasoningLevel: 'off' }),
+    await writeWorkspaceMemoryFileAtomic(tempDir, '# Workspace Memory');
+    expect(await readFile(path.join(tempDir, 'MEMORY.md'), 'utf-8')).toBe('# Workspace Memory');
+    expect(await readWorkspaceMemoryFile(tempDir)).toMatchObject({
+      content: '# Workspace Memory',
+      source: 'primary',
+    });
+  });
+
+  it('loads user and workspace memory as separate prompt context sections', async () => {
+    await writeUserMemoryFileAtomic('# User Memory');
+    await writeWorkspaceMemoryFileAtomic(tempDir, '# Workspace Memory');
+
+    const loaded = await loadMemoryContext(tempDir);
+
+    expect(loaded?.sections.join('\n')).toContain('global_user_memory');
+    expect(loaded?.sections.join('\n')).toContain('workspace_memory');
+    expect(loaded?.userMemory?.content).toBe('# User Memory');
+    expect(loaded?.workspaceMemory?.content).toBe('# Workspace Memory');
+  });
+
+  it('serializes concurrent updates by normalized workspace path', async () => {
+    await Promise.all([
+      triggerWorkspaceMemoryUpdate({
+        workspacePath: tempDir,
+        workspaceName: 'Shared',
+        designId: 'design-a',
+        designName: 'Design A',
+        conversationMessages: [],
+        userMemory: null,
+        designMdSummary: null,
+        model: { provider: 'anthropic', modelId: 'claude-sonnet-4-6' },
+        apiKey: 'test-key',
+      }),
+      triggerWorkspaceMemoryUpdate({
+        workspacePath: `${tempDir}${path.sep}.`,
+        workspaceName: 'Shared',
+        designId: 'design-b',
+        designName: 'Design B',
+        conversationMessages: [],
+        userMemory: null,
+        designMdSummary: null,
+        model: { provider: 'anthropic', modelId: 'claude-sonnet-4-6' },
+        apiKey: 'test-key',
+      }),
+    ]);
+
+    expect(updateWorkspaceMemory).toHaveBeenCalledTimes(2);
+    await expect(readFile(path.join(tempDir, 'MEMORY.md'), 'utf-8')).resolves.toBe(
+      '# Updated Workspace Memory',
     );
-    const content = await readFile(path.join(tempDir, 'memory.md'), 'utf-8');
-    expect(content).toBe('# Updated Memory');
   });
 
-  it('chains concurrent updates for the same design instead of dropping', async () => {
-    const first = triggerMemoryUpdate({
+  it('does not overwrite a second user edit after the conflict retry is exhausted', async () => {
+    await writeWorkspaceMemoryFileAtomic(tempDir, '# Initial');
+    vi.mocked(updateWorkspaceMemory)
+      .mockImplementationOnce(async () => {
+        await writeFile(path.join(tempDir, 'MEMORY.md'), '# User Edited', 'utf-8');
+        return {
+          content: '# Draft One',
+          inputTokens: 1,
+          outputTokens: 1,
+          costUsd: 0,
+        };
+      })
+      .mockImplementationOnce(async () => {
+        await writeFile(path.join(tempDir, 'MEMORY.md'), '# User Edited Again', 'utf-8');
+        return { content: '# Draft Two', inputTokens: 1, outputTokens: 1, costUsd: 0 };
+      });
+
+    await triggerWorkspaceMemoryUpdate({
       workspacePath: tempDir,
-      designId: 'dup-id',
-      designName: 'Dup Design',
+      workspaceName: 'Conflict',
+      designId: 'design-a',
+      designName: 'Design A',
       conversationMessages: [],
+      userMemory: null,
+      designMdSummary: null,
       model: { provider: 'anthropic', modelId: 'claude-sonnet-4-6' },
       apiKey: 'test-key',
-      db: null,
     });
 
-    const second = triggerMemoryUpdate({
-      workspacePath: tempDir,
-      designId: 'dup-id',
-      designName: 'Dup Design',
-      conversationMessages: [],
-      model: { provider: 'anthropic', modelId: 'claude-sonnet-4-6' },
-      apiKey: 'test-key',
-      db: null,
-    });
+    await expect(readFile(path.join(tempDir, 'MEMORY.md'), 'utf-8')).resolves.toBe(
+      '# User Edited Again',
+    );
+  });
+});
 
-    await Promise.all([first, second]);
-    expect(updateDesignMemory).toHaveBeenCalledTimes(2);
+describe('global user memory', () => {
+  it('stores global user memory under userData/memory/user.md', async () => {
+    await writeUserMemoryFileAtomic('# User Design Memory');
+
+    expect(await readUserMemoryFile()).toMatchObject({
+      content: '# User Design Memory',
+      path: path.join(tempDir, 'memory', 'user.md'),
+    });
   });
 
-  it('allows update after previous one completes', async () => {
-    await triggerMemoryUpdate({
-      workspacePath: tempDir,
-      designId: 'seq-id',
-      designName: 'Seq Design',
-      conversationMessages: [],
-      model: { provider: 'anthropic', modelId: 'claude-sonnet-4-6' },
-      apiKey: 'test-key',
-      db: null,
+  it('queues candidates and consumes them only after successful consolidation', async () => {
+    await triggerUserMemoryCandidateCapture({
+      designId: 'design-1',
+      designName: 'Dashboard',
+      userMessages: ['I usually prefer dense professional tools'],
     });
 
-    await triggerMemoryUpdate({
-      workspacePath: tempDir,
-      designId: 'seq-id',
-      designName: 'Seq Design',
-      conversationMessages: [],
+    const result = await triggerUserMemoryConsolidation({
       model: { provider: 'anthropic', modelId: 'claude-sonnet-4-6' },
       apiKey: 'test-key',
-      db: null,
+      force: true,
     });
 
-    expect(updateDesignMemory).toHaveBeenCalledTimes(2);
+    expect(result.updated).toBe(true);
+    expect(updateUserMemory).toHaveBeenCalledOnce();
+    await expect(readFile(path.join(tempDir, 'memory', 'user.md'), 'utf-8')).resolves.toBe(
+      '# Updated User Memory',
+    );
+    await expect(
+      readFile(path.join(tempDir, 'memory', 'user-candidates.jsonl'), 'utf-8'),
+    ).rejects.toThrow();
   });
 });

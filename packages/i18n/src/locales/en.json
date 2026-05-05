@@ -195,6 +195,7 @@
     "tabs": {
       "models": "Models",
       "images": "Image API",
+      "memory": "Memory",
       "appearance": "Appearance",
       "storage": "Storage",
       "diagnostics": "Diagnostics",
@@ -226,6 +227,29 @@
         "saved": "Image generation settings saved",
         "saveFailed": "Failed to save image generation settings"
       }
+    },
+    "memory": {
+      "userFile": "User memory file",
+      "open": "Open file",
+      "updateNow": "Update now",
+      "enabled": "Enable memory",
+      "enabledHint": "Use workspace MEMORY.md, global user memory, and compact session briefs during generation.",
+      "workspaceAutoUpdate": "Workspace memory auto-update",
+      "workspaceAutoUpdateHint": "Update MEMORY.md after successful generations.",
+      "userAutoUpdate": "User memory auto-update",
+      "userAutoUpdateHint": "Learn cross-workspace design preferences from candidate evidence. Off by default.",
+      "preview": "User Design Memory",
+      "save": "Save",
+      "clearCandidates": "Clear candidates",
+      "loadFailed": "Failed to load memory",
+      "saved": "User memory saved",
+      "saveFailed": "Failed to save memory",
+      "openFailed": "Could not open memory file",
+      "updated": "User memory updated",
+      "noCandidates": "No pending candidates",
+      "updateFailed": "Could not update user memory",
+      "candidatesCleared": "Pending candidates cleared",
+      "clearFailed": "Could not clear candidates"
     },
     "shell": {
       "back": "Workspace",

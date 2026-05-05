@@ -44,6 +44,9 @@ function baseBrief(overrides: Partial<DesignSessionBriefV1> = {}): DesignSession
     currentFiles: ['App.jsx', 'DESIGN.md'],
     lastVerification: { status: 'ok', path: 'App.jsx', errorCount: 0 },
     lastUserIntent: 'Make the metrics easier to scan.',
+    sourceUserMemoryHash: 'user-old',
+    sourceWorkspaceMemoryHash: 'workspace-old',
+    sourceMemoryUpdatedAt: '2026-05-05T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -211,6 +214,9 @@ describe('updateDesignSessionBrief', () => {
         currentFiles: ['App.jsx'],
         lastVerification: { status: 'ok', path: 'App.jsx', errorCount: 0 },
         lastUserIntent: 'Make it warmer',
+        sourceUserMemoryHash: 'user-new',
+        sourceWorkspaceMemoryHash: 'workspace-new',
+        sourceMemoryUpdatedAt: '2026-05-05T01:00:00.000Z',
       }),
       inputTokens: 1,
       outputTokens: 1,
@@ -224,6 +230,11 @@ describe('updateDesignSessionBrief', () => {
       designName: 'Onboarding',
       model: MODEL,
       apiKey: 'sk-test',
+      userMemory: '# User Design Memory\n- Prefer dense tools',
+      workspaceMemory: '# Project Memory\n- Onboarding prototype',
+      sourceUserMemoryHash: 'user-new',
+      sourceWorkspaceMemoryHash: 'workspace-new',
+      sourceMemoryUpdatedAt: '2026-05-05T01:00:00.000Z',
     });
 
     expect(result.brief).toMatchObject({
@@ -233,7 +244,12 @@ describe('updateDesignSessionBrief', () => {
       goal: 'Refine onboarding screens',
       artifactType: 'mobile-app',
       lastUserIntent: 'Make it warmer',
+      sourceUserMemoryHash: 'user-new',
+      sourceWorkspaceMemoryHash: 'workspace-new',
+      sourceMemoryUpdatedAt: '2026-05-05T01:00:00.000Z',
     });
+    expect(completeWithRetryMock.mock.calls[0]?.[1][1].content).toContain('## Global User Memory');
+    expect(completeWithRetryMock.mock.calls[0]?.[1][1].content).toContain('## Workspace MEMORY.md');
   });
 
   it('rejects invalid JSON so callers keep the previous brief', async () => {

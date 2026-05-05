@@ -195,6 +195,7 @@
     "tabs": {
       "models": "模型",
       "images": "图像 API",
+      "memory": "记忆",
       "appearance": "外观",
       "storage": "存储",
       "diagnostics": "诊断",
@@ -226,6 +227,29 @@
         "saved": "图像生成设置已保存",
         "saveFailed": "保存图像生成设置失败"
       }
+    },
+    "memory": {
+      "userFile": "用户记忆文件",
+      "open": "打开文件",
+      "updateNow": "立即更新",
+      "enabled": "启用记忆",
+      "enabledHint": "生成时使用工作区 MEMORY.md、全局用户记忆和压缩的 session brief。",
+      "workspaceAutoUpdate": "自动更新工作区记忆",
+      "workspaceAutoUpdateHint": "生成成功后更新 MEMORY.md。",
+      "userAutoUpdate": "自动更新用户记忆",
+      "userAutoUpdateHint": "从候选证据中学习跨工作区设计偏好。默认关闭。",
+      "preview": "用户设计记忆",
+      "save": "保存",
+      "clearCandidates": "清空候选",
+      "loadFailed": "加载记忆失败",
+      "saved": "用户记忆已保存",
+      "saveFailed": "保存记忆失败",
+      "openFailed": "无法打开记忆文件",
+      "updated": "用户记忆已更新",
+      "noCandidates": "暂无待合并候选",
+      "updateFailed": "无法更新用户记忆",
+      "candidatesCleared": "候选已清空",
+      "clearFailed": "无法清空候选"
     },
     "shell": {
       "back": "工作区",

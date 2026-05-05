@@ -34,6 +34,9 @@ export function AdvancedTab() {
     checkForUpdatesOnStartup: false,
     dismissedUpdateVersion: '',
     diagnosticsLastReadTs: 0,
+    memoryEnabled: true,
+    workspaceMemoryAutoUpdate: true,
+    userMemoryAutoUpdate: false,
   });
 
   useEffect(() => {

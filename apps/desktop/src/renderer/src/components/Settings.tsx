@@ -1,11 +1,20 @@
 import { useT } from '@open-codesign/i18n';
-import { AlertCircle, Cpu, FolderOpen, Image as ImageIcon, Palette, Sliders } from 'lucide-react';
+import {
+  AlertCircle,
+  Brain,
+  Cpu,
+  FolderOpen,
+  Image as ImageIcon,
+  Palette,
+  Sliders,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useCodesignStore } from '../store';
 import { AdvancedTab } from './settings/AdvancedTab';
 import { AppearanceTab } from './settings/AppearanceTab';
 import { DiagnosticsPanel } from './settings/DiagnosticsPanel';
 import { ImageGenerationTab } from './settings/ImageGenerationTab';
+import { MemoryTab } from './settings/MemoryTab';
 import { ModelsTab } from './settings/ModelsTab';
 import { StorageTab } from './settings/StorageTab';
 
@@ -15,11 +24,12 @@ export { resolveTimeoutOptions, TIMEOUT_OPTION_SECONDS } from './settings/Advanc
 export { applyLocaleChange } from './settings/AppearanceTab';
 export { computeModelOptions } from './settings/primitives';
 
-type Tab = 'models' | 'images' | 'appearance' | 'storage' | 'diagnostics' | 'advanced';
+type Tab = 'models' | 'images' | 'memory' | 'appearance' | 'storage' | 'diagnostics' | 'advanced';
 
 const TABS: ReadonlyArray<{ id: Tab; icon: typeof Cpu }> = [
   { id: 'models', icon: Cpu },
   { id: 'images', icon: ImageIcon },
+  { id: 'memory', icon: Brain },
   { id: 'appearance', icon: Palette },
   { id: 'storage', icon: FolderOpen },
   { id: 'diagnostics', icon: AlertCircle },
@@ -69,6 +79,7 @@ export function Settings() {
         <section className="flex flex-col min-h-0 overflow-y-auto p-[var(--space-6)]">
           {tab === 'models' ? <ModelsTab /> : null}
           {tab === 'images' ? <ImageGenerationTab /> : null}
+          {tab === 'memory' ? <MemoryTab /> : null}
           {tab === 'appearance' ? <AppearanceTab /> : null}
           {tab === 'storage' ? <StorageTab /> : null}
           {tab === 'diagnostics' ? <DiagnosticsPanel /> : null}

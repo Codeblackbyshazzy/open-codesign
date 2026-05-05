@@ -56,15 +56,16 @@ export {
 export { FRAME_FILES, type FrameName, loadFrameTemplates } from './frames/index.js';
 export type { CoreLogger } from './logger.js';
 export {
-  extractSummaryFromMemory,
-  formatGlobalMemoryIndex,
-  formatMemoryForContext,
-  type GlobalMemoryEntry,
-  parseGlobalMemoryIndex,
+  formatMemoryContext,
+  formatMemoryForDebug,
   serializeMessagesForMemory,
-  type UpdateDesignMemoryInput,
-  type UpdateDesignMemoryResult,
-  updateDesignMemory,
+  type UpdateMemoryResult,
+  type UpdateUserMemoryInput,
+  type UpdateWorkspaceMemoryInput,
+  USER_MEMORY_SYSTEM_PROMPT,
+  updateUserMemory,
+  updateWorkspaceMemory,
+  WORKSPACE_MEMORY_SYSTEM_PROMPT,
 } from './memory.js';
 export type { ResourceManifestResult } from './resource-manifest.js';
 export { collectResourceManifest, formatResourceManifestForPrompt } from './resource-manifest.js';

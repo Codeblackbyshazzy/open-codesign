@@ -17,7 +17,7 @@ import { getLogger } from './logger';
 
 const logger = getLogger('preferences-ipc');
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 7;
 // v1 → v2: raise the abandoned 120s timeout default (which aborted real
 // agentic runs mid-loop) to 600s. Values that happen to equal the old
 // default are treated as unmigrated defaults, not user intent.
@@ -41,6 +41,9 @@ export interface Preferences {
    *  Persisted so the unread-error badge doesn't flash every historical
    *  error after a restart. */
   diagnosticsLastReadTs: number;
+  memoryEnabled: boolean;
+  workspaceMemoryAutoUpdate: boolean;
+  userMemoryAutoUpdate: boolean;
 }
 
 interface PreferencesFile extends Preferences {
@@ -57,6 +60,9 @@ const DEFAULTS: Preferences = {
   checkForUpdatesOnStartup: false,
   dismissedUpdateVersion: '',
   diagnosticsLastReadTs: 0,
+  memoryEnabled: true,
+  workspaceMemoryAutoUpdate: true,
+  userMemoryAutoUpdate: false,
 };
 
 const PREFERENCE_UPDATE_FIELDS = [
@@ -65,6 +71,9 @@ const PREFERENCE_UPDATE_FIELDS = [
   'checkForUpdatesOnStartup',
   'dismissedUpdateVersion',
   'diagnosticsLastReadTs',
+  'memoryEnabled',
+  'workspaceMemoryAutoUpdate',
+  'userMemoryAutoUpdate',
 ] as const;
 const PERSISTED_PREFERENCE_FIELDS = ['schemaVersion', ...PREFERENCE_UPDATE_FIELDS] as const;
 
@@ -128,7 +137,11 @@ function readPersistedUpdateChannel(r: Record<string, unknown>): UpdateChannel {
 
 function readPersistedBoolean(
   r: Record<string, unknown>,
-  key: 'checkForUpdatesOnStartup',
+  key:
+    | 'checkForUpdatesOnStartup'
+    | 'memoryEnabled'
+    | 'workspaceMemoryAutoUpdate'
+    | 'userMemoryAutoUpdate',
   defaultValue: boolean,
 ): boolean {
   const value = r[key];
@@ -199,6 +212,17 @@ function parsePersistedFile(rawJson: unknown): Preferences {
       parsed,
       'diagnosticsLastReadTs',
       DEFAULTS.diagnosticsLastReadTs,
+    ),
+    memoryEnabled: readPersistedBoolean(parsed, 'memoryEnabled', DEFAULTS.memoryEnabled),
+    workspaceMemoryAutoUpdate: readPersistedBoolean(
+      parsed,
+      'workspaceMemoryAutoUpdate',
+      DEFAULTS.workspaceMemoryAutoUpdate,
+    ),
+    userMemoryAutoUpdate: readPersistedBoolean(
+      parsed,
+      'userMemoryAutoUpdate',
+      DEFAULTS.userMemoryAutoUpdate,
     ),
   };
 }
@@ -296,6 +320,18 @@ function readCheckForUpdates(r: Record<string, unknown>): boolean | undefined {
   return value;
 }
 
+function readMemoryAutoUpdate(
+  r: Record<string, unknown>,
+  key: 'memoryEnabled' | 'workspaceMemoryAutoUpdate' | 'userMemoryAutoUpdate',
+): boolean | undefined {
+  const value = r[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'boolean') {
+    throw new CodesignError(`${key} must be a boolean`, ERROR_CODES.IPC_BAD_INPUT);
+  }
+  return value;
+}
+
 function readDismissedVersion(r: Record<string, unknown>): string | undefined {
   const value = r['dismissedUpdateVersion'];
   if (value === undefined) return undefined;
@@ -335,6 +371,13 @@ function parsePreferences(raw: unknown): Partial<Preferences> {
   if (dismissedUpdateVersion !== undefined) out.dismissedUpdateVersion = dismissedUpdateVersion;
   const diagnosticsLastReadTs = readDiagnosticsTs(r);
   if (diagnosticsLastReadTs !== undefined) out.diagnosticsLastReadTs = diagnosticsLastReadTs;
+  const memoryEnabled = readMemoryAutoUpdate(r, 'memoryEnabled');
+  if (memoryEnabled !== undefined) out.memoryEnabled = memoryEnabled;
+  const workspaceMemoryAutoUpdate = readMemoryAutoUpdate(r, 'workspaceMemoryAutoUpdate');
+  if (workspaceMemoryAutoUpdate !== undefined)
+    out.workspaceMemoryAutoUpdate = workspaceMemoryAutoUpdate;
+  const userMemoryAutoUpdate = readMemoryAutoUpdate(r, 'userMemoryAutoUpdate');
+  if (userMemoryAutoUpdate !== undefined) out.userMemoryAutoUpdate = userMemoryAutoUpdate;
   return out;
 }
 

@@ -212,6 +212,23 @@ export interface Preferences {
   checkForUpdatesOnStartup: boolean;
   dismissedUpdateVersion: string;
   diagnosticsLastReadTs: number;
+  memoryEnabled: boolean;
+  workspaceMemoryAutoUpdate: boolean;
+  userMemoryAutoUpdate: boolean;
+}
+
+export interface MemoryFileRead {
+  content: string;
+  path: string;
+  hash: string;
+  mtimeMs: number;
+  updatedAt: string;
+  source: 'primary' | 'legacy' | 'user';
+}
+
+export interface UserMemoryConsolidationResult {
+  updated: boolean;
+  candidateCount: number;
 }
 
 /**
@@ -514,6 +531,16 @@ const api = {
     get: () => ipcRenderer.invoke('preferences:v1:get') as Promise<Preferences>,
     update: (patch: Partial<Preferences>) =>
       ipcRenderer.invoke('preferences:v1:update', patch) as Promise<Preferences>,
+  },
+  memory: {
+    getUser: () => ipcRenderer.invoke('memory:v1:get-user') as Promise<MemoryFileRead | null>,
+    updateUser: (content: string) =>
+      ipcRenderer.invoke('memory:v1:update-user', content) as Promise<MemoryFileRead | null>,
+    openUserMemory: () => ipcRenderer.invoke('memory:v1:open-user') as Promise<void>,
+    consolidateUserMemoryNow: () =>
+      ipcRenderer.invoke('memory:v1:consolidate-user') as Promise<UserMemoryConsolidationResult>,
+    clearUserMemoryCandidates: () =>
+      ipcRenderer.invoke('memory:v1:clear-user-candidates') as Promise<void>,
   },
   imageGeneration: {
     get: () =>
