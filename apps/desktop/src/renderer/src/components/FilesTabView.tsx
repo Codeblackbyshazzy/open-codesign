@@ -11,6 +11,7 @@ import {
   formatIframeError,
   handlePreviewMessage,
   isTrustedPreviewMessageSource,
+  stablePreviewSourceKey,
 } from '../preview/helpers';
 import { readWorkspacePreviewSource } from '../preview/workspace-source';
 import { useCodesignStore } from '../store';
@@ -354,6 +355,11 @@ interface WorkspacePreviewSource {
   path: string;
 }
 
+export function workspacePreviewSourceStableKey(source: WorkspacePreviewSource | null): string {
+  if (!source) return '';
+  return `${source.path}:${stablePreviewSourceKey(source.content)}`;
+}
+
 function TextFilePreview({
   content,
   previewKind,
@@ -515,6 +521,12 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
     prefersPreviewSource,
   ]);
 
+  const previewSourceStableKey = useMemo(
+    () => workspacePreviewSourceStableKey(previewSource),
+    [previewSource],
+  );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: previewSourceStableKey intentionally masks EDITMODE-only token changes so live tweaks can update via postMessage without rebuilding the iframe.
   const srcDoc = useMemo(() => {
     if (!previewSource || !renderable) return null;
     try {
@@ -528,7 +540,13 @@ export function WorkspaceFilePreview({ path, file, files }: WorkspaceFilePreview
       const message = err instanceof Error ? err.message : String(err);
       return `<!doctype html><html><body style="font: 13px system-ui; color: #71717a; display: grid; place-items: center; min-height: 100vh; margin: 0;">${escapeHtmlText(message)}</body></html>`;
     }
-  }, [currentDesign?.workspacePath, currentDesignId, previewSource, renderable]);
+  }, [
+    currentDesign?.workspacePath,
+    currentDesignId,
+    previewSource?.path,
+    previewSourceStableKey,
+    renderable,
+  ]);
 
   if (nativePreview) {
     const url = workspaceUrlForFile({ designId: currentDesignId, filePath: path });

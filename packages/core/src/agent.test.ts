@@ -802,6 +802,54 @@ describe('generateViaAgent()', () => {
     expect(result.resourceState?.mutationSeq).toBe(0);
   });
 
+  it('aggregates usage across tool-call turns instead of reporting only the final assistant message', async () => {
+    const toolTurn: AgentMessage = {
+      role: 'assistant',
+      // biome-ignore lint/suspicious/noExplicitAny: mock literal union.
+      api: 'anthropic-messages' as any,
+      // biome-ignore lint/suspicious/noExplicitAny: mock literal union.
+      provider: 'anthropic' as any,
+      model: 'mock-model',
+      content: [{ type: 'text', text: 'creating App.jsx' }],
+      usage: {
+        input: 1000,
+        output: 300,
+        cacheRead: 10,
+        cacheWrite: 20,
+        totalTokens: 1330,
+        cost: { input: 0.01, output: 0.03, cacheRead: 0.001, cacheWrite: 0.002, total: 0.043 },
+      },
+      stopReason: 'toolUse',
+      timestamp: Date.now(),
+    };
+    scriptedAgent = {
+      assistantText: RESPONSE_WITH_ARTIFACT,
+      messagesBeforeAssistant: [toolTurn],
+      usage: {
+        input: 120,
+        output: 40,
+        cacheRead: 1,
+        cacheWrite: 2,
+        totalTokens: 163,
+        cost: { input: 0.002, output: 0.004, cacheRead: 0.0001, cacheWrite: 0.0002, total: 0.0063 },
+      },
+    };
+
+    const result = await generateViaAgent(
+      {
+        prompt: 'design a tool-heavy page',
+        history: [],
+        model: MODEL,
+        apiKey: 'sk-test',
+      },
+      { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
+    );
+
+    expect(result.inputTokens).toBe(1120);
+    expect(result.outputTokens).toBe(340);
+    expect(result.costUsd).toBeCloseTo(0.0493);
+  });
+
   it('falls back to legacy index.html when App.jsx is absent', async () => {
     scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
     const result = await generateViaAgent(

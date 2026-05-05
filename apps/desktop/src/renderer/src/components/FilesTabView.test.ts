@@ -10,6 +10,7 @@ import {
   shouldShowTweakPanelForFile,
   workspaceBaseHrefForFile,
   workspacePreviewDependencyKey,
+  workspacePreviewSourceStableKey,
 } from './FilesTabView';
 
 describe('FilesTabView preview helpers', () => {
@@ -81,6 +82,29 @@ describe('FilesTabView preview helpers', () => {
         hasPreviewSource: false,
       }),
     ).toBe(false);
+  });
+
+  it('keeps the iframe source key stable for EDITMODE-only changes', () => {
+    const before = {
+      path: 'App.jsx',
+      content:
+        'const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{"accent":"#000"}/*EDITMODE-END*/;\nfunction App(){ return <main />; }',
+    };
+    const after = {
+      path: 'App.jsx',
+      content:
+        'const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{"accent":"#fff"}/*EDITMODE-END*/;\nfunction App(){ return <main />; }',
+    };
+    const structural = {
+      path: 'App.jsx',
+      content:
+        'const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{"accent":"#fff"}/*EDITMODE-END*/;\nfunction App(){ return <section />; }',
+    };
+
+    expect(workspacePreviewSourceStableKey(before)).toBe(workspacePreviewSourceStableKey(after));
+    expect(workspacePreviewSourceStableKey(after)).not.toBe(
+      workspacePreviewSourceStableKey(structural),
+    );
   });
 
   it('builds a workspace protocol base href for workspace-relative asset resolution', () => {

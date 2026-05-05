@@ -1,7 +1,7 @@
 import { createRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { TweakPanel } from './TweakPanel';
+import { shouldSyncPreviewSourceAfterTweakPersist, TweakPanel } from './TweakPanel';
 
 const previewSource =
   'const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{"accentColor":"#f97316"}/*EDITMODE-END*/;';
@@ -43,5 +43,10 @@ describe('TweakPanel', () => {
     expect(html).not.toContain('top-[var(--space-4)]');
     expect(html).not.toContain('Close tweaks');
     expect(html).not.toContain('cursor-grab');
+  });
+
+  it('does not sync previewSource after a successful workspace write', () => {
+    expect(shouldSyncPreviewSourceAfterTweakPersist({ wrote: true })).toBe(false);
+    expect(shouldSyncPreviewSourceAfterTweakPersist({ wrote: false })).toBe(true);
   });
 });

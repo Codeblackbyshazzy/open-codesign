@@ -25,6 +25,10 @@ import {
   TextInput,
 } from './TweakPanel.inputs';
 
+export function shouldSyncPreviewSourceAfterTweakPersist(result: { wrote: boolean }): boolean {
+  return !result.wrote;
+}
+
 function TokenRow({
   tokenKey,
   value,
@@ -225,16 +229,16 @@ export function TweakPanel({ iframeRef }: { iframeRef: RefObject<HTMLIFrameEleme
       const source = useCodesignStore.getState().previewSource;
       if (!source) return;
       const designId = useCodesignStore.getState().currentDesignId;
-      const optimistic = replaceEditmodeBlock(source, tokens);
-      setPreviewSource(optimistic);
-
       const files = window.codesign?.files;
-      if (!designId || !files?.write) return;
+      if (!designId || !files?.write) {
+        setPreviewSource(replaceEditmodeBlock(source, tokens));
+        return;
+      }
 
       persistQueueRef.current = persistQueueRef.current
         .catch(() => undefined)
         .then(async () => {
-          const latestSource = useCodesignStore.getState().previewSource ?? optimistic;
+          const latestSource = useCodesignStore.getState().previewSource ?? source;
           const result = await persistTweakTokensToWorkspace({
             designId,
             previewSource: latestSource,
@@ -242,7 +246,10 @@ export function TweakPanel({ iframeRef }: { iframeRef: RefObject<HTMLIFrameEleme
             read: files.read,
             write: files.write,
           });
-          if (useCodesignStore.getState().currentDesignId === designId) {
+          if (
+            shouldSyncPreviewSourceAfterTweakPersist(result) &&
+            useCodesignStore.getState().currentDesignId === designId
+          ) {
             setPreviewSource(result.content);
           }
         })

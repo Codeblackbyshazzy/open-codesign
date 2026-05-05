@@ -496,6 +496,26 @@ function isReasoningContentRoundTripError(errorMessage: string | undefined): boo
   return message.includes('reasoning_content');
 }
 
+function finiteUsageNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function aggregateAssistantUsage(messages: readonly AgentMessage[]): {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+} {
+  const totals = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue;
+    const usage = (message as PiAssistantMessage).usage;
+    totals.inputTokens += finiteUsageNumber(usage?.input);
+    totals.outputTokens += finiteUsageNumber(usage?.output);
+    totals.costUsd += finiteUsageNumber(usage?.cost?.total);
+  }
+  return totals;
+}
+
 function stripTerminalAssistantFailure(messages: readonly AgentMessage[]): AgentMessage[] {
   const out = [...messages];
   const last = out[out.length - 1];
@@ -1268,13 +1288,13 @@ export async function generateViaAgent(
     doneStatus: resourceState.lastDone?.status ?? 'none',
   });
 
-  const usage = finalAssistant.usage;
+  const usage = aggregateAssistantUsage(agent.state.messages);
   const output: GenerateOutput = {
     message: stripEmptyFences(collected.text),
     artifacts: collected.artifacts,
-    inputTokens: usage?.input ?? 0,
-    outputTokens: usage?.output ?? 0,
-    costUsd: usage?.cost?.total ?? 0,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    costUsd: usage.costUsd,
     resourceState,
   };
   const warnings = [...finalizationWarnings, ...resourceResult.warnings];
