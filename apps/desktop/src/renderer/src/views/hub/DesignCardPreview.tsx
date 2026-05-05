@@ -4,6 +4,7 @@ import { DEFAULT_SOURCE_ENTRY } from '@open-codesign/shared';
 import { Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { inferPreviewSourcePath, resolveDesignPreviewSource } from '../../preview/workspace-source';
+import { useCodesignStore } from '../../store';
 
 // Hub cards render many iframes in parallel; live CSS animations / transitions /
 // autoplaying media in each one thrash compositor + GPU for no user value (the
@@ -162,7 +163,13 @@ function pruneOldestCacheEntriesIfNeeded(): void {
   }
 }
 
+function previewCardSourceFromRaw(content: string): PreviewCardSource | null {
+  return content.trim().length > 0 ? { content, path: inferPreviewSourcePath(content) } : null;
+}
+
 export function DesignCardPreview({ design }: DesignCardPreviewProps) {
+  const livePreviewSource = useCodesignStore((s) => s.previewSourceByDesign[design.id]);
+  const isGenerating = useCodesignStore((s) => s.generationByDesign[design.id] !== undefined);
   const [previewSource, setPreviewSource] = useState<PreviewCardSource | null>(() =>
     readCache(cacheKey(design.id, design.updatedAt)),
   );
@@ -178,6 +185,25 @@ export function DesignCardPreview({ design }: DesignCardPreviewProps) {
       mounted.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    const key = cacheKey(design.id, design.updatedAt);
+    const liveSource =
+      typeof livePreviewSource === 'string' ? previewCardSourceFromRaw(livePreviewSource) : null;
+    if (liveSource !== null) {
+      writeCache(key, liveSource);
+      setPreviewSource(liveSource);
+      setFailed(false);
+      return;
+    }
+    const cached = readCache(key);
+    setPreviewSource(cached);
+    setFailed(false);
+  }, [design.id, design.updatedAt, livePreviewSource]);
+
+  useEffect(() => {
+    if (isGenerating) setFailed(false);
+  }, [isGenerating]);
 
   // Mount the iframe only after the card has scrolled into (or near) the
   // viewport. Stops every card in the grid from paying the iframe-creation
@@ -212,17 +238,40 @@ export function DesignCardPreview({ design }: DesignCardPreviewProps) {
   useEffect(() => {
     const el = rootRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const w = entry.contentRect.width;
-        const h = entry.contentRect.height;
-        if (w <= 0 || h <= 0) continue;
-        const next = Math.max(w / 1280, h / 960);
-        setScale((prev) => (Math.abs(prev - next) > 0.001 ? next : prev));
+    let scheduled: { kind: 'raf' | 'timeout'; id: number } | null = null;
+    const updateScale = () => {
+      const rect = el.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      if (w <= 0 || h <= 0) return;
+      const next = Math.max(w / 1280, h / 960);
+      setScale((prev) => (Math.abs(prev - next) > 0.001 ? next : prev));
+    };
+    const scheduleScaleUpdate = () => {
+      if (scheduled !== null) return;
+      const flush = () => {
+        scheduled = null;
+        updateScale();
+      };
+      if (typeof window.requestAnimationFrame === 'function') {
+        scheduled = { kind: 'raf', id: window.requestAnimationFrame(flush) };
+      } else {
+        scheduled = { kind: 'timeout', id: window.setTimeout(flush, 0) };
       }
-    });
+    };
+    const cancelScheduledScaleUpdate = () => {
+      if (scheduled === null) return;
+      if (scheduled.kind === 'raf') window.cancelAnimationFrame(scheduled.id);
+      else window.clearTimeout(scheduled.id);
+      scheduled = null;
+    };
+    updateScale();
+    const ro = new ResizeObserver(scheduleScaleUpdate);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      cancelScheduledScaleUpdate();
+    };
   }, []);
 
   useEffect(() => {
@@ -244,7 +293,7 @@ export function DesignCardPreview({ design }: DesignCardPreviewProps) {
       .then((result) => {
         if (cancelled || !mounted.current) return;
         if (result === null) {
-          setFailed(true);
+          setFailed(!isGenerating);
           return;
         }
         writeCache(key, result);
@@ -257,7 +306,7 @@ export function DesignCardPreview({ design }: DesignCardPreviewProps) {
     return () => {
       cancelled = true;
     };
-  }, [visible, design.id, design.updatedAt]);
+  }, [visible, design.id, design.updatedAt, isGenerating]);
 
   // JSX sources need the React+Babel runtime wrapper; HTML documents render directly.
   const previewSourcePath = previewSource?.path ?? DEFAULT_SOURCE_ENTRY;

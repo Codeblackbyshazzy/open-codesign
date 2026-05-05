@@ -311,6 +311,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
     if (previewZoomMode !== 'fit') return;
     const host = canvasHostRef.current;
     if (!host) return;
+    let scheduled: { kind: 'raf' | 'timeout'; id: number } | null = null;
 
     const updateFitZoom = () => {
       const next = computeFitPreviewZoom({
@@ -322,15 +323,36 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
         setPreviewZoomFit(next);
       }
     };
+    const scheduleFitZoom = () => {
+      if (scheduled !== null) return;
+      const flush = () => {
+        scheduled = null;
+        updateFitZoom();
+      };
+      if (typeof window.requestAnimationFrame === 'function') {
+        scheduled = { kind: 'raf', id: window.requestAnimationFrame(flush) };
+      } else {
+        scheduled = { kind: 'timeout', id: window.setTimeout(flush, 0) };
+      }
+    };
+    const cancelScheduledFitZoom = () => {
+      if (scheduled === null) return;
+      if (scheduled.kind === 'raf') window.cancelAnimationFrame(scheduled.id);
+      else window.clearTimeout(scheduled.id);
+      scheduled = null;
+    };
 
     updateFitZoom();
     if (typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', updateFitZoom);
       return () => window.removeEventListener('resize', updateFitZoom);
     }
-    const observer = new ResizeObserver(updateFitZoom);
+    const observer = new ResizeObserver(scheduleFitZoom);
     observer.observe(host);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      cancelScheduledFitZoom();
+    };
   }, [previewViewport, previewZoomMode, setPreviewZoomFit]);
 
   const registerIframe = useCallback((designId: string, el: HTMLIFrameElement | null) => {

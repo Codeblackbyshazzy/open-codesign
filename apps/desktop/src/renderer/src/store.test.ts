@@ -1352,6 +1352,109 @@ describe('useCodesignStore artifact persistence', () => {
     expect(useCodesignStore.getState().previewSource).toBe(jsxSource);
   });
 
+  it('persists a completed background run from the per-design preview pool', async () => {
+    const activeDesignId = 'active-design';
+    const backgroundDesignId = 'background-design';
+    const activeSource = '<main>active</main>';
+    const backgroundSource =
+      'function App(){ return <main id="background">Done</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);';
+    const activeDesign = { ...DEFAULT_DESIGN, id: activeDesignId };
+    const backgroundDesign = {
+      ...DEFAULT_DESIGN,
+      id: backgroundDesignId,
+      name: 'Background design',
+    };
+    const create = vi.fn((input) => Promise.resolve({ id: 'snap-background', ...input }));
+    const listDesigns = vi.fn(() => Promise.resolve([activeDesign, backgroundDesign]));
+
+    vi.stubGlobal('window', {
+      codesign: {
+        files: {
+          read: vi.fn(async (_id: string, path: string) => ({
+            path,
+            content: backgroundSource,
+          })),
+        },
+        snapshots: {
+          list: vi.fn(() => Promise.resolve([])),
+          create,
+          listDesigns,
+        },
+      },
+      setTimeout,
+    });
+
+    useCodesignStore.setState({
+      currentDesignId: activeDesignId,
+      designs: [activeDesign, backgroundDesign],
+      previewSource: activeSource,
+      previewSourceByDesign: {
+        [activeDesignId]: activeSource,
+        [backgroundDesignId]: backgroundSource,
+      },
+      recentDesignIds: [backgroundDesignId, activeDesignId],
+      chatMessages: [],
+    });
+
+    await useCodesignStore
+      .getState()
+      .persistAgentRunSnapshot({ designId: backgroundDesignId, finalText: 'Done.' });
+
+    expect(create).toHaveBeenCalledOnce();
+    expect(create.mock.calls[0]?.[0]).toMatchObject({
+      designId: backgroundDesignId,
+      artifactSource: backgroundSource,
+      prompt: null,
+      message: 'Done.',
+    });
+    expect(listDesigns).toHaveBeenCalledOnce();
+    expect(useCodesignStore.getState().currentDesignId).toBe(activeDesignId);
+    expect(useCodesignStore.getState().previewSource).toBe(activeSource);
+  });
+
+  it('falls back to workspace App.jsx when a background run is not in the preview pool', async () => {
+    const activeDesignId = 'active-design';
+    const backgroundDesignId = 'background-design';
+    const activeSource = '<main>active</main>';
+    const backgroundSource =
+      'function App(){ return <main id="workspace-background">Done</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);';
+    const create = vi.fn((input) => Promise.resolve({ id: 'snap-background', ...input }));
+    const read = vi.fn(async (_id: string, path: string) => {
+      if (path !== 'App.jsx') throw new Error(`missing ${path}`);
+      return { path, content: backgroundSource };
+    });
+
+    vi.stubGlobal('window', {
+      codesign: {
+        files: { read },
+        snapshots: {
+          list: vi.fn(() => Promise.resolve([])),
+          create,
+          listDesigns: vi.fn(() => Promise.resolve([])),
+        },
+      },
+      setTimeout,
+    });
+
+    useCodesignStore.setState({
+      currentDesignId: activeDesignId,
+      previewSource: activeSource,
+      previewSourceByDesign: { [activeDesignId]: activeSource },
+      recentDesignIds: [activeDesignId],
+      chatMessages: [],
+    });
+
+    await useCodesignStore.getState().persistAgentRunSnapshot({ designId: backgroundDesignId });
+
+    expect(read).toHaveBeenCalledWith(backgroundDesignId, 'App.jsx');
+    expect(create).toHaveBeenCalledOnce();
+    expect(create.mock.calls[0]?.[0]).toMatchObject({
+      designId: backgroundDesignId,
+      artifactSource: backgroundSource,
+    });
+    expect(useCodesignStore.getState().previewSource).toBe(activeSource);
+  });
+
   it('skips snapshot persistence when a referenced workspace source cannot be read', async () => {
     const designId = 'design-missing-source';
     const placeholder =

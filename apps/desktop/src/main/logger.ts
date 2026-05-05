@@ -52,13 +52,6 @@ export function initLogger(): typeof log {
     },
   });
 
-  log.eventLogger.startLogging({
-    events: {
-      app: { ready: true, 'window-all-closed': true },
-      webContents: {},
-    },
-  });
-
   log.scope.labelPadding = false;
   log.info('[boot] open-codesign starting', {
     version: app.getVersion(),

@@ -6,6 +6,7 @@ import {
 import {
   hasWorkspaceSourceReference,
   inferPreviewSourcePath,
+  resolveDesignPreviewSource,
   resolveWorkspacePreviewSource,
 } from '../../preview/workspace-source.js';
 import type { CodesignState } from '../../store.js';
@@ -224,32 +225,39 @@ export function makeChatSlice(set: SetState, get: GetState): ChatSliceActions {
     async persistAgentRunSnapshot({ designId, finalText }) {
       if (!window.codesign) return;
       const state = get();
-      // Don't write a snapshot if the run produced nothing renderable, or if
-      // the user has already navigated to a different design (we'd persist the
-      // wrong source otherwise).
-      if (state.currentDesignId !== designId) return;
-      const source = state.previewSource;
-      if (!source || source.trim().length === 0) return;
-      const referencesWorkspaceSource = hasWorkspaceSourceReference(source, LEGACY_SOURCE_ENTRY);
+      const isCurrentDesign = state.currentDesignId === designId;
+      let source = isCurrentDesign
+        ? state.previewSource
+        : (state.previewSourceByDesign[designId] ?? null);
       let resolved: { content: string; path: string };
-      try {
-        resolved = await resolveWorkspacePreviewSource({
+      if (source && source.trim().length > 0) {
+        const referencesWorkspaceSource = hasWorkspaceSourceReference(source, LEGACY_SOURCE_ENTRY);
+        try {
+          resolved = await resolveWorkspacePreviewSource({
+            designId,
+            source,
+            path: referencesWorkspaceSource ? LEGACY_SOURCE_ENTRY : inferPreviewSourcePath(source),
+            read: window.codesign.files?.read,
+            requireReferencedSource: referencesWorkspaceSource,
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : tr('errors.unknown');
+          get().pushToast({
+            variant: 'error',
+            title: tr('projects.notifications.snapshotSkipped'),
+            description: msg,
+          });
+          return;
+        }
+      } else {
+        const workspaceResult = await resolveDesignPreviewSource({
           designId,
-          source,
-          path: referencesWorkspaceSource ? LEGACY_SOURCE_ENTRY : inferPreviewSourcePath(source),
           read: window.codesign.files?.read,
-          requireReferencedSource: referencesWorkspaceSource,
         });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : tr('errors.unknown');
-        get().pushToast({
-          variant: 'error',
-          title: tr('projects.notifications.snapshotSkipped'),
-          description: msg,
-        });
-        return;
+        if (workspaceResult === null) return;
+        resolved = workspaceResult;
+        source = workspaceResult.content;
       }
-      if (get().currentDesignId !== designId) return;
       const artifactContent = resolved.content;
       if (artifactContent !== source) {
         const pool = recordPreviewSourceInPool(
@@ -258,11 +266,11 @@ export function makeChatSlice(set: SetState, get: GetState): ChatSliceActions {
           designId,
           artifactContent,
         );
-        set({
-          previewSource: artifactContent,
+        set((current) => ({
+          ...(current.currentDesignId === designId ? { previewSource: artifactContent } : {}),
           previewSourceByDesign: pool.cache,
           recentDesignIds: pool.recent,
-        });
+        }));
       }
       // Guard against persisting truncated artifacts. When an agent run is
       // interrupted mid-edit (context explosion, 400 response, cancel, crash),
