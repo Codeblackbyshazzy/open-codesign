@@ -667,8 +667,71 @@ describe('useCodesignStore design management', () => {
     await useCodesignStore.getState().switchDesign(design.id);
 
     expect(useCodesignStore.getState().currentDesignId).toBe(design.id);
-    expect(useCodesignStore.getState().previewSource).toBe(source);
+    await vi.waitFor(() => {
+      expect(useCodesignStore.getState().previewSource).toBe(source);
+    });
     expect(useCodesignStore.getState().previewSourceByDesign[design.id]).toBe(source);
+    expect(useCodesignStore.getState().canvasTabs).toEqual([
+      expect.objectContaining({ kind: 'files' }),
+      { kind: 'file', path: 'App.jsx' },
+    ]);
+  });
+
+  it('selects a cold generating design before preview hydration resolves', async () => {
+    const designA = { ...DEFAULT_DESIGN, id: 'design-a', workspacePath: '/tmp/design-a' };
+    const designB = { ...DEFAULT_DESIGN, id: 'design-b', workspacePath: '/tmp/design-b' };
+    const snapshotList = deferred<never[]>();
+    const appSource = deferred<{ path: string; content: string }>();
+    const source =
+      'function App(){ return <main id="design-b">Working</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);';
+    const read = vi.fn((_designId: string, path: string) => {
+      if (path === 'App.jsx') return appSource.promise;
+      return Promise.reject(new Error(`missing ${path}`));
+    });
+
+    vi.stubGlobal('window', {
+      codesign: {
+        files: { read },
+        chat: mockChatApi(),
+        comments: mockCommentsApi(),
+        snapshots: {
+          list: vi.fn((id: string) =>
+            id === 'design-b' ? snapshotList.promise : Promise.resolve([]),
+          ),
+        },
+      },
+      setTimeout,
+    });
+
+    useCodesignStore.setState({
+      designs: [designA, designB],
+      currentDesignId: 'design-a',
+      previewSource: '<html><body>A</body></html>',
+      previewSourceByDesign: { 'design-a': '<html><body>A</body></html>' },
+      recentDesignIds: ['design-a'],
+      designsViewOpen: true,
+      generationByDesign: {
+        'design-b': { generationId: 'gen-design-b', stage: 'streaming' },
+      },
+    });
+
+    const switchPromise = useCodesignStore.getState().switchDesign('design-b');
+
+    expect(useCodesignStore.getState().currentDesignId).toBe('design-b');
+    expect(useCodesignStore.getState().previewSource).toBeNull();
+    expect(useCodesignStore.getState().designsViewOpen).toBe(false);
+    expect(useCodesignStore.getState().isGenerating).toBe(true);
+    expect(useCodesignStore.getState().activeGenerationId).toBe('gen-design-b');
+
+    snapshotList.resolve([]);
+    await vi.waitFor(() => expect(read).toHaveBeenCalledWith('design-b', 'App.jsx'));
+    appSource.resolve({ path: 'App.jsx', content: source });
+    await switchPromise;
+
+    await vi.waitFor(() => {
+      expect(useCodesignStore.getState().previewSource).toBe(source);
+    });
+    expect(useCodesignStore.getState().previewSourceByDesign['design-b']).toBe(source);
     expect(useCodesignStore.getState().canvasTabs).toEqual([
       expect.objectContaining({ kind: 'files' }),
       { kind: 'file', path: 'App.jsx' },

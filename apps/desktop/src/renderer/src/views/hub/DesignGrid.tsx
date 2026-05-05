@@ -120,8 +120,8 @@ export function DesignGrid({ designs, emptyLabel, prefixTile }: DesignGridProps)
               >
                 <button
                   type="button"
-                  onClick={async () => {
-                    await switchDesign(d.id);
+                  onClick={() => {
+                    void switchDesign(d.id);
                     setView('workspace');
                   }}
                   aria-label={

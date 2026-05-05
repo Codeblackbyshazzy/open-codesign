@@ -46,6 +46,41 @@ interface DesignsSliceActions {
   confirmWorkspaceRebind: CodesignState['confirmWorkspaceRebind'];
 }
 
+function buildSelectedDesignState(
+  state: CodesignState,
+  input: {
+    designId: string;
+    previewSource: string | null;
+    pool: { cache: Record<string, string>; recent: string[] };
+    sourcePath?: string | undefined;
+  },
+): Partial<CodesignState> {
+  return {
+    currentDesignId: input.designId,
+    ...projectGenerationForDesign(state, input.designId),
+    previewSource: input.previewSource,
+    previewSourceByDesign: input.pool.cache,
+    recentDesignIds: input.pool.recent,
+    errorMessage: null,
+    iframeErrors: [],
+    selectedElement: null,
+    lastPromptInput: null,
+    designsViewOpen: false,
+    chatMessages: [],
+    chatLoaded: false,
+    pendingToolCalls: [],
+    comments: [],
+    commentsLoaded: false,
+    commentBubble: null,
+    currentSnapshotId: null,
+    canvasTabs:
+      input.sourcePath !== undefined
+        ? [FILES_TAB, { kind: 'file', path: input.sourcePath }]
+        : [FILES_TAB],
+    activeCanvasTab: input.sourcePath !== undefined ? 1 : 0,
+  };
+}
+
 export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActions {
   return {
     async loadDesigns() {
@@ -189,27 +224,14 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
           id,
           cachedSource,
         );
-        set({
-          currentDesignId: id,
-          ...projectGenerationForDesign(get(), id),
-          previewSource: cachedSource,
-          previewSourceByDesign: incomingPool.cache,
-          recentDesignIds: incomingPool.recent,
-          errorMessage: null,
-          iframeErrors: [],
-          selectedElement: null,
-          lastPromptInput: null,
-          designsViewOpen: false,
-          chatMessages: [],
-          chatLoaded: false,
-          pendingToolCalls: [],
-          comments: [],
-          commentsLoaded: false,
-          commentBubble: null,
-          currentSnapshotId: null,
-          canvasTabs: [FILES_TAB, { kind: 'file', path: DEFAULT_SOURCE_ENTRY }],
-          activeCanvasTab: 1,
-        });
+        set((s) =>
+          buildSelectedDesignState(s, {
+            designId: id,
+            previewSource: cachedSource,
+            pool: incomingPool,
+            sourcePath: DEFAULT_SOURCE_ENTRY,
+          }),
+        );
         void get().loadChatForCurrentDesign();
         void get().loadCommentsForCurrentDesign();
         void (async () => {
@@ -238,48 +260,54 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
         return;
       }
 
-      // Cold path — first visit (or evicted from pool). Pay the IPC + parse cost.
-      try {
-        const snapshots = await window.codesign.snapshots.list(id);
-        const latest = snapshots[0] ?? null;
-        const source = await resolveDesignPreview(id, latest ? latest.artifactSource : null);
-        const incomingPool = recordPreviewSourceInPool(
-          outgoingPool.cache,
-          outgoingPool.recent,
-          id,
-          source?.content ?? null,
-        );
-        set({
-          currentDesignId: id,
-          ...projectGenerationForDesign(get(), id),
-          previewSource: source?.content ?? null,
-          previewSourceByDesign: incomingPool.cache,
-          recentDesignIds: incomingPool.recent,
-          errorMessage: null,
-          iframeErrors: [],
-          selectedElement: null,
-          lastPromptInput: null,
-          designsViewOpen: false,
-          chatMessages: [],
-          chatLoaded: false,
-          pendingToolCalls: [],
-          comments: [],
-          commentsLoaded: false,
-          commentBubble: null,
-          currentSnapshotId: null,
-          canvasTabs: source ? [FILES_TAB, { kind: 'file', path: source.path }] : [FILES_TAB],
-          activeCanvasTab: source ? 1 : 0,
-        });
-        void get().loadChatForCurrentDesign();
-        void get().loadCommentsForCurrentDesign();
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : tr('errors.unknown');
-        get().pushToast({
-          variant: 'error',
-          title: tr('projects.notifications.switchFailed'),
-          description: msg,
-        });
-      }
+      // Cold path — first visit (or evicted from pool). Selecting a design must
+      // not wait for snapshot/file preview hydration; generating workspaces may
+      // still be writing App.jsx when the user clicks the card.
+      const incomingPool = recordPreviewSourceInPool(
+        outgoingPool.cache,
+        outgoingPool.recent,
+        id,
+        null,
+      );
+      set((s) =>
+        buildSelectedDesignState(s, {
+          designId: id,
+          previewSource: null,
+          pool: incomingPool,
+        }),
+      );
+      void get().loadChatForCurrentDesign();
+      void get().loadCommentsForCurrentDesign();
+      void (async () => {
+        try {
+          const snapshots = await window.codesign?.snapshots.list(id);
+          if (!snapshots || get().currentDesignId !== id) return;
+          const latest = snapshots[0] ?? null;
+          const source = await resolveDesignPreview(id, latest ? latest.artifactSource : null);
+          if (get().currentDesignId !== id) return;
+          const refreshed = recordPreviewSourceInPool(
+            get().previewSourceByDesign,
+            get().recentDesignIds,
+            id,
+            source?.content ?? null,
+          );
+          set({
+            previewSource: source?.content ?? null,
+            previewSourceByDesign: refreshed.cache,
+            recentDesignIds: refreshed.recent,
+            canvasTabs: source ? [FILES_TAB, { kind: 'file', path: source.path }] : [FILES_TAB],
+            activeCanvasTab: source ? 1 : 0,
+          });
+        } catch (err) {
+          if (get().currentDesignId !== id) return;
+          const msg = err instanceof Error ? err.message : tr('errors.unknown');
+          get().pushToast({
+            variant: 'error',
+            title: tr('projects.notifications.switchFailed'),
+            description: msg,
+          });
+        }
+      })();
     },
 
     async renameCurrentDesign(name: string) {
