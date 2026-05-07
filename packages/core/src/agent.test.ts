@@ -509,6 +509,37 @@ describe('generateViaAgent()', () => {
     expect(model?.compat?.supportsDeveloperRole).toBe(false);
   });
 
+  it('uses conservative OpenAI-chat compat for DeepInfra agent models', async () => {
+    scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
+    await generateViaAgent({
+      prompt: 'design a dashboard',
+      history: [],
+      model: { provider: 'custom-deepinfra', modelId: 'deepseek-ai/DeepSeek-V4-Flash' },
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.deepinfra.com/v1/openai',
+      wire: 'openai-chat',
+    });
+
+    const model = agentCalls[0]?.options.initialState?.model as
+      | {
+          compat?: {
+            supportsDeveloperRole?: boolean;
+            supportsReasoningEffort?: boolean;
+            supportsStore?: boolean;
+            supportsStrictMode?: boolean;
+            maxTokensField?: string;
+          };
+        }
+      | undefined;
+    expect(model?.compat).toMatchObject({
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+      supportsStore: false,
+      supportsStrictMode: false,
+      maxTokensField: 'max_tokens',
+    });
+  });
+
   it('honors explicit reasoningLevel=off instead of model-family defaults', async () => {
     scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
     await generateViaAgent({

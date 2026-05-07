@@ -123,6 +123,10 @@ interface PiModel {
   reasoning?: boolean;
   compat?: {
     supportsDeveloperRole?: boolean;
+    supportsReasoningEffort?: boolean;
+    supportsStore?: boolean;
+    supportsStrictMode?: boolean;
+    maxTokensField?: 'max_completion_tokens' | 'max_tokens';
   };
   input?: string[];
   cost?: { input: number; output: number; cacheRead: number; cacheWrite: number };
@@ -267,6 +271,32 @@ function supportsOpenAIDeveloperRole(
   return host === 'api.openai.com' || host.endsWith('.openai.com') || host === 'openrouter.ai';
 }
 
+function openAIChatCompatForBaseUrl(
+  wire: GenerateOptions['wire'],
+  baseUrl: string | undefined,
+): PiModel['compat'] | undefined {
+  if (wire !== 'openai-chat' || baseUrl === undefined) return undefined;
+  let host = '';
+  try {
+    host = new URL(baseUrl).hostname.toLowerCase();
+  } catch {
+    return { supportsDeveloperRole: false };
+  }
+  if (host === 'api.deepinfra.com' || host.endsWith('.deepinfra.com')) {
+    return {
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+      supportsStore: false,
+      supportsStrictMode: false,
+      maxTokensField: 'max_tokens',
+    };
+  }
+  if (!supportsOpenAIDeveloperRole(wire, baseUrl)) {
+    return { supportsDeveloperRole: false };
+  }
+  return undefined;
+}
+
 /**
  * Synthesize a PiModel for a wire + custom baseUrl so custom provider ids
  * (DeepSeek, Ollama, LiteLLM, Azure, …) route to the correct pi-ai adapter
@@ -299,9 +329,8 @@ function synthesizeWireModel(
     maxTokens: 131072,
   };
   if (baseUrl !== undefined) base.baseUrl = baseUrl;
-  if (!supportsOpenAIDeveloperRole(wire, baseUrl)) {
-    base.compat = { supportsDeveloperRole: false };
-  }
+  const compat = openAIChatCompatForBaseUrl(wire, baseUrl);
+  if (compat !== undefined) base.compat = compat;
   return base;
 }
 

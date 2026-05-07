@@ -435,6 +435,48 @@ describe('complete', () => {
     expect(result.content).toBe('ok');
   });
 
+  it('uses conservative OpenAI-chat compat for DeepInfra endpoints', async () => {
+    getModelMock.mockReturnValue(undefined);
+    completeSimpleMock.mockImplementationOnce(async (model) => {
+      expect(model.api).toBe('openai-completions');
+      expect(model.baseUrl).toBe('https://api.deepinfra.com/v1/openai');
+      expect(model.compat).toMatchObject({
+        supportsDeveloperRole: false,
+        supportsReasoningEffort: false,
+        supportsStore: false,
+        supportsStrictMode: false,
+        maxTokensField: 'max_tokens',
+      });
+      return {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'ok' }],
+        api: 'openai-completions',
+        provider: 'custom-deepinfra',
+        model: 'deepseek-ai/DeepSeek-V4-Flash',
+        usage: {
+          input: 1,
+          output: 1,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 2,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      };
+    });
+
+    await complete(
+      { provider: 'custom-deepinfra', modelId: 'deepseek-ai/DeepSeek-V4-Flash' },
+      [{ role: 'user', content: 'hello' }],
+      {
+        apiKey: 'sk-test',
+        wire: 'openai-chat',
+        baseUrl: 'https://api.deepinfra.com/v1/openai',
+      },
+    );
+  });
+
   it('synthesizes Kimi and MiniMax openai-chat models with reasoning disabled', async () => {
     getModelMock.mockReturnValue(undefined);
     completeSimpleMock.mockImplementation(async (model) => {

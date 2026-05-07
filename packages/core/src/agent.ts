@@ -161,6 +161,10 @@ interface PiModel {
   reasoning: boolean;
   compat?: {
     supportsDeveloperRole?: boolean;
+    supportsReasoningEffort?: boolean;
+    supportsStore?: boolean;
+    supportsStrictMode?: boolean;
+    maxTokensField?: 'max_completion_tokens' | 'max_tokens';
   };
   input: ('text' | 'image')[];
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
@@ -188,6 +192,32 @@ function supportsOpenAIDeveloperRole(wire: WireApi | undefined, baseUrl: string)
     }
   })();
   return host === 'api.openai.com' || host.endsWith('.openai.com') || host === 'openrouter.ai';
+}
+
+function openAIChatCompatForBaseUrl(
+  wire: WireApi | undefined,
+  baseUrl: string,
+): PiModel['compat'] | undefined {
+  if (wire !== 'openai-chat') return undefined;
+  let host = '';
+  try {
+    host = new URL(baseUrl).hostname.toLowerCase();
+  } catch {
+    return { supportsDeveloperRole: false };
+  }
+  if (host === 'api.deepinfra.com' || host.endsWith('.deepinfra.com')) {
+    return {
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+      supportsStore: false,
+      supportsStrictMode: false,
+      maxTokensField: 'max_tokens',
+    };
+  }
+  if (!supportsOpenAIDeveloperRole(wire, baseUrl)) {
+    return { supportsDeveloperRole: false };
+  }
+  return undefined;
 }
 
 function supportsImageInput(wire: WireApi | undefined, modelId: string): boolean {
@@ -254,9 +284,8 @@ function buildPiModel(
     contextWindow: 200000,
     maxTokens: 32000,
   };
-  if (!supportsOpenAIDeveloperRole(wire, canonicalBase)) {
-    out.compat = { supportsDeveloperRole: false };
-  }
+  const compat = openAIChatCompatForBaseUrl(wire, canonicalBase);
+  if (compat !== undefined) out.compat = compat;
   if (httpHeaders !== undefined) out.headers = httpHeaders;
 
   // sub2api / claude2api gateways 403 any request without claude-cli
