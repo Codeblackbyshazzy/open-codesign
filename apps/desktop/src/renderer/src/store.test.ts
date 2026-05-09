@@ -443,6 +443,41 @@ describe('useCodesignStore generation cancellation', () => {
     expect(useCodesignStore.getState().isGenerating).toBe(false);
   });
 
+  it('refreshes main-process generation status before accepting a resubmit for the same design', async () => {
+    const generate = vi.fn(async () => ({
+      artifacts: [{ content: '<html></html>' }],
+      message: 'ok',
+    }));
+    const generationStatus = vi.fn(async () => ({
+      schemaVersion: 1 as const,
+      running: [
+        { designId: DEFAULT_DESIGN.id, generationId: 'gen-main-still-running', startedAt: 42 },
+      ],
+    }));
+
+    vi.stubGlobal('window', {
+      codesign: {
+        generate,
+        generationStatus,
+        chat: mockChatApi(),
+        snapshots: mockSnapshotsApi(),
+      },
+      setTimeout,
+    });
+
+    setWorkspaceBackedDesign();
+
+    await useCodesignStore.getState().sendPrompt({ prompt: 'continue this design' });
+
+    expect(generationStatus).toHaveBeenCalledOnce();
+    expect(generate).not.toHaveBeenCalled();
+    expect(useCodesignStore.getState().generationByDesign[DEFAULT_DESIGN.id]).toEqual({
+      generationId: 'gen-main-still-running',
+      startedAt: 42,
+      stage: 'thinking',
+    });
+  });
+
   it('sets errorMessage and pushes a toast when window.codesign is missing during cancel', () => {
     vi.stubGlobal('window', { setTimeout });
 

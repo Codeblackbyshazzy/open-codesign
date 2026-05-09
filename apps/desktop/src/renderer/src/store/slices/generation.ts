@@ -754,6 +754,13 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
         });
         return;
       }
+      if (typeof window.codesign.generationStatus === 'function') {
+        try {
+          await get().syncGenerationStatus();
+        } catch (err) {
+          console.warn('[open-codesign] generation status refresh failed:', err);
+        }
+      }
       if (get().generationByDesign[designIdAtStart] !== undefined) return;
 
       const generationId = newId();
