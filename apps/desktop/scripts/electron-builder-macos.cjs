@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 const { spawnSync } = require('node:child_process');
 const { chmodSync, mkdtempSync, rmSync, writeFileSync } = require('node:fs');
+const { createRequire } = require('node:module');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
-const { downloadArtifact } = require('app-builder-lib/out/binDownload');
+
+const electronBuilderPackageJson = require.resolve('electron-builder/package.json');
+const electronBuilderRequire = createRequire(electronBuilderPackageJson);
+const { downloadArtifact } = electronBuilderRequire('app-builder-lib/out/binDownload');
 
 const DMGBUILD_RELEASE = '75c8a6c';
 const DMGBUILD_CHECKSUMS = {
@@ -48,7 +52,7 @@ function writeDmgbuildWrapper(realDmgbuild) {
 async function main() {
   const realDmgbuild = await resolveDmgbuild();
   const { dir, wrapper } = writeDmgbuildWrapper(realDmgbuild);
-  const electronBuilderCli = require.resolve('electron-builder/cli.js');
+  const electronBuilderCli = electronBuilderRequire.resolve('electron-builder/cli.js');
   const result = spawnSync(process.execPath, [electronBuilderCli, ...process.argv.slice(2)], {
     stdio: 'inherit',
     env: { ...process.env, CUSTOM_DMGBUILD_PATH: wrapper },
