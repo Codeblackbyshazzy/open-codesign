@@ -483,6 +483,7 @@ jobs:
     needs: [publish]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && !contains(github.ref_name, '-')
+    continue-on-error: true
     permissions:
       contents: write
     steps:
@@ -594,6 +595,7 @@ jobs:
     needs: [publish]
     runs-on: macos-latest
     if: github.event_name == 'push' && !contains(github.ref_name, '-')
+    continue-on-error: true
     steps:
       - name: Guard on secret
         id: guard
@@ -628,6 +630,7 @@ jobs:
     needs: [publish]
     runs-on: windows-latest
     if: github.event_name == 'push' && !contains(github.ref_name, '-')
+    continue-on-error: true
     steps:
       - name: Guard on secret
         id: guard
