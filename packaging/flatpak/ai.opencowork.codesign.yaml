@@ -38,8 +38,8 @@ modules:
       - type: extra-data
         filename: open-codesign.AppImage
         url: https://github.com/OpenCoworkAI/open-codesign/releases/download/v0.2.0/open-codesign-0.2.0-x64.AppImage
-        sha256: 506bd3422f0e07c2eca61db4d4918af3e9d47513881cbe287054cc8516bc0861
-        size: 114029218
+        sha256: 4a2b4cec26238bd680faae520be75273fcf77c0e9bc6998417933bb1ce1a5883
+        size: 114029220
       - type: script
         dest-filename: apply_extra
         commands:

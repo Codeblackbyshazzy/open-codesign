@@ -34,6 +34,14 @@ fi
 
 REPO="OpenCoworkAI/open-codesign"
 REL_URL_BASE="https://github.com/${REPO}/releases/download/v${VERSION}"
+RELEASE_DATE="$(
+  curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/v${VERSION}" \
+    | node -e "let s=''; process.stdin.on('data', d => s += d); process.stdin.on('end', () => { try { const r = JSON.parse(s); const v = (r.published_at || r.created_at || '').slice(0, 10); if (v) process.stdout.write(v); } catch {} });" \
+    || true
+)"
+if [[ -z "$RELEASE_DATE" ]]; then
+  RELEASE_DATE="$(date -u +%F)"
+fi
 
 # Derive productName from electron-builder.yml. Everything downstream
 # (mac .app bundle, Windows .exe after install) is named after this.
@@ -60,6 +68,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 echo "Version : v${VERSION}"
 echo "Product : ${PRODUCT_NAME}"
 echo "Channel : ${PACKAGING_CHANNEL}"
+echo "Release: ${RELEASE_DATE}"
 echo ""
 
 # ---------------------------------------------------------------
@@ -341,13 +350,14 @@ fi
 if [[ "$PACKAGING_CHANNEL" == "all" && -d "$winget_dir" ]]; then
   for f in "$winget_dir"/*.yaml; do
     perl -pi -e "s/^PackageVersion:.*/PackageVersion: ${VERSION}/" "$f"
+    perl -pi -e "s/^ManifestVersion:.*/ManifestVersion: 1.12.0/" "$f"
   done
   installer="$winget_dir/OpenCoworkAI.OpenCoDesign.installer.yaml"
   # Rewrite the entire Installers block to the current (per-arch) shape.
   # electron-builder now emits separate x64 and arm64 NSIS installers.
-  python3 - "$installer" "$VERSION" "$win_x64_sha" "$win_arm_sha" <<'PY'
+  python3 - "$installer" "$VERSION" "$win_x64_sha" "$win_arm_sha" "$RELEASE_DATE" <<'PY'
 import re, sys
-path, version, x64, arm64 = sys.argv[1:]
+path, version, x64, arm64, release_date = sys.argv[1:]
 src = open(path).read()
 new_block = (
     "Installers:\n"
@@ -359,6 +369,11 @@ new_block = (
     f"    InstallerSha256: {arm64.upper()}\n"
 )
 out = re.sub(r"Installers:\n(?:(?:  -|    ).*\n)+", new_block, src, count=1)
+if release_date:
+    if re.search(r"^ReleaseDate:", out, flags=re.M):
+        out = re.sub(r"^ReleaseDate:.*", f"ReleaseDate: {release_date}", out, flags=re.M)
+    else:
+        out = out.replace("UpgradeBehavior: install\n", f"UpgradeBehavior: install\nReleaseDate: {release_date}\n", 1)
 open(path, "w").write(out)
 PY
   locale="$winget_dir/OpenCoworkAI.OpenCoDesign.locale.en-US.yaml"
