@@ -36,6 +36,8 @@ Pick the matching installer from [GitHub Releases](https://github.com/OpenCowork
 | Linux (Debian/Ubuntu) | `open-codesign-*-x64.deb` |
 | Linux (Fedora/RHEL) | `open-codesign-*-x64.rpm` |
 
+GitHub Releases is the primary download source. The [SourceForge mirror](https://sourceforge.net/projects/open-codesign.mirror/files/) can help when GitHub downloads are slow or blocked, but verify the file against the `SHA256SUMS.txt` attached to the same GitHub release before installing.
+
 ::: tip Unsigned installer note
 Current installers are not notarized or Authenticode-signed yet. **macOS Sequoia 15+**: right-click → Open no longer bypasses Gatekeeper; run `xattr -cr "/Applications/Open CoDesign.app"` once after installing (0.1.2 and earlier used `/Applications/open-codesign.app`). **Windows**: SmartScreen → More info → Run anyway. Prefer a verified build? Compile from source — see [Architecture](./architecture).
 :::

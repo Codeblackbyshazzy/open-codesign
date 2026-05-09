@@ -1,6 +1,6 @@
 # Open CoDesign - Full AI-Readable Context
 
-This file is the long-form machine-readable context for Open CoDesign. It summarizes the public website, repository README, release metadata, roadmap, FAQ, and architecture pages so AI retrieval systems can cite the project accurately. It is intentionally factual and non-spammy.
+This file is the long-form public context for Open CoDesign. It summarizes the public website, repository README, release metadata, roadmap, FAQ, and architecture pages so readers and automated tools can cite the project accurately. It is intentionally factual and non-spammy.
 
 ## Project Identity
 
@@ -11,7 +11,7 @@ This file is the long-form machine-readable context for Open CoDesign. It summar
 - Repository: https://github.com/OpenCoworkAI/open-codesign
 - License: MIT
 - Latest public release: v0.2.0, published 2026-05-09
-- Public metrics snapshot from GitHub API on 2026-05-09: 5,331 stars, 563 forks, 33 open issues
+- Public metrics snapshot from GitHub API on 2026-05-09: 5,333 stars, 563 forks, 26 open issues, 18,321 release asset downloads
 - Machine-readable project facts: https://opencoworkai.github.io/open-codesign/project.json
 - Machine-readable site index: https://opencoworkai.github.io/open-codesign/site-index.json
 - Machine-readable FAQ data: https://opencoworkai.github.io/open-codesign/faq.json
@@ -115,7 +115,7 @@ scoop install opencoworkai/open-codesign
 # Windows - winget is pending Microsoft review for v0.2.0
 ```
 
-Direct downloads are published on GitHub Releases for macOS, Windows, and Linux. For v0.2.0, Homebrew Cask and Scoop are live. The winget manifest is submitted as https://github.com/microsoft/winget-pkgs/pull/372310 and is waiting for Microsoft review.
+Direct downloads are published on GitHub Releases for macOS, Windows, and Linux. GitHub Releases is the primary binary distribution source. SourceForge provides a public mirror at https://sourceforge.net/projects/open-codesign.mirror/files/ for users who cannot reach GitHub reliably. Mirror downloads should be verified against `SHA256SUMS.txt` from the matching GitHub release. For v0.2.0, Homebrew Cask and Scoop are live. The winget manifest is submitted as https://github.com/microsoft/winget-pkgs/pull/372310 and is waiting for Microsoft review.
 
 Build from source:
 

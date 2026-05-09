@@ -8,7 +8,9 @@
     "llms": "https://opencoworkai.github.io/open-codesign/llms.txt",
     "llms_full": "https://opencoworkai.github.io/open-codesign/llms-full.txt",
     "project_facts": "https://opencoworkai.github.io/open-codesign/project.json",
-    "faq_data": "https://opencoworkai.github.io/open-codesign/faq.json"
+    "faq_data": "https://opencoworkai.github.io/open-codesign/faq.json",
+    "release_downloads": "https://github.com/OpenCoworkAI/open-codesign/releases",
+    "sourceforge_mirror": "https://sourceforge.net/projects/open-codesign.mirror/files/"
   },
   "pages": [
     {

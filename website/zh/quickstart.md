@@ -36,6 +36,8 @@ Homebrew 和 Scoop 已经更新到 v0.2.0。winget manifest 已提交到 microso
 | Linux（Debian/Ubuntu） | `open-codesign-*-x64.deb` |
 | Linux（Fedora/RHEL） | `open-codesign-*-x64.rpm` |
 
+GitHub Releases 是主要下载源。如果 GitHub 下载慢或不可达，可以用 [SourceForge 镜像](https://sourceforge.net/projects/open-codesign.mirror/files/)；安装前请用同一个 GitHub release 里附带的 `SHA256SUMS.txt` 校验下载文件。
+
 ::: tip 未签名安装包说明
 当前安装包还没有 Apple notarization 和 Windows Authenticode 签名。**macOS Sequoia 15+**：右键 → 打开 已绕不过 Gatekeeper，装完跑一次 `xattr -cr "/Applications/Open CoDesign.app"`（0.1.2 及之前路径是 `/Applications/open-codesign.app`）。**Windows**：SmartScreen → 更多信息 → 仍要运行。希望已验证的构建？从源码自行编译，参见[架构](../architecture)。
 :::

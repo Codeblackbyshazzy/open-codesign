@@ -45,6 +45,19 @@ The script derives the mac `.app` bundle name and Windows `.exe` from `productNa
 
 ## Channel-specific mirroring
 
+### SourceForge mirror
+
+The SourceForge mirror is a public convenience mirror, not the primary release source. GitHub Releases remains the source of truth for version numbers, release notes, checksums, SBOMs, and provenance files.
+
+Mirror hygiene checklist after each stable release:
+
+1. Confirm the latest version appears under `https://sourceforge.net/projects/open-codesign.mirror/files/`.
+2. Confirm the visible description still points users back to the GitHub repository and website.
+3. Download one mirrored binary and verify it against the `SHA256SUMS.txt` attached to the matching GitHub release.
+4. Check that screenshots and project summary still match the current release line.
+
+If SourceForge lags, keep public docs wording as "mirror" rather than "official package manager" and point users to GitHub Releases for checksums.
+
 ### Homebrew Cask — `OpenCoworkAI/homebrew-tap`
 
 The tap is a separate public repo. For v0.2.0 it is live at `OpenCoworkAI/homebrew-tap`. The release workflow updates it when `HOMEBREW_TAP_TOKEN` is configured. Manual backfill is still a copy, commit, and push:
