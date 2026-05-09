@@ -7,7 +7,7 @@ description: Open CoDesign 是一款开源桌面 AI 设计工具，Claude Design
 hero:
   name: Open CoDesign
   text: 用心设计。
-  tagline: 开源桌面 AI 设计工具。v0.1.4 已发布；v0.2.0 正在准备 Agentic Design 大更新，会带来真实工作区和带权限的本地工具循环。
+  tagline: 开源桌面 AI 设计工具。v0.2.0 带来 Agentic Design：真实工作区、带权限的本地工具循环、按需加载 skill，以及 DESIGN.md 设计系统。
   image:
     src: /logo-hero.png
     alt: Open CoDesign — 开源 AI 设计工具

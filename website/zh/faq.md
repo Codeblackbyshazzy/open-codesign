@@ -121,9 +121,9 @@ scoop install open-codesign
 - **Markdown 导出**——带 frontmatter，可被静态站点直接收录。
 - **AI 生成的位图素材**——封面图、背景图、插图、Logo，通过 gpt-image-2 或 OpenRouter 图像模型生成。可选启用，默认关闭。
 
-## v0.2 会带来什么？
+## v0.2 改了什么？
 
-v0.2 是 Agentic Design 大更新，预计一周左右发布。它会把 Open CoDesign 从一次性的提示词转产物生成器，升级成一个本地设计 agent：
+v0.2 是 Agentic Design 大更新。它会把 Open CoDesign 从一次性的提示词转产物生成器，升级成一个本地设计 agent：
 
 - **带真实工作区的 design**——每个 design 都是一个 pi session，历史写入 JSONL，产物落在磁盘文件里
 - **带权限的本地工具**——read、write、edit、bash、grep、find、ls 都会经过 Open CoDesign 的权限 UI

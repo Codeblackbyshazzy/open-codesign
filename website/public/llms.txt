@@ -18,13 +18,13 @@
 
 Open CoDesign is the open-source desktop alternative to Claude Design, v0 by Vercel, Bolt.new, Lovable, and Figma AI for the design and prototype layer. It is not affiliated with those products. It runs as an Electron desktop app on macOS, Windows, and Linux. Users bring their own model provider key, local model endpoint, keyless enterprise proxy, or ChatGPT Plus / Codex subscription login.
 
-The project emphasizes local-first storage, model choice, exportable files, and no required hosted account. v0.1.4 is the latest public release. v0.2 is in preparation as the Agentic Design update, moving designs toward workspace-backed sessions, permissioned local tools, and `DESIGN.md` design-system artifacts.
+The project emphasizes local-first storage, model choice, exportable files, and no required hosted account. v0.2.0 is the latest public release and ships the Agentic Design update: workspace-backed sessions, permissioned local tools, lazy skills and scaffolds, and `DESIGN.md` design-system artifacts.
 
 ## Key Facts
 
 - Organization: OpenCoworkAI
 - License: MIT
-- Latest release: v0.1.4, published 2026-04-23
+- Latest release: v0.2.0, published 2026-05-09
 - Public metrics snapshot: 3,833 GitHub stars, 383 forks, 8,594 release asset downloads as of 2026-05-01 via GitHub API
 - Stack: Electron, React, Vite, TypeScript, Tailwind CSS, Zustand, VitePress, pnpm workspaces, Turborepo
 - Model routes: Anthropic Claude, OpenAI GPT, Google Gemini, DeepSeek, OpenRouter, SiliconFlow, local Ollama, OpenAI-compatible endpoints, keyless IP-allowlisted proxies, ChatGPT Plus / Codex subscription login

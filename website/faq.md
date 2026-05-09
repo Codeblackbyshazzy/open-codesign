@@ -121,9 +121,9 @@ Yes, when used with a local model runtime like Ollama. All generation flows thro
 - **Markdown exports** — with embedded frontmatter for static-site ingestion.
 - **AI-generated bitmap assets** — hero images, backgrounds, illustrations, logos, generated via gpt-image-2 or OpenRouter image models. Opt-in, off by default.
 
-## What's coming in v0.2?
+## What changed in v0.2?
 
-v0.2 is the Agentic Design update, expected in about one week. It turns Open CoDesign from a one-shot prompt-to-artifact generator into a local design agent:
+v0.2 is the Agentic Design update. It turns Open CoDesign from a one-shot prompt-to-artifact generator into a local design agent:
 
 - **Workspace-backed designs** — every design is a pi session with JSONL history and real files on disk
 - **Permissioned local tools** — read, write, edit, bash, grep, find, and ls flow through Open CoDesign's permission UI

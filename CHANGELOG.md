@@ -2,6 +2,32 @@
 
 All notable changes to Open CoDesign are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-05-09
+
+Agentic Design release. This release turns Open CoDesign from a one-shot generator into a local design agent with workspace-backed sessions, permissioned tool use, and durable design-system files.
+
+### Highlights
+
+- **Workspace-backed design sessions** — every design owns a real workspace folder, with generated sources, assets, exports, `AGENTS.md`, and `DESIGN.md` stored as files instead of sealed app state.
+- **Agent loop and tool harness** — the runtime now routes generation through pi primitives and Open CoDesign design tools including `ask`, `scaffold`, `skill`, `preview`, `gen_image`, `tweaks`, `todos`, and `done`.
+- **Session and migration work** — v0.1 data gains migration coverage toward JSONL-backed sessions and workspace files, with clearer conflict and missing-workspace states.
+- **ChatGPT / Codex subscription path** — ChatGPT Plus / Codex OAuth moves onto pi-ai's `openai-codex-responses` wire with broader model hints and better auth handling.
+- **Provider reliability** — DeepInfra, DeepSeek, Kimi, MiniMax, OpenRouter, relay gateways, reasoning fallbacks, timeout diagnostics, and reportable provider errors all received compatibility hardening.
+- **Security and privacy hardening** — agent-supplied SVG options are sanitized, secrets use Electron safeStorage when available, diagnostics redact encrypted secret rows, private-network provider probes require explicit opt-in, and reference URL fetching rejects private/link-local targets.
+- **Design resources** — expanded examples, scaffolds, skills, brand references, export fidelity, local asset handling, and manifest metadata support richer design outputs.
+- **Desktop UX** — settings were reorganized, comment mode and tweak persistence were hardened, hub thumbnails were cached, generation status is synced before resubmits, and website/community surfaces were refreshed.
+
+### Install
+
+```bash
+winget install OpenCoworkAI.OpenCoDesign           # Windows
+brew install --cask opencoworkai/tap/open-codesign # macOS
+```
+
+Or direct download from [GitHub Releases](https://github.com/OpenCoworkAI/open-codesign/releases/tag/v0.2.0).
+
+---
+
 ## [0.1.4] — 2026-04-23
 
 AI image generation, ChatGPT subscription login, and a large reliability wave for third-party API relays. No breaking changes.

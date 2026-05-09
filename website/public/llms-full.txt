@@ -10,7 +10,7 @@ This file is the long-form machine-readable context for Open CoDesign. It summar
 - Website: https://opencoworkai.github.io/open-codesign/
 - Repository: https://github.com/OpenCoworkAI/open-codesign
 - License: MIT
-- Latest public release: v0.1.4, published 2026-04-23
+- Latest public release: v0.2.0, published 2026-05-09
 - Public metrics snapshot from GitHub API on 2026-05-01: 3,833 stars, 383 forks, 45 open issues, 8,594 release asset downloads
 - Machine-readable project facts: https://opencoworkai.github.io/open-codesign/project.json
 - Machine-readable site index: https://opencoworkai.github.io/open-codesign/site-index.json

@@ -7,7 +7,7 @@ description: Open CoDesign is an open-source desktop AI design tool — a self-h
 hero:
   name: Open CoDesign
   text: Design with intent.
-  tagline: An open-source desktop AI design tool. v0.1.4 is out; v0.2.0 is preparing the Agentic Design update with workspace-backed sessions and permissioned local tools.
+  tagline: An open-source desktop AI design tool. v0.2.0 brings Agentic Design with workspace-backed sessions, permissioned local tools, lazy skills, and DESIGN.md design systems.
   image:
     src: /logo-hero.png
     alt: Open CoDesign — open-source AI design tool

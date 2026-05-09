@@ -37,7 +37,7 @@
 
 ## What's new
 
-- **v0.2.0** *(in preparation, expected in about a week)* — Agentic Design: workspace-backed design sessions · permissioned file/tool loop · lazy skills and scaffolds · `DESIGN.md` design systems
+- **v0.2.0** *(2026-05-09)* — Agentic Design: workspace-backed design sessions · permissioned file/tool loop · lazy skills and scaffolds · `DESIGN.md` design systems
 - **v0.1.4** *(2026-04-23)* — AI image generation · ChatGPT Plus/Codex subscription support · CLIProxyAPI one-click import · API config hardening
 - **v0.1.3** *(2026-04-21)* — Gemini `models/` prefix fix · OpenAI-compatible relay "instructions required" fix · third-party relay SSE-truncation hint
 - **v0.1.2** *(2026-04-21)* — Release pipeline · Homebrew / winget / Scoop packaging manifests
@@ -249,24 +249,24 @@ Add a `SKILL.md` to any project to teach the model your own taste.
 
 ## Roadmap
 
-Current release: v0.1.4. The next release theme is locked: **Agentic Design**.
+Current release: v0.2.0. The current release theme is **Agentic Design**.
 
-### Now — v0.1.4 shipped
+### Now — v0.2.0 shipped
 
-- **AI image generation** — opt-in bitmap assets through OpenAI image models or OpenRouter image models
-- **ChatGPT Plus / Codex subscription login** — one-click OAuth for users who do not want to paste an API key
-- **CLIProxyAPI one-click import** — auto-detect a running local proxy and bring it into Settings
-- **API config hardening** — clearer relay diagnostics for timeouts, SSE truncation, missing `/models`, and incompatible Messages APIs
-
-### Next — v0.2.0 (Agentic Design)
-
-Expected in about a week. v0.2 turns Open CoDesign from a one-shot generator into a local design agent with a real workspace:
+v0.2 turns Open CoDesign from a one-shot generator into a local design agent with a real workspace:
 
 - **Design as session** — every design is a pi session with JSONL history and a workspace folder on disk
 - **Permissioned agent loop** — pi built-ins for read, write, edit, bash, grep, find, and ls, gated by Open CoDesign's permission UI
 - **Design tools on demand** — `ask`, `scaffold`, `skill`, `preview`, `gen_image`, `tweaks`, `todos`, and `done`
 - **`DESIGN.md` as shared memory** — brand tokens and design-system decisions become editable files, not model memory
 - **v0.1 migration path** — existing SQLite designs migrate into workspaces and session history
+
+### Previous — v0.1.4
+
+- **AI image generation** — opt-in bitmap assets through OpenAI image models or OpenRouter image models
+- **ChatGPT Plus / Codex subscription login** — one-click OAuth for users who do not want to paste an API key
+- **CLIProxyAPI one-click import** — auto-detect a running local proxy and bring it into Settings
+- **API config hardening** — clearer relay diagnostics for timeouts, SSE truncation, missing `/models`, and incompatible Messages APIs
 
 ### Later — v0.2.x and beyond
 

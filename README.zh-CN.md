@@ -35,7 +35,7 @@
 
 ## 最近更新
 
-- **v0.2.0** *（准备中，预计一周左右发布）* — Agentic Design：带真实工作区的设计会话 · 带权限的文件 / 工具循环 · 按需加载 skill 和 scaffold · `DESIGN.md` 设计系统
+- **v0.2.0** *（2026-05-09）* — Agentic Design：带真实工作区的设计会话 · 带权限的文件 / 工具循环 · 按需加载 skill 和 scaffold · `DESIGN.md` 设计系统
 - **v0.1.4** *（2026-04-23）* — AI 图像生成 · 支持 ChatGPT Plus / Codex 订阅登录 · CLIProxyAPI 一键导入 · API 配置稳定性优化
 - **v0.1.3** *（2026-04-21）* — 修复 Gemini `models/` 前缀 key · 修复 OpenAI 兼容中转 "instructions required" 报错 · 新增第三方中转 SSE 截断提示
 - **v0.1.2** *（2026-04-21）* — 发版流程 · Homebrew / winget / Scoop 打包清单
@@ -247,24 +247,24 @@ brew install --cask opencoworkai/tap/open-codesign
 
 ## Roadmap
 
-当前版本是 v0.1.4，v0.2.0 正在准备中。优先级仍可能调整，但下一版主题已经确定：**Agentic Design**。
+当前版本是 v0.2.0，主题是 **Agentic Design**。
 
-### Now — v0.1.4 已发布
+### Now — v0.2.0 已发布
 
-- **AI 图像生成**：通过 OpenAI 图像模型或 OpenRouter 图像模型生成位图素材，默认关闭，可在设置里启用
-- **ChatGPT Plus / Codex 订阅登录**：一键 OAuth，适合不想手动粘贴 API Key 的用户
-- **CLIProxyAPI 一键导入**：自动发现正在运行的本地代理，并带入 Settings
-- **API 配置稳定性优化**：对 timeout、SSE 截断、缺少 `/models`、Messages API 不兼容等中转问题给出更清楚的诊断
-
-### Next — v0.2.0（Agentic Design）
-
-预计一周左右发布。v0.2 会把 Open CoDesign 从一次性生成器升级成一个本地设计 agent，每个设计都有真实工作区：
+v0.2 会把 Open CoDesign 从一次性生成器升级成一个本地设计 agent，每个设计都有真实工作区：
 
 - **Design as session**：每个 design 都是一个 pi session，历史写入 JSONL，产物落在磁盘工作区
 - **带权限的 agent loop**：复用 pi 的 read、write、edit、bash、grep、find、ls，由 Open CoDesign 权限 UI 统一拦截
 - **按需调用设计工具**：`ask`、`scaffold`、`skill`、`preview`、`gen_image`、`tweaks`、`todos`、`done`
 - **`DESIGN.md` 作为设计系统源文件**：品牌 token 和设计决策写成可编辑文件，而不是存在模型记忆里
 - **v0.1 迁移路径**：旧 SQLite 设计会迁移到真实工作区和 session history
+
+### Previous — v0.1.4
+
+- **AI 图像生成**：通过 OpenAI 图像模型或 OpenRouter 图像模型生成位图素材，默认关闭，可在设置里启用
+- **ChatGPT Plus / Codex 订阅登录**：一键 OAuth，适合不想手动粘贴 API Key 的用户
+- **CLIProxyAPI 一键导入**：自动发现正在运行的本地代理，并带入 Settings
+- **API 配置稳定性优化**：对 timeout、SSE 截断、缺少 `/models`、Messages API 不兼容等中转问题给出更清楚的诊断
 
 ### Later — v0.2.x 及之后
 
